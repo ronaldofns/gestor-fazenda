@@ -12,32 +12,17 @@ export async function migrateOldData() {
     const mesAtual = hoje.getMonth() + 1;
     const anoAtual = hoje.getFullYear();
 
-    // Buscar primeira fazenda ou criar uma padrão
+    // Buscar primeira fazenda (não criar automaticamente)
     const fazendas = await db.fazendas.toArray();
-    let fazendaPadraoId: string;
-
-    if (fazendas.length === 0) {
-      // Criar fazenda padrão se não existir nenhuma
-      const { uuid } = await import('../utils/uuid');
-      fazendaPadraoId = uuid();
-      const now = new Date().toISOString();
-      await db.fazendas.add({
-        id: fazendaPadraoId,
-        nome: 'Fazenda Padrão',
-        createdAt: now,
-        updatedAt: now,
-        synced: false
-      });
-    } else {
-      fazendaPadraoId = fazendas[0].id;
-    }
+    const fazendaPadraoId = fazendas.length > 0 ? fazendas[0].id : null;
 
     // Migrar nascimentos antigos
     for (const nascimento of todosNascimentos) {
       const updates: any = {};
       let precisaAtualizar = false;
 
-      if (!nascimento.fazendaId) {
+      // Só atualizar fazendaId se houver uma fazenda disponível
+      if (!nascimento.fazendaId && fazendaPadraoId) {
         updates.fazendaId = fazendaPadraoId;
         precisaAtualizar = true;
       }

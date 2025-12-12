@@ -8,11 +8,13 @@ import {
   LogOut,
   Menu,
   X,
-  RefreshCw
+  RefreshCw,
+  Users,
+  Download
 } from 'lucide-react';
-import { supabase } from '../api/supabaseClient';
 import SyncStatus from './SyncStatus';
 import useSync from '../hooks/useSync';
+import { useAuth } from '../hooks/useAuth';
 
 // Variável global para rastrear estado de sincronização
 let globalSyncing = false;
@@ -35,6 +37,7 @@ export function getGlobalSyncing() {
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout, user, isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   
@@ -63,8 +66,8 @@ export default function Sidebar() {
     };
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    logout();
     navigate('/login', { replace: true });
   };
 
@@ -87,17 +90,15 @@ export default function Sidebar() {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/', label: 'Planilha', icon: FileSpreadsheet },
+    { path: '/planilha', label: 'Planilha', icon: FileSpreadsheet },
     { path: '/fazendas', label: 'Fazendas', icon: Building2 },
     { path: '/importar-planilha', label: 'Importar Planilha', icon: Upload },
+    ...(isAdmin() ? [{ path: '/usuarios', label: 'Usuários', icon: Users }] : []),
   ];
 
-  const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/';
-    }
-    return location.pathname.startsWith(path);
-  };
+      const isActive = (path: string) => {
+        return location.pathname === path || location.pathname.startsWith(path + '/');
+      };
 
   return (
     <>
@@ -193,47 +194,64 @@ export default function Sidebar() {
                 <span className="absolute inset-0 bg-blue-700 opacity-20 animate-pulse" />
               )}
             </button>
-            <button
-              onClick={async () => {
-                if (confirm('Deseja limpar o cache do navegador? Isso irá:\n\n- Limpar IndexedDB\n- Limpar Local Storage\n- Limpar Session Storage\n- Limpar Cache do navegador\n\nA aplicação será recarregada após a limpeza.')) {
-                  try {
-                    // Limpar IndexedDB
-                    if ('indexedDB' in window) {
-                      const databases = await indexedDB.databases();
-                      for (const db of databases) {
-                        if (db.name) {
-                          indexedDB.deleteDatabase(db.name);
+                <button
+                  onClick={async () => {
+                    try {
+                      const { exportarBackupCompleto } = await import('../utils/exportarDados');
+                      const resultado = await exportarBackupCompleto();
+                      alert(`Backup exportado com sucesso!\n\nArquivo: ${resultado.nomeArquivo}\n\nTotal de registros:\n- Fazendas: ${resultado.totalRegistros.totalFazendas}\n- Raças: ${resultado.totalRegistros.totalRacas}\n- Nascimentos: ${resultado.totalRegistros.totalNascimentos}\n- Desmamas: ${resultado.totalRegistros.totalDesmamas}\n- Usuários: ${resultado.totalRegistros.totalUsuarios}`);
+                    } catch (error) {
+                      console.error('Erro ao exportar backup:', error);
+                      alert('Erro ao exportar backup. Tente novamente.');
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors shadow-sm text-sm"
+                  title="Exportar backup completo dos dados"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Backup Completo</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    if (confirm('Deseja limpar o cache do navegador? Isso irá:\n\n- Limpar IndexedDB\n- Limpar Local Storage\n- Limpar Session Storage\n- Limpar Cache do navegador\n\nA aplicação será recarregada após a limpeza.')) {
+                      try {
+                        // Limpar IndexedDB
+                        if ('indexedDB' in window) {
+                          const databases = await indexedDB.databases();
+                          for (const db of databases) {
+                            if (db.name) {
+                              indexedDB.deleteDatabase(db.name);
+                            }
+                          }
                         }
+                        
+                        // Limpar Local Storage
+                        localStorage.clear();
+                        
+                        // Limpar Session Storage
+                        sessionStorage.clear();
+                        
+                        // Limpar Cache (se suportado)
+                        if ('caches' in window) {
+                          const cacheNames = await caches.keys();
+                          await Promise.all(
+                            cacheNames.map(name => caches.delete(name))
+                          );
+                        }
+                        
+                        alert('Cache limpo com sucesso! A página será recarregada.');
+                        window.location.reload();
+                      } catch (error) {
+                        console.error('Erro ao limpar cache:', error);
+                        alert('Erro ao limpar cache. Tente limpar manualmente pelo navegador.');
                       }
                     }
-                    
-                    // Limpar Local Storage
-                    localStorage.clear();
-                    
-                    // Limpar Session Storage
-                    sessionStorage.clear();
-                    
-                    // Limpar Cache (se suportado)
-                    if ('caches' in window) {
-                      const cacheNames = await caches.keys();
-                      await Promise.all(
-                        cacheNames.map(name => caches.delete(name))
-                      );
-                    }
-                    
-                    alert('Cache limpo com sucesso! A página será recarregada.');
-                    window.location.reload();
-                  } catch (error) {
-                    console.error('Erro ao limpar cache:', error);
-                    alert('Erro ao limpar cache. Tente limpar manualmente pelo navegador.');
-                  }
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors shadow-sm text-sm"
-              title="Limpar cache do navegador"
-            >
-              <span>🗑️ Limpar Cache</span>
-            </button>
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors shadow-sm text-sm"
+                  title="Limpar cache do navegador"
+                >
+                  <span>🗑️ Limpar Cache</span>
+                </button>
           </div>
 
           {/* Logout */}

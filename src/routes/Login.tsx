@@ -1,31 +1,107 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../api/supabaseClient';
-import { LogIn, Mail, Lock } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { LogIn, Mail, Lock, RefreshCw } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { db } from '../db/dexieDB';
+import { pullUpdates } from '../api/syncService';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user, loading: authLoading, login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [verificandoUsuarios, setVerificandoUsuarios] = useState(true);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [temUsuarios, setTemUsuarios] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm();
+
+  // Sincronizar usuários do Supabase antes de verificar
+  useEffect(() => {
+    const verificarUsuarios = async () => {
+      try {
+        // Primeiro, verificar se há usuários locais
+        let usuarios = await db.usuarios.toArray();
+        
+        // Se não houver usuários locais, tentar sincronizar do Supabase
+        if (usuarios.length === 0) {
+          setSincronizando(true);
+          try {
+            // Fazer pull apenas de usuários do Supabase (mais rápido)
+            const { pullUsuarios } = await import('../api/syncService');
+            await pullUsuarios();
+            // Verificar novamente após sincronização
+            usuarios = await db.usuarios.toArray();
+          } catch (syncError) {
+            console.error('Erro ao sincronizar usuários:', syncError);
+            // Continuar mesmo se a sincronização falhar (pode estar offline)
+          } finally {
+            setSincronizando(false);
+          }
+        }
+        
+        setTemUsuarios(usuarios.length > 0);
+      } catch (error) {
+        console.error('Erro ao verificar usuários:', error);
+      } finally {
+        setVerificandoUsuarios(false);
+      }
+    };
+
+    verificarUsuarios();
+  }, []);
+
+  // Verificar se já está autenticado
+  useEffect(() => {
+    if (!authLoading && user) {
+      // Usuário já autenticado, redirecionar
+      const from = (location.state as any)?.from?.pathname || '/dashboard';
+      navigate(from, { replace: true });
+    }
+  }, [user, authLoading, navigate, location]);
 
   async function onSubmit(data: any) {
     setError(null);
     setLoading(true);
+    
     try {
-    const { email, password } = data;
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-      navigate('/dashboard');
+      const { email, password } = data;
+      await login(email, password);
+      
+      // Login bem-sucedido, redirecionar
+      const from = (location.state as any)?.from?.pathname || '/dashboard';
+      navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login');
     } finally {
       setLoading(false);
     }
+  }
+  
+  if (authLoading || verificandoUsuarios) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="text-gray-500">
+            {sincronizando ? 'Sincronizando usuários...' : 'Carregando...'}
+          </div>
+          {sincronizando && (
+            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>Buscando usuários do servidor</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Se não há usuários, redirecionar para setup
+  if (!temUsuarios) {
+    navigate('/setup', { replace: true });
+    return null;
   }
 
   return (
@@ -107,6 +183,17 @@ export default function Login() {
               )}
             </button>
           </form>
+          
+          {!temUsuarios && (
+            <div className="mt-4 text-center">
+              <Link
+                to="/setup"
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                Primeira vez? Configure o sistema
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

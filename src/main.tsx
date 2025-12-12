@@ -6,6 +6,7 @@ import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import localforage from 'localforage';
 import App from './App';
 import { migrateOldData } from './db/migration';
+import { AuthProvider } from './hooks/useAuth';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -41,12 +42,35 @@ persistQueryClient({
 // Executar migração de dados antigos
 migrateOldData().catch(console.error);
 
-createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+// Limpar sessão antiga do Supabase Auth (se existir) - agora usamos autenticação local
+if (typeof window !== 'undefined') {
+  try {
+    const supabaseAuth = localStorage.getItem('gestor-fazenda-auth');
+    if (supabaseAuth) {
+      // Limpar apenas se for uma sessão do Supabase Auth antiga
+      try {
+        const parsed = JSON.parse(supabaseAuth);
+        if (parsed?.currentSession?.access_token) {
+          // É uma sessão do Supabase Auth antiga, limpar
+          localStorage.removeItem('gestor-fazenda-auth');
+          console.log('Sessão antiga do Supabase Auth removida');
+        }
+      } catch (e) {
+        // Não é JSON válido, pode ser outra coisa, não fazer nada
+      }
+    }
+  } catch (e) {
+    // Ignorar erros ao limpar
+  }
+}
+
+const root = createRoot(document.getElementById('root')!);
+root.render(
+  <BrowserRouter>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <AuthProvider>
         <App />
-      </BrowserRouter>
+      </AuthProvider>
     </QueryClientProvider>
-  </React.StrictMode>
+  </BrowserRouter>
 );

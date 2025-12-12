@@ -60,7 +60,15 @@ export async function pushPending() {
         if (!error && data && data.length) {
           await db.racas.update(r.id, { synced: true, remoteId: data[0].id });
         } else if (error) {
-          console.error('Erro ao sincronizar raça:', error, r.id, r.nome);
+          console.error('Erro ao sincronizar raça:', {
+            error: error,
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            racaId: r.id,
+            nome: r.nome
+          });
         }
       } catch (err) {
         console.error('Erro ao processar raça:', err, r.id);
@@ -94,7 +102,15 @@ export async function pushPending() {
         if (!error && data && data.length) {
           await db.fazendas.update(f.id, { synced: true, remoteId: data[0].id });
         } else if (error) {
-          console.error('Erro ao sincronizar fazenda:', error, f.id);
+          console.error('Erro ao sincronizar fazenda:', {
+            error: error,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            fazendaId: f.id,
+            nome: f.nome
+          });
         }
       } catch (err) {
         console.error('Erro ao processar fazenda:', err, f.id);
@@ -191,6 +207,59 @@ export async function pushPending() {
     console.error('Erro geral ao fazer push de desmamas:', err);
     throw err;
   }
+
+  // Sincronizar usuários
+  try {
+    const todosUsuarios = await db.usuarios.toArray();
+    const pendUsuarios = todosUsuarios.filter(u => u.synced === false);
+    
+    for (const u of pendUsuarios) {
+      try {
+        const { data, error } = await supabase
+          .from('usuarios_online')
+          .upsert(
+            {
+              uuid: u.id,
+              nome: u.nome,
+              email: u.email,
+              senha_hash: u.senhaHash,
+              role: u.role,
+              fazenda_uuid: u.fazendaId || null,
+              ativo: u.ativo,
+              created_at: u.createdAt,
+              updated_at: u.updatedAt
+            },
+            { onConflict: 'uuid' }
+          )
+          .select('id, uuid');
+
+        if (!error && data && data.length) {
+          await db.usuarios.update(u.id, { synced: true, remoteId: data[0].id });
+        } else if (error) {
+          console.error('Erro ao sincronizar usuário:', {
+            error: error,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            usuarioId: u.id,
+            email: u.email
+          });
+        }
+      } catch (err: any) {
+        console.error('Erro ao processar usuário:', {
+          error: err,
+          message: err?.message,
+          stack: err?.stack,
+          usuarioId: u.id,
+          email: u.email
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Erro geral ao fazer push de usuários:', err);
+    throw err;
+  }
 }
 
 export async function pullUpdates() {
@@ -198,8 +267,18 @@ export async function pullUpdates() {
   try {
     const { data: servRacas, error: errorRacas } = await supabase.from('racas_online').select('*');
     if (errorRacas) {
-      console.error('Erro ao buscar raças do servidor:', errorRacas);
-    } else if (servRacas) {
+      console.error('Erro ao buscar raças do servidor:', {
+        error: errorRacas,
+        message: errorRacas.message,
+        code: errorRacas.code,
+        details: errorRacas.details,
+        hint: errorRacas.hint
+      });
+      // Não excluir dados locais em caso de erro
+    } else if (servRacas && servRacas.length > 0) {
+      // IMPORTANTE: Só processar se houver dados no servidor
+      // Se servRacas for [] (vazio), preservar dados locais
+      
       // Criar conjunto de UUIDs que existem no servidor
       const servUuids = new Set(servRacas.map(r => r.uuid));
       
@@ -208,6 +287,7 @@ export async function pullUpdates() {
       const racasSincronizadas = todasRacasLocais.filter(r => r.remoteId != null);
       
       // Excluir localmente as que não existem mais no servidor
+      // Mas só se o servidor retornou dados (não está vazio)
       for (const local of racasSincronizadas) {
         if (!servUuids.has(local.id)) {
           await db.racas.delete(local.id);
@@ -246,8 +326,18 @@ export async function pullUpdates() {
   try {
     const { data: servFaz, error: errorFaz } = await supabase.from('fazendas_online').select('*');
     if (errorFaz) {
-      console.error('Erro ao buscar fazendas do servidor:', errorFaz);
-    } else if (servFaz) {
+      console.error('Erro ao buscar fazendas do servidor:', {
+        error: errorFaz,
+        message: errorFaz.message,
+        code: errorFaz.code,
+        details: errorFaz.details,
+        hint: errorFaz.hint
+      });
+      // Não excluir dados locais em caso de erro
+    } else if (servFaz && servFaz.length > 0) {
+      // IMPORTANTE: Só processar se houver dados no servidor
+      // Se servFaz for [] (vazio), preservar dados locais
+      
       // Criar conjunto de UUIDs que existem no servidor
       const servUuids = new Set(servFaz.map(f => f.uuid));
       
@@ -256,6 +346,7 @@ export async function pullUpdates() {
       const fazendasSincronizadas = todasFazendasLocais.filter(f => f.remoteId != null);
       
       // Excluir localmente as que não existem mais no servidor
+      // Mas só se o servidor retornou dados (não está vazio)
       for (const local of fazendasSincronizadas) {
         if (!servUuids.has(local.id)) {
           console.log('Fazenda excluída no servidor, excluindo localmente:', local.id, local.nome);
@@ -297,10 +388,17 @@ export async function pullUpdates() {
   try {
     const { data: servNasc, error: errorNasc } = await supabase.from('nascimentos_online').select('*');
     if (errorNasc) {
-      console.error('Erro ao buscar nascimentos do servidor:', errorNasc);
-      throw errorNasc;
-    }
-  if (servNasc) {
+      console.error('Erro ao buscar nascimentos do servidor:', {
+        error: errorNasc,
+        message: errorNasc.message,
+        code: errorNasc.code,
+        details: errorNasc.details,
+        hint: errorNasc.hint
+      });
+      // Não excluir dados locais em caso de erro
+    } else if (servNasc && servNasc.length > 0) {
+      // IMPORTANTE: Só processar se houver dados no servidor
+      // Se servNasc for [] (vazio), preservar dados locais
     // Buscar lista de registros excluídos localmente
     let deletedUuids = new Set<string>();
     try {
@@ -463,24 +561,33 @@ export async function pullUpdates() {
   try {
     const { data: servDesm, error: errorDesm } = await supabase.from('desmamas_online').select('*');
     if (errorDesm) {
-      console.error('Erro ao buscar desmamas do servidor:', errorDesm);
-      throw errorDesm;
-    }
-  if (servDesm) {
-    // Criar conjunto de UUIDs que existem no servidor
-    const servUuids = new Set(servDesm.map(d => d.uuid));
-    
-    // Buscar todas as desmamas locais que foram sincronizadas (têm remoteId)
-    const todasDesmamasLocais = await db.desmamas.toArray();
-    const desmamasSincronizadas = todasDesmamasLocais.filter(d => d.remoteId != null);
-    
-    // Excluir localmente as que não existem mais no servidor
-    for (const local of desmamasSincronizadas) {
-      if (!servUuids.has(local.id)) {
-        console.log('Desmama excluída no servidor, excluindo localmente:', local.id);
-        await db.desmamas.delete(local.id);
+      console.error('Erro ao buscar desmamas do servidor:', {
+        error: errorDesm,
+        message: errorDesm.message,
+        code: errorDesm.code,
+        details: errorDesm.details,
+        hint: errorDesm.hint
+      });
+      // Não excluir dados locais em caso de erro
+    } else if (servDesm && servDesm.length > 0) {
+      // IMPORTANTE: Só processar se houver dados no servidor
+      // Se servDesm for [] (vazio), preservar dados locais
+      
+      // Criar conjunto de UUIDs que existem no servidor
+      const servUuids = new Set(servDesm.map(d => d.uuid));
+      
+      // Buscar todas as desmamas locais que foram sincronizadas (têm remoteId)
+      const todasDesmamasLocais = await db.desmamas.toArray();
+      const desmamasSincronizadas = todasDesmamasLocais.filter(d => d.remoteId != null);
+      
+      // Excluir localmente as que não existem mais no servidor
+      // Mas só se o servidor retornou dados (não está vazio)
+      for (const local of desmamasSincronizadas) {
+        if (!servUuids.has(local.id)) {
+          console.log('Desmama excluída no servidor, excluindo localmente:', local.id);
+          await db.desmamas.delete(local.id);
+        }
       }
-    }
     
     // Adicionar/atualizar desmamas do servidor
     for (const s of servDesm) {
@@ -512,6 +619,143 @@ export async function pullUpdates() {
   } catch (err) {
     console.error('Erro ao processar pull de desmamas:', err);
     throw err;
+  }
+
+  // Buscar usuários
+  try {
+    const { data: servUsuarios, error: errorUsuarios } = await supabase.from('usuarios_online').select('*');
+    if (errorUsuarios) {
+      console.error('Erro ao buscar usuários do servidor:', errorUsuarios);
+      // Não excluir dados locais em caso de erro
+    } else if (servUsuarios && servUsuarios.length > 0) {
+      // IMPORTANTE: Só processar se houver dados no servidor
+      // Se servUsuarios for [] (vazio), preservar dados locais
+      
+      // Criar conjunto de UUIDs que existem no servidor
+      const servUuids = new Set(servUsuarios.map(u => u.uuid));
+      
+      // Buscar todos os usuários locais que foram sincronizados (têm remoteId)
+      const todosUsuariosLocais = await db.usuarios.toArray();
+      const usuariosSincronizados = todosUsuariosLocais.filter(u => u.remoteId != null);
+      
+      // Excluir localmente os que não existem mais no servidor
+      // Mas só se o servidor retornou dados (não está vazio)
+      for (const local of usuariosSincronizados) {
+        if (!servUuids.has(local.id)) {
+          console.log('Usuário excluído no servidor, excluindo localmente:', local.id);
+          await db.usuarios.delete(local.id);
+        }
+      }
+      
+      // Adicionar/atualizar usuários do servidor
+      for (const s of servUsuarios) {
+        const local = await db.usuarios.get(s.uuid);
+        if (!local) {
+          await db.usuarios.add({
+            id: s.uuid,
+            nome: s.nome,
+            email: s.email,
+            senhaHash: s.senha_hash,
+            role: s.role,
+            fazendaId: s.fazenda_uuid || undefined,
+            ativo: s.ativo,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+        } else {
+          // Atualizar apenas se a versão do servidor for mais recente
+          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
+            await db.usuarios.update(local.id, {
+              nome: s.nome,
+              email: s.email,
+              senhaHash: s.senha_hash, // Atualizar hash se mudou no servidor
+              role: s.role,
+              fazendaId: s.fazenda_uuid || undefined,
+              ativo: s.ativo,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de usuários:', err);
+    throw err;
+  }
+}
+
+/**
+ * Sincroniza apenas usuários do servidor (usado na inicialização)
+ * Mais rápido que pullUpdates completo
+ * IMPORTANTE: Não exclui usuários locais, apenas adiciona/atualiza do servidor
+ */
+export async function pullUsuarios() {
+  try {
+    const { data: servUsuarios, error: errorUsuarios } = await supabase.from('usuarios_online').select('*');
+    if (errorUsuarios) {
+      console.error('Erro ao buscar usuários do servidor:', errorUsuarios);
+      // Não lançar erro - permitir continuar com dados locais
+      return;
+    }
+    if (servUsuarios && servUsuarios.length > 0) {
+      // IMPORTANTE: Não excluir usuários locais nesta função!
+      // Esta função é usada na inicialização e não deve perder dados locais
+      // Apenas adicionar/atualizar usuários do servidor
+      
+      // Adicionar/atualizar usuários do servidor
+      for (const s of servUsuarios) {
+        const local = await db.usuarios.get(s.uuid);
+        if (!local) {
+          // Adicionar novo usuário do servidor
+          await db.usuarios.add({
+            id: s.uuid,
+            nome: s.nome,
+            email: s.email,
+            senhaHash: s.senha_hash,
+            role: s.role,
+            fazendaId: s.fazenda_uuid || undefined,
+            ativo: s.ativo,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+        } else {
+          // Atualizar apenas se a versão do servidor for mais recente
+          // Mas preservar dados locais se o servidor não tiver remoteId
+          if (local.remoteId && new Date(local.updatedAt) < new Date(s.updated_at)) {
+            await db.usuarios.update(local.id, {
+              nome: s.nome,
+              email: s.email,
+              senhaHash: s.senha_hash, // Atualizar hash se mudou no servidor
+              role: s.role,
+              fazendaId: s.fazenda_uuid || undefined,
+              ativo: s.ativo,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } else if (!local.remoteId) {
+            // Se o usuário local não tem remoteId, atualizar para ter
+            await db.usuarios.update(local.id, {
+              synced: true,
+              remoteId: s.id,
+              // Atualizar outros campos apenas se necessário
+              updatedAt: s.updated_at > local.updatedAt ? s.updated_at : local.updatedAt
+            });
+          }
+        }
+      }
+    }
+    // Se servUsuarios for null ou vazio, não fazer nada (preservar dados locais)
+  } catch (err) {
+    console.error('Erro ao processar pull de usuários:', err);
+    // Não lançar erro para não bloquear o login
+    // Apenas logar o erro e continuar com dados locais
   }
 }
 

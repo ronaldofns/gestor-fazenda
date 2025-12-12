@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -9,9 +9,11 @@ import useSync from '../hooks/useSync';
 import SyncStatus from '../components/SyncStatus';
 import Combobox from '../components/Combobox';
 import ModalRaca from '../components/ModalRaca';
-import { Plus, Edit, Trash2, Users, User, TrendingUp, Mars, Venus, Upload, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, User, TrendingUp, Mars, Venus, Upload, ChevronLeft, ChevronRight, X, FileText, Download, FileSpreadsheet } from 'lucide-react';
 import { cleanDuplicateNascimentos } from '../utils/cleanDuplicates';
 import { uuid } from '../utils/uuid';
+import { gerarRelatorioPDF } from '../utils/gerarRelatorioPDF';
+import { exportarParaExcel, exportarParaCSV } from '../utils/exportarDados';
 
 const OPCOES_ITENS_POR_PAGINA = [30, 50, 100];
 const ITENS_POR_PAGINA_PADRAO = 50;
@@ -42,8 +44,10 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingEdicao, setIsSubmittingEdicao] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
+  const [menuExportarAberto, setMenuExportarAberto] = useState(false);
   const matrizInputRef = useRef<HTMLInputElement>(null);
   const matrizInputRefEdicao = useRef<HTMLInputElement>(null);
+  const menuExportarRef = useRef<HTMLDivElement>(null);
   
   // Garantir que o banco está aberto ao montar o componente
   useEffect(() => {
@@ -595,6 +599,89 @@ export default function Home() {
     return new Date(2000, mes - 1).toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
   };
 
+  // Verificar se pode gerar relatório (Fazenda, Mês e Ano devem estar preenchidos)
+  const podeGerarRelatorio = useMemo(() => {
+    return filtroFazenda !== '' && filtroMes !== '' && filtroAno !== '';
+  }, [filtroFazenda, filtroMes, filtroAno]);
+
+  // Função para gerar relatório PDF
+  const handleGerarRelatorio = () => {
+    if (!podeGerarRelatorio || !fazendaSelecionada) {
+      alert('Por favor, preencha os filtros de Fazenda, Mês e Ano para gerar o relatório.');
+      return;
+    }
+
+    try {
+      gerarRelatorioPDF({
+        nascimentos: nascimentosFiltrados,
+        desmamas: desmamasMap,
+        fazendaNome: fazendaSelecionada.nome,
+        mes: filtroMes as number,
+        ano: filtroAno as number,
+        totais: {
+          vacas: totais.vacas,
+          novilhas: totais.novilhas,
+          femeas: totais.femeas,
+          machos: totais.machos,
+          totalGeral: totais.totalGeral,
+          totalMortos: nascimentosFiltrados.filter(n => n.morto).length
+        }
+      });
+      setMenuExportarAberto(false);
+    } catch (error) {
+      console.error('Erro ao gerar relatório:', error);
+      alert('Erro ao gerar relatório. Tente novamente.');
+    }
+  };
+
+  // Função para exportar para Excel
+  const handleExportarExcel = () => {
+    try {
+      exportarParaExcel({
+        nascimentos: nascimentosFiltrados,
+        desmamas: desmamasMap,
+        fazendaNome: fazendaSelecionada?.nome,
+        mes: filtroMes !== '' ? filtroMes as number : undefined,
+        ano: filtroAno !== '' ? filtroAno as number : undefined
+      });
+      setMenuExportarAberto(false);
+    } catch (error) {
+      console.error('Erro ao exportar para Excel:', error);
+      alert('Erro ao exportar para Excel. Tente novamente.');
+    }
+  };
+
+  // Função para exportar para CSV
+  const handleExportarCSV = () => {
+    try {
+      exportarParaCSV({
+        nascimentos: nascimentosFiltrados,
+        desmamas: desmamasMap,
+        fazendaNome: fazendaSelecionada?.nome,
+        mes: filtroMes !== '' ? filtroMes as number : undefined,
+        ano: filtroAno !== '' ? filtroAno as number : undefined
+      });
+      setMenuExportarAberto(false);
+    } catch (error) {
+      console.error('Erro ao exportar para CSV:', error);
+      alert('Erro ao exportar para CSV. Tente novamente.');
+    }
+  };
+
+  // Fechar menu de exportação ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuExportarRef.current && !menuExportarRef.current.contains(event.target as Node)) {
+        setMenuExportarAberto(false);
+      }
+    };
+
+    if (menuExportarAberto) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [menuExportarAberto]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -678,7 +765,53 @@ export default function Home() {
               />
             </div>
 
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
+              {/* Dropdown de Exportação */}
+              <div className="relative flex-1" ref={menuExportarRef}>
+                <button
+                  onClick={() => setMenuExportarAberto(!menuExportarAberto)}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  title="Exportar dados"
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">Exportar</span>
+                  <span className="sm:hidden">Exp</span>
+                </button>
+                {/* Menu Dropdown */}
+                {menuExportarAberto && (
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                    <div className="py-1">
+                      <button
+                        onClick={handleExportarExcel}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                        Exportar Excel (.xlsx)
+                      </button>
+                      <button
+                        onClick={handleExportarCSV}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                        Exportar CSV (.csv)
+                      </button>
+                      <div className="border-t border-gray-200 my-1"></div>
+                      <button
+                        onClick={() => {
+                          handleGerarRelatorio();
+                          setMenuExportarAberto(false);
+                        }}
+                        disabled={!podeGerarRelatorio}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={!podeGerarRelatorio ? 'Preencha Fazenda, Mês e Ano para gerar o relatório' : 'Gerar relatório PDF'}
+                      >
+                        <FileText className="w-4 h-4 text-red-600" />
+                        Gerar PDF
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => {
                   setFiltroMes('');
@@ -686,9 +819,9 @@ export default function Home() {
                   setFiltroFazenda('');
                   setFiltroMatrizBrinco('');
                 }}
-                className="w-full px-3 py-2 text-sm bg-gray-200 text-gray-700 font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                className="flex-1 px-3 py-2 text-sm bg-gray-200 text-gray-700 font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
               >
-                Limpar Filtros
+                Limpar
               </button>
             </div>
           </div>

@@ -47,3 +47,19 @@ export interface Desmama {
   synced: boolean;
   remoteId?: number | null;
 }
+
+export type UserRole = 'admin' | 'gerente' | 'peao' | 'visitante';
+
+export interface Usuario {
+  id: string;
+  nome: string;
+  email: string;
+  senhaHash: string; // Hash da senha (nunca armazenar senha em texto plano)
+  role: UserRole;
+  fazendaId?: string; // ID da fazenda associada (opcional)
+  ativo: boolean; // Se o usuário está ativo
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean; // Se foi sincronizado com o servidor
+  remoteId?: number | null; // ID remoto no Supabase
+}
