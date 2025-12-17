@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Usuario } from './models';
+import { Nascimento, Desmama, Fazenda, Raca, Usuario, Matriz } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -15,6 +15,7 @@ class AppDB extends Dexie {
   nascimentos!: Dexie.Table<Nascimento, string>;
   desmamas!: Dexie.Table<Desmama, string>;
   usuarios!: Dexie.Table<Usuario, string>; // Tabela de usuários locais
+  matrizes!: Dexie.Table<Matriz, string>;
   deletedRecords!: Dexie.Table<DeletedRecord, string>; // Tabela para rastrear exclusões
 
   constructor() {
@@ -78,6 +79,17 @@ class AppDB extends Dexie {
       nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
       desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
       usuarios: 'id, email, nome, role, fazendaId, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced'
+    });
+
+    // Versão 9: Adicionar tabela de matrizes
+    this.version(9).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, categoria, raca, dataNascimento, ativo',
       deletedRecords: 'id, uuid, remoteId, deletedAt, synced'
     });
   }

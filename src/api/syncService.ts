@@ -1,6 +1,22 @@
 import { db } from '../db/dexieDB';
 import { supabase } from './supabaseClient';
 
+function toIsoDate(dateStr?: string | null) {
+  if (!dateStr) return null;
+  // já está em ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr;
+  // dd/mm/aaaa
+  const parts = dateStr.split('/');
+  if (parts.length === 3) {
+    const [dd, mm, yyyy] = parts;
+    if (dd && mm && yyyy && dd.length <= 2 && mm.length <= 2 && yyyy.length === 4) {
+      return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    }
+  }
+  // fallback: devolver original
+  return dateStr;
+}
+
 export async function pushPending() {
   // Sincronizar exclusões pendentes primeiro
   try {
@@ -140,14 +156,14 @@ export async function pushPending() {
       .upsert(
         {
           uuid: n.id,
-              fazenda_uuid: n.fazendaId,
+          fazenda_uuid: n.fazendaId,
           matriz_id: n.matrizId,
-              mes: n.mes,
-              ano: n.ano,
-              novilha: n.novilha || false,
-              vaca: n.vaca || false,
+          mes: n.mes,
+          ano: n.ano,
+          novilha: n.novilha || false,
+          vaca: n.vaca || false,
           brinco_numero: n.brincoNumero,
-          data_nascimento: n.dataNascimento,
+          data_nascimento: toIsoDate(n.dataNascimento),
           sexo: n.sexo,
           raca: n.raca,
           obs: n.obs,
@@ -185,7 +201,7 @@ export async function pushPending() {
         {
           uuid: d.id,
           nascimento_uuid: d.nascimentoId,
-          data_desmama: d.dataDesmama,
+          data_desmama: toIsoDate(d.dataDesmama),
           peso_desmama: d.pesoDesmama,
           created_at: d.createdAt,
           updated_at: d.updatedAt

@@ -15,10 +15,15 @@ import Sidebar from './components/Sidebar';
 import InstallPrompt from './components/InstallPrompt';
 import OfflineIndicator from './components/OfflineIndicator';
 import SplashScreen from './components/SplashScreen';
+import { ToastContainer } from './components/Toast';
+import Notificacoes from './routes/Notificacoes';
+import Matrizes from './routes/Matrizes';
+import CadastroMatriz from './routes/CadastroMatriz';
 
 export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <ToastContainer />
       <SplashScreen />
       <OfflineIndicator />
       <InstallPrompt />
@@ -36,6 +41,10 @@ export default function App() {
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/planilha" element={<Home />} />
+                    <Route path="/matrizes" element={<Matrizes />} />
+                    <Route path="/matrizes/nova" element={<CadastroMatriz />} />
+                    <Route path="/matrizes/editar/:id" element={<CadastroMatriz />} />
+                    <Route path="/notificacoes" element={<Notificacoes />} />
                   <Route path="/desmama/:nascimentoId" element={<CadastroDesmama />} />
                   <Route path="/fazendas" element={<ListaFazendas />} />
                   <Route path="/nova-fazenda" element={<CadastroFazenda />} />

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useTransition } from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
 
 export interface ComboboxOption {
@@ -18,7 +18,7 @@ export interface ComboboxProps {
   allowCustomValue?: boolean; // Permite valores que não estão na lista
 }
 
-export default function Combobox({
+function ComboboxComponent({
   value,
   onChange,
   options,
@@ -30,10 +30,10 @@ export default function Combobox({
   allowCustomValue = true
 }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [filteredOptions, setFilteredOptions] = useState<string[] | ComboboxOption[]>(options);
   const [inputValue, setInputValue] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isPending, startTransition] = useTransition();
 
   // Normalizar opções para formato unificado
   const normalizeOptions = (opts: string[] | ComboboxOption[]): ComboboxOption[] => {
@@ -42,11 +42,12 @@ export default function Combobox({
     );
   };
 
+  const normalizedOptions = useMemo(() => normalizeOptions(options), [options]);
+
   // Função para encontrar o label baseado no value
   const getLabelFromValue = (val: string, opts: string[] | ComboboxOption[]): string => {
     if (!val) return '';
-    const normalized = normalizeOptions(opts);
-    const matchingOption = normalized.find(opt => opt.value === val);
+    const matchingOption = normalizedOptions.find(opt => opt.value === val);
     return matchingOption ? matchingOption.label : val;
   };
 
@@ -57,32 +58,20 @@ export default function Combobox({
     if (label !== inputValue) {
       setInputValue(label);
     }
-  }, [value]); // Só quando value prop mudar, não quando options mudarem
+  }, [value, options, normalizedOptions]); // Só quando value prop mudar
 
-  useEffect(() => {
-    const normalized = normalizeOptions(options);
-    // Só filtrar se o usuário estiver digitando (inputValue não corresponde exatamente a uma opção)
-    if (inputValue && isOpen) {
-      const exactMatch = normalized.find(opt => 
-        opt.label.toLowerCase() === inputValue.toLowerCase() ||
-        opt.value.toLowerCase() === inputValue.toLowerCase()
-      );
-      
-      // Se há correspondência exata, mostrar todas as opções (para permitir ver outras opções)
-      // Caso contrário, filtrar baseado no que está sendo digitado
-      if (exactMatch) {
-        setFilteredOptions(normalized);
-      } else {
-        const filtered = normalized.filter(opt =>
-          opt.label.toLowerCase().includes(inputValue.toLowerCase()) ||
-          opt.value.toLowerCase().includes(inputValue.toLowerCase())
-        );
-        setFilteredOptions(filtered);
-      }
-    } else {
-      setFilteredOptions(normalized);
-    }
-  }, [inputValue, options, isOpen]);
+  const filteredOptions = useMemo(() => {
+    if (!inputValue || !isOpen) return normalizedOptions;
+    const exactMatch = normalizedOptions.find(opt =>
+      opt.label.toLowerCase() === inputValue.toLowerCase() ||
+      opt.value.toLowerCase() === inputValue.toLowerCase()
+    );
+    if (exactMatch) return normalizedOptions;
+    return normalizedOptions.filter(opt =>
+      opt.label.toLowerCase().includes(inputValue.toLowerCase()) ||
+      opt.value.toLowerCase().includes(inputValue.toLowerCase())
+    );
+  }, [inputValue, isOpen, normalizedOptions]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -102,13 +91,13 @@ export default function Combobox({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
-    onChange(newValue);
+    startTransition(() => onChange(newValue));
     setIsOpen(true);
   };
 
   const handleSelect = (option: ComboboxOption) => {
     setInputValue(option.label);
-    onChange(option.value);
+    startTransition(() => onChange(option.value));
     setIsOpen(false);
     inputRef.current?.blur();
   };
@@ -117,14 +106,13 @@ export default function Combobox({
     if (!disabled) {
       // Quando focar, se o valor atual corresponde exatamente a uma opção válida,
       // limpar o filtro para mostrar todas as opções
-      const normalized = normalizeOptions(options);
-      const currentValueMatches = normalized.some(opt => 
+      const currentValueMatches = normalizedOptions.some(opt => 
         opt.label === inputValue || opt.value === inputValue
       );
       
       // Se o valor atual corresponde a uma opção, mostrar todas as opções ao focar
       if (currentValueMatches) {
-        setFilteredOptions(normalized);
+        // nada a fazer: filteredOptions já depende de normalizedOptions
       }
       
       setIsOpen(true);
@@ -142,9 +130,8 @@ export default function Combobox({
       e.preventDefault();
     } else if (e.key === 'Enter' && !allowCustomValue && filteredOptions.length === 1) {
       // Se não permite valor customizado e há apenas uma opção filtrada, selecionar
-      const normalized = normalizeOptions(filteredOptions);
-      if (normalized.length === 1) {
-        handleSelect(normalized[0]);
+      if (filteredOptions.length === 1) {
+        handleSelect(filteredOptions[0]);
         e.preventDefault();
       }
     }
@@ -153,14 +140,13 @@ export default function Combobox({
   const handleBlur = () => {
     // Se não permite valor customizado e o valor não está nas opções, limpar ou usar o valor mais próximo
     if (!allowCustomValue && inputValue) {
-      const normalized = normalizeOptions(options);
-      const exactMatch = normalized.find(opt => 
+      const exactMatch = normalizedOptions.find(opt => 
         opt.label.toLowerCase() === inputValue.toLowerCase() ||
         opt.value.toLowerCase() === inputValue.toLowerCase()
       );
-      if (!exactMatch && normalized.length > 0) {
+      if (!exactMatch && normalizedOptions.length > 0) {
         // Tentar encontrar a primeira opção que começa com o valor digitado
-        const partialMatch = normalized.find(opt =>
+        const partialMatch = normalizedOptions.find(opt =>
           opt.label.toLowerCase().startsWith(inputValue.toLowerCase())
         );
         if (partialMatch) {
@@ -171,8 +157,7 @@ export default function Combobox({
     }
   };
 
-  const normalizedFiltered = normalizeOptions(filteredOptions);
-  const showDropdown = isOpen && normalizedFiltered.length > 0 && !disabled;
+  const showDropdown = isOpen && filteredOptions.length > 0 && !disabled;
 
   return (
     <div className={`flex gap-2 ${className}`}>
@@ -186,6 +171,7 @@ export default function Combobox({
           onKeyDown={handleInputKeyDown}
           onBlur={handleBlur}
           disabled={disabled}
+          aria-busy={isPending}
           className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           placeholder={placeholder}
         />
@@ -195,7 +181,7 @@ export default function Combobox({
         </div>
         {showDropdown && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-            {normalizedFiltered.map((option, index) => (
+            {filteredOptions.map((option, index) => (
               <button
                 key={`${option.value}-${index}`}
                 type="button"
@@ -222,4 +208,6 @@ export default function Combobox({
     </div>
   );
 }
+
+export default React.memo(ComboboxComponent);
 

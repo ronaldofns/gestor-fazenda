@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { createUser, updateUser, getUserById } from '../utils/auth';
+import { showToast } from '../utils/toast';
 import { UserRole } from '../db/models';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -87,7 +88,7 @@ export default function CadastroUsuario() {
           }
         } catch (error) {
           console.error('Erro ao carregar usuário:', error);
-          alert('Erro ao carregar usuário');
+          showToast({ type: 'error', title: 'Erro ao carregar', message: 'Não foi possível carregar o usuário.' });
         }
       };
       loadUsuario();
@@ -113,11 +114,11 @@ export default function CadastroUsuario() {
         }
 
         await updateUser(id, updateData);
-        alert('Usuário atualizado com sucesso!');
+        showToast({ type: 'success', title: 'Usuário atualizado', message: data.nome });
       } else {
         // Criar novo usuário
         if (!data.senha || data.senha.length === 0) {
-          alert('Senha é obrigatória para novo usuário');
+          showToast({ type: 'warning', title: 'Senha obrigatória', message: 'Informe a senha para criar o usuário.' });
           setLoading(false);
           return;
         }
@@ -129,12 +130,12 @@ export default function CadastroUsuario() {
           role: data.role,
           fazendaId: data.fazendaId || undefined
         });
-        alert('Usuário criado com sucesso!');
+        showToast({ type: 'success', title: 'Usuário criado', message: data.nome });
       }
       navigate('/usuarios');
     } catch (error: any) {
       console.error('Erro ao salvar usuário:', error);
-      alert(error.message || 'Erro ao salvar usuário');
+      showToast({ type: 'error', title: 'Erro ao salvar usuário', message: error?.message || 'Tente novamente.' });
     } finally {
       setLoading(false);
     }
@@ -144,7 +145,7 @@ export default function CadastroUsuario() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <Link
               to="/usuarios"
               className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
@@ -166,7 +167,7 @@ export default function CadastroUsuario() {
       <main className="px-2 sm:px-4 lg:px-8 py-4 sm:py-6">
         <div className="bg-white shadow-sm rounded-lg p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nome *</label>
                 <input
@@ -255,7 +256,7 @@ export default function CadastroUsuario() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex justify-end gap-2 pt-4 border-t">
               <Link
                 to="/usuarios"
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"

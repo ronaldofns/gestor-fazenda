@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['logo192.png', 'logo512.png'],
       manifest: {
-        name: 'Gestor Fazenda',
+        name: 'Gerenciador de Fazendas',
         short_name: 'GestorFaz',
         description: 'Sistema de Gestão de Rebanho Bovino',
         start_url: '/',
@@ -71,7 +71,7 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
         type: 'module'
       }
     })

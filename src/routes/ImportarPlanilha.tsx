@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { lerPlanilha, detectarMapeamento, importarNascimentos, MapeamentoColunas, LinhaImportacao, InfoPlanilha } from '../utils/importPlanilha';
+import { showToast } from '../utils/toast';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
 
 export default function ImportarPlanilha() {
@@ -31,7 +32,7 @@ export default function ImportarPlanilha() {
     // Verificar extensão
     const extensao = file.name.split('.').pop()?.toLowerCase();
     if (!['xlsx', 'xls', 'csv'].includes(extensao || '')) {
-      alert('Por favor, selecione um arquivo Excel (.xlsx, .xls) ou CSV (.csv)');
+      showToast({ type: 'warning', title: 'Arquivo inválido', message: 'Selecione um Excel (.xlsx, .xls) ou CSV (.csv)' });
       return;
     }
 
@@ -43,7 +44,7 @@ export default function ImportarPlanilha() {
       const info = await lerPlanilha(file);
       
       if (info.dados.length === 0) {
-        alert('A planilha está vazia ou não pôde ser lida.');
+        showToast({ type: 'warning', title: 'Planilha vazia', message: 'Nenhum dado encontrado no arquivo.' });
         return;
       }
 
@@ -79,24 +80,24 @@ export default function ImportarPlanilha() {
       setDados(info.dados);
     } catch (error) {
       console.error('Erro ao ler planilha:', error);
-      alert('Erro ao ler a planilha. Verifique se o arquivo está correto.');
+      showToast({ type: 'error', title: 'Erro ao ler planilha', message: 'Verifique se o arquivo está correto.' });
     }
   };
 
   const handleImportar = async () => {
     if (dados.length === 0) {
-      alert('Nenhum dado para importar.');
+      showToast({ type: 'warning', title: 'Nada para importar', message: 'Nenhum dado carregado.' });
       return;
     }
 
     // Validar mapeamento mínimo
     if (!mapeamento.matrizId) {
-      alert('Por favor, selecione a coluna da Matriz.');
+      showToast({ type: 'warning', title: 'Mapeamento incompleto', message: 'Selecione a coluna da Matriz.' });
       return;
     }
 
     if (!fazendaPadraoId && !mapeamento.fazenda) {
-      alert('Por favor, selecione uma Fazenda padrão ou a coluna da Fazenda.');
+      showToast({ type: 'warning', title: 'Mapeamento incompleto', message: 'Selecione uma Fazenda padrão ou coluna de Fazenda.' });
       return;
     }
 
@@ -119,7 +120,7 @@ export default function ImportarPlanilha() {
       }
     } catch (error) {
       console.error('Erro ao importar:', error);
-      alert('Erro ao importar os dados. Verifique o console para mais detalhes.');
+      showToast({ type: 'error', title: 'Erro ao importar', message: 'Verifique o console para mais detalhes.' });
     } finally {
       setImportando(false);
     }
@@ -157,7 +158,7 @@ export default function ImportarPlanilha() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Selecione o arquivo (Excel ou CSV)
           </label>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -209,7 +210,7 @@ export default function ImportarPlanilha() {
             </h3>
             <div className="space-y-3">
               {camposMapeamento.map(campo => (
-                <div key={campo.key} className="flex items-center gap-3">
+                <div key={campo.key} className="flex items-center gap-2">
                   <label className="w-32 text-sm text-gray-700 flex-shrink-0">
                     {campo.label}
                     {campo.obrigatorio && <span className="text-red-500 ml-1">*</span>}
@@ -288,7 +289,7 @@ export default function ImportarPlanilha() {
               ? 'bg-green-50 border-green-200' 
               : 'bg-yellow-50 border-yellow-200'
           }`}>
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2">
               {resultado.erros.length === 0 ? (
                 <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
               ) : (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
+import { showToast } from '../utils/toast';
 
 interface ModalRacaProps {
   open: boolean;
@@ -35,7 +36,7 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
       onClose();
     } catch (error) {
       console.error('Erro ao salvar raça:', error);
-      alert('Erro ao salvar raça');
+      showToast({ type: 'error', title: 'Erro ao salvar raça', message: 'Tente novamente.' });
     } finally {
       setSalvando(false);
     }

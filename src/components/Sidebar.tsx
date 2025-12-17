@@ -10,11 +10,18 @@ import {
   X,
   RefreshCw,
   Users,
-  Download
+  Download,
+  Settings,
+  Bell,
+  ListTree
 } from 'lucide-react';
 import SyncStatus from './SyncStatus';
 import useSync from '../hooks/useSync';
 import { useAuth } from '../hooks/useAuth';
+import { showToast } from '../utils/toast';
+import { AlertSettings, useAlertSettings } from '../hooks/useAlertSettings';
+import { useNotifications } from '../hooks/useNotifications';
+import Modal from './Modal';
 
 // Variável global para rastrear estado de sincronização
 let globalSyncing = false;
@@ -37,9 +44,17 @@ export function getGlobalSyncing() {
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user, isAdmin } = useAuth();
+  const { logout, isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const {
+    draftSettings,
+    setDraftSettings,
+    saveSettings,
+    resetSettings
+  } = useAlertSettings();
+  const notificacoes = useNotifications();
   
   // Hook de sincronização automática
   useSync();
@@ -90,7 +105,9 @@ export default function Sidebar() {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/notificacoes', label: 'Notificações', icon: Bell, badge: notificacoes.total },
     { path: '/planilha', label: 'Planilha', icon: FileSpreadsheet },
+    { path: '/matrizes', label: 'Matrizes', icon: ListTree },
     { path: '/fazendas', label: 'Fazendas', icon: Building2 },
     { path: '/importar-planilha', label: 'Importar Planilha', icon: Upload },
     ...(isAdmin() ? [{ path: '/usuarios', label: 'Usuários', icon: Users }] : []),
@@ -152,15 +169,20 @@ export default function Sidebar() {
                       to={item.path}
                       onClick={() => setSidebarOpen(false)}
                       className={`
-                        flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
+                        flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full
                         ${active
                           ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600'
                           : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                         }
                       `}
                     >
-                      <Icon className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
-                      <span className="font-medium">{item.label}</span>
+                      <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
+                      <span className="font-medium whitespace-nowrap flex-1">{item.label}</span>
+                      {item.badge ? (
+                        <span className="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1 text-[11px] font-semibold rounded-full bg-red-500 text-white">
+                          {item.badge}
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 );
@@ -174,6 +196,13 @@ export default function Sidebar() {
               <span className="text-sm text-gray-600">Sincronização</span>
               <SyncStatus />
             </div>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Configurações de alertas</span>
+            </button>
             <button
               onClick={handleManualSync}
               disabled={syncing}
@@ -199,10 +228,18 @@ export default function Sidebar() {
                     try {
                       const { exportarBackupCompleto } = await import('../utils/exportarDados');
                       const resultado = await exportarBackupCompleto();
-                      alert(`Backup exportado com sucesso!\n\nArquivo: ${resultado.nomeArquivo}\n\nTotal de registros:\n- Fazendas: ${resultado.totalRegistros.totalFazendas}\n- Raças: ${resultado.totalRegistros.totalRacas}\n- Nascimentos: ${resultado.totalRegistros.totalNascimentos}\n- Desmamas: ${resultado.totalRegistros.totalDesmamas}\n- Usuários: ${resultado.totalRegistros.totalUsuarios}`);
+                      showToast({
+                        type: 'success',
+                        title: 'Backup exportado',
+                        message: `Arquivo: ${resultado.nomeArquivo}\nFazendas: ${resultado.totalRegistros.totalFazendas}\nRaças: ${resultado.totalRegistros.totalRacas}\nNascimentos: ${resultado.totalRegistros.totalNascimentos}\nDesmamas: ${resultado.totalRegistros.totalDesmamas}\nUsuários: ${resultado.totalRegistros.totalUsuarios}`
+                      });
                     } catch (error) {
                       console.error('Erro ao exportar backup:', error);
-                      alert('Erro ao exportar backup. Tente novamente.');
+                      showToast({
+                        type: 'error',
+                        title: 'Erro ao exportar backup',
+                        message: 'Tente novamente.'
+                      });
                     }
                   }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors shadow-sm text-sm"
@@ -239,11 +276,19 @@ export default function Sidebar() {
                           );
                         }
                         
-                        alert('Cache limpo com sucesso! A página será recarregada.');
+                        showToast({
+                          type: 'success',
+                          title: 'Cache limpo',
+                          message: 'O cache foi limpo. A página será recarregada.'
+                        });
                         window.location.reload();
                       } catch (error) {
                         console.error('Erro ao limpar cache:', error);
-                        alert('Erro ao limpar cache. Tente limpar manualmente pelo navegador.');
+                        showToast({
+                          type: 'error',
+                          title: 'Erro ao limpar cache',
+                          message: 'Tente limpar manualmente pelo navegador.'
+                        });
                       }
                     }
                   }}
@@ -266,6 +311,113 @@ export default function Sidebar() {
           </div>
         </div>
       </aside>
+
+      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)}>
+        <div className="space-y-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Configurações de alertas</h3>
+              <p className="text-sm text-gray-600">Ajuste limites de desmama e mortalidade.</p>
+            </div>
+            <button
+              onClick={() => setSettingsOpen(false)}
+              className="text-gray-500 hover:text-gray-700"
+              aria-label="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Meses sem desmama
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={36}
+                value={draftSettings.limiteMesesDesmama}
+                onChange={(e) =>
+                  setDraftSettings((prev: AlertSettings) => ({
+                    ...prev,
+                    limiteMesesDesmama: Number(e.target.value)
+                  }))
+                }
+                className="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Janela mortalidade (meses)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={24}
+                value={draftSettings.janelaMesesMortalidade}
+                onChange={(e) =>
+                  setDraftSettings((prev: AlertSettings) => ({
+                    ...prev,
+                    janelaMesesMortalidade: Number(e.target.value)
+                  }))
+                }
+                className="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Limiar mortalidade (%)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={draftSettings.limiarMortalidade}
+                onChange={(e) =>
+                  setDraftSettings((prev: AlertSettings) => ({
+                    ...prev,
+                    limiarMortalidade: Number(e.target.value)
+                  }))
+                }
+                className="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                resetSettings();
+                showToast({
+                  type: 'info',
+                  title: 'Configuração padrão',
+                  message: 'Limites restaurados.'
+                });
+              }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Restaurar padrão
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                saveSettings();
+                showToast({
+                  type: 'success',
+                  title: 'Configurações salvas',
+                  message: 'Alertas atualizados.'
+                });
+                setSettingsOpen(false);
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+            >
+              Salvar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

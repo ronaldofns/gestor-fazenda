@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { db } from '../db/dexieDB';
 import { Usuario, UserRole } from '../db/models';
 import { getAllUsers, deleteUser, updateUser } from '../utils/auth';
+import { showToast } from '../utils/toast';
 import { Edit, Trash2, Plus, UserCheck, UserX } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -35,13 +36,13 @@ export default function ListaUsuarios() {
       await updateUser(usuario.id, { ativo: !usuario.ativo });
     } catch (error) {
       console.error('Erro ao atualizar usuário:', error);
-      alert('Erro ao atualizar usuário');
+      showToast({ type: 'error', title: 'Erro ao atualizar usuário', message: 'Tente novamente.' });
     }
   };
 
   const handleDelete = async (usuario: Usuario) => {
     if (usuario.id === currentUser?.id) {
-      alert('Você não pode excluir seu próprio usuário');
+      showToast({ type: 'warning', title: 'Ação bloqueada', message: 'Você não pode excluir seu próprio usuário.' });
       return;
     }
 
@@ -51,9 +52,10 @@ export default function ListaUsuarios() {
 
     try {
       await deleteUser(usuario.id);
+      showToast({ type: 'success', title: 'Usuário excluído', message: usuario.nome });
     } catch (error) {
       console.error('Erro ao excluir usuário:', error);
-      alert('Erro ao excluir usuário');
+      showToast({ type: 'error', title: 'Erro ao excluir usuário', message: 'Tente novamente.' });
     }
   };
 
@@ -67,7 +69,7 @@ export default function ListaUsuarios() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Usuários</h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-1">Gerenciar usuários do sistema</p>

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -12,8 +12,9 @@ import ModalRaca from '../components/ModalRaca';
 import { Plus, Edit, Trash2, Users, User, TrendingUp, Mars, Venus, Upload, ChevronLeft, ChevronRight, X, FileText, Download, FileSpreadsheet } from 'lucide-react';
 import { cleanDuplicateNascimentos } from '../utils/cleanDuplicates';
 import { uuid } from '../utils/uuid';
-import { gerarRelatorioPDF } from '../utils/gerarRelatorioPDF';
+import { gerarRelatorioPDF, gerarRelatorioProdutividadePDF, gerarRelatorioDesmamaPDF, gerarRelatorioMortalidadePDF } from '../utils/gerarRelatorioPDF';
 import { exportarParaExcel, exportarParaCSV } from '../utils/exportarDados';
+import { showToast } from '../utils/toast';
 
 const OPCOES_ITENS_POR_PAGINA = [30, 50, 100];
 const ITENS_POR_PAGINA_PADRAO = 50;
@@ -41,13 +42,15 @@ export default function Home() {
   const [modalEditarNascimentoOpen, setModalEditarNascimentoOpen] = useState(false);
   const [nascimentoEditandoId, setNascimentoEditandoId] = useState<string | null>(null);
   const [modalRacaOpen, setModalRacaOpen] = useState(false);
+  const [matrizHistoricoOpen, setMatrizHistoricoOpen] = useState(false);
+  const [matrizHistoricoId, setMatrizHistoricoId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingEdicao, setIsSubmittingEdicao] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
   const [menuExportarAberto, setMenuExportarAberto] = useState(false);
+  const menuExportarRef = useRef<HTMLDivElement>(null);
   const matrizInputRef = useRef<HTMLInputElement>(null);
   const matrizInputRefEdicao = useRef<HTMLInputElement>(null);
-  const menuExportarRef = useRef<HTMLDivElement>(null);
   
   // Garantir que o banco está aberto ao montar o componente
   useEffect(() => {
@@ -64,7 +67,7 @@ export default function Home() {
     };
     initDB();
   }, []);
-  
+
   // Limpar duplicados uma vez ao carregar a página
   useEffect(() => {
     cleanDuplicateNascimentos().catch(err => {
@@ -77,6 +80,9 @@ export default function Home() {
   const filtroAnoFromUrl = searchParams.get('ano');
   const filtroFazendaFromUrl = searchParams.get('fazenda');
   const filtroMatrizBrincoFromUrl = searchParams.get('matrizBrinco');
+  const filtroSexoFromUrl = searchParams.get('sexo');
+  const filtroStatusFromUrl = searchParams.get('status');
+  const filtroBuscaGlobalFromUrl = searchParams.get('busca');
   const paginaFromUrl = searchParams.get('pagina');
   const itensPorPaginaFromUrl = searchParams.get('itens');
   
@@ -86,12 +92,12 @@ export default function Home() {
   const [filtroAno, setFiltroAno] = useState<number | ''>(
     filtroAnoFromUrl ? Number(filtroAnoFromUrl) : ''
   );
-  const [filtroFazenda, setFiltroFazenda] = useState<string>(
-    filtroFazendaFromUrl || ''
-  );
-  const [filtroMatrizBrinco, setFiltroMatrizBrinco] = useState<string>(
-    filtroMatrizBrincoFromUrl || ''
-  );
+  const [filtroFazenda, setFiltroFazenda] = useState<string>(filtroFazendaFromUrl || '');
+  const [filtroMatrizBrinco, setFiltroMatrizBrinco] = useState<string>(filtroMatrizBrincoFromUrl || '');
+  const [filtroSexo, setFiltroSexo] = useState<'' | 'M' | 'F'>(filtroSexoFromUrl === 'M' || filtroSexoFromUrl === 'F' ? (filtroSexoFromUrl as 'M' | 'F') : '');
+  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'vivos' | 'mortos'>(filtroStatusFromUrl === 'vivos' || filtroStatusFromUrl === 'mortos' ? (filtroStatusFromUrl as 'vivos' | 'mortos') : 'todos');
+  const [buscaGlobal, setBuscaGlobal] = useState<string>(filtroBuscaGlobalFromUrl || '');
+  const [buscasRecentes, setBuscasRecentes] = useState<string[]>([]);
   const [paginaAtual, setPaginaAtual] = useState<number>(
     paginaFromUrl ? Number(paginaFromUrl) : 1
   );
@@ -99,6 +105,13 @@ export default function Home() {
     const valor = itensPorPaginaFromUrl ? Number(itensPorPaginaFromUrl) : ITENS_POR_PAGINA_PADRAO;
     return OPCOES_ITENS_POR_PAGINA.includes(valor) ? valor : ITENS_POR_PAGINA_PADRAO;
   });
+
+  // Valores diferidos para evitar travar a UI ao filtrar listas grandes
+  const filtroFazendaDeferred = useDeferredValue(filtroFazenda);
+  const filtroMatrizBrincoDeferred = useDeferredValue(filtroMatrizBrinco);
+  const filtroSexoDeferred = useDeferredValue(filtroSexo);
+  const filtroStatusDeferred = useDeferredValue(filtroStatus);
+  const buscaGlobalDeferred = useDeferredValue(buscaGlobal);
 
   // Carregar fazendas antes de usar no useEffect
   const fazendasRaw = useLiveQuery(
@@ -122,6 +135,10 @@ export default function Home() {
     return [...fazendasRaw].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [fazendasRaw]);
 
+  const fazendaOptions = useMemo(() => {
+    return [{ label: 'Todas', value: '' }, ...fazendas.map(f => ({ label: f.nome, value: f.id }))];
+  }, [fazendas]);
+
   // Selecionar primeira fazenda automaticamente se não houver filtro na URL e houver fazendas
   useEffect(() => {
     // Só selecionar automaticamente se não houver filtro na URL e não houver fazenda selecionada
@@ -136,7 +153,7 @@ export default function Home() {
   // Resetar página quando filtros mudarem
   useEffect(() => {
     setPaginaAtual(1);
-  }, [filtroMes, filtroAno, filtroFazenda, filtroMatrizBrinco]);
+  }, [filtroMes, filtroAno, filtroFazenda, filtroMatrizBrinco, filtroSexo, filtroStatus, buscaGlobal]);
 
   // Atualizar URL quando filtros, página ou itens por página mudarem
   useEffect(() => {
@@ -152,6 +169,15 @@ export default function Home() {
     }
     if (filtroMatrizBrinco) {
       params.set('matrizBrinco', filtroMatrizBrinco);
+    }
+    if (filtroSexo) {
+      params.set('sexo', filtroSexo);
+    }
+    if (filtroStatus && filtroStatus !== 'todos') {
+      params.set('status', filtroStatus);
+    }
+    if (buscaGlobal.trim()) {
+      params.set('busca', buscaGlobal.trim());
     }
     if (paginaAtual > 1) {
       params.set('pagina', String(paginaAtual));
@@ -285,12 +311,102 @@ export default function Home() {
     return [...racasRaw].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [racasRaw]);
 
+  const racasOptions = useMemo(() => racas.map(r => r.nome), [racas]);
+
+  // Carregar buscas recentes do localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('gf-buscas-recentes');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setBuscasRecentes(parsed.slice(0, 5));
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar buscas recentes:', error);
+    }
+  }, []);
+
+  const salvarBuscaRecente = useCallback((termo: string) => {
+    const t = termo.trim();
+    if (!t) return;
+    setBuscasRecentes((prev) => {
+      const semDuplicata = prev.filter((item) => item.toLowerCase() !== t.toLowerCase());
+      const atualizado = [t, ...semDuplicata].slice(0, 5);
+      localStorage.setItem('gf-buscas-recentes', JSON.stringify(atualizado));
+      return atualizado;
+    });
+  }, []);
+
+  const normalizarBrinco = useCallback((valor?: string) => {
+    return (valor || '').trim().toLowerCase();
+  }, []);
+
+  const verificarBrincoDuplicado = useCallback(
+    async (brincoNumero?: string, fazendaId?: string, ignorarId?: string) => {
+      if (!brincoNumero || !fazendaId) return false;
+      const alvo = normalizarBrinco(brincoNumero);
+      if (!alvo) return false;
+
+      const todos = await db.nascimentos.toArray();
+      return todos.some((n) => {
+        const mesmoBrinco = normalizarBrinco(n.brincoNumero) === alvo;
+        const mesmaFazenda = n.fazendaId === fazendaId;
+        const naoEhMesmoRegistro = n.id !== ignorarId;
+        return mesmoBrinco && mesmaFazenda && naoEhMesmoRegistro;
+      });
+    },
+    [normalizarBrinco]
+  );
+
+  const formatarDataParaBR = useCallback((valor?: string) => {
+    if (!valor) return '';
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(valor)) return valor;
+    const somenteData = valor.split('T')[0];
+    const partes = somenteData.split('-');
+    if (partes.length === 3) {
+      const [ano, mes, dia] = partes;
+      if (ano && mes && dia) {
+        return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${ano}`;
+      }
+    }
+    return valor;
+  }, []);
+
+  const normalizarDataInput = useCallback((valor: string) => {
+    const digits = valor.replace(/\D/g, '').slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+  }, []);
+
+  const handleAbrirEdicao = (id: string) => {
+    setNascimentoEditandoId(id);
+    setModalEditarNascimentoOpen(true);
+  };
+
+  const handleFecharEdicao = () => {
+    setModalEditarNascimentoOpen(false);
+    setNascimentoEditandoId(null);
+  };
+
+  const handleAbrirHistoricoMatriz = (matrizId: string) => {
+    setMatrizHistoricoId(matrizId);
+    setMatrizHistoricoOpen(true);
+  };
+
+  const handleFecharHistoricoMatriz = () => {
+    setMatrizHistoricoOpen(false);
+    setMatrizHistoricoId(null);
+  };
+
   // Valores padrão para o formulário: mês e ano atual
   const hoje = new Date();
   const mesAtual = hoje.getMonth() + 1;
   const anoAtual = hoje.getFullYear();
 
-  const { register: registerNascimento, handleSubmit: handleSubmitNascimento, formState: { errors: errorsNascimento }, reset: resetNascimento, setValue: setValueNascimento, watch: watchNascimento } = useForm<FormDataNascimento>({ 
+  const { register: registerNascimento, handleSubmit: handleSubmitNascimento, formState: { errors: errorsNascimento }, reset: resetNascimento, setValue: setValueNascimento, watch: watchNascimento, setError: setErrorNascimento } = useForm<FormDataNascimento>({ 
     resolver: zodResolver(schemaNascimento),
     defaultValues: {
       mes: mesAtual,
@@ -305,11 +421,29 @@ export default function Home() {
   const anoForm = watchNascimento('ano');
   const dataNascimentoForm = watchNascimento('dataNascimento');
 
+  const handleRacaCadastrada = (racaNome: string) => {
+    setValueNascimento('raca', racaNome);
+  };
+
+  const handleRacaCadastradaEdicao = (racaNome: string) => {
+    setValueEdicao('raca', racaNome);
+  };
+
   async function onSubmitNascimento(values: FormDataNascimento) {
     if (isSubmitting) return;
     
     setIsSubmitting(true);
     try {
+      // Validação de brinco duplicado por fazenda (case-insensitive)
+      if (values.brincoNumero && values.fazendaId) {
+        const duplicado = await verificarBrincoDuplicado(values.brincoNumero, values.fazendaId);
+        if (duplicado) {
+          setErrorNascimento('brincoNumero', { type: 'manual', message: 'Brinco já cadastrado para esta fazenda.' });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const id = uuid();
       const now = new Date().toISOString();
       
@@ -359,7 +493,7 @@ export default function Home() {
       }, 200);
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar. Tente novamente.');
+      showToast({ type: 'error', title: 'Erro ao salvar', message: 'Tente novamente.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -384,17 +518,12 @@ export default function Home() {
     }, 100);
   };
 
-  const handleRacaCadastrada = (racaNome: string) => {
-    setValueNascimento('raca', racaNome);
-  };
-
-  // Formulário de edição
   const nascimentoEditando = useLiveQuery(
-    () => nascimentoEditandoId ? db.nascimentos.get(nascimentoEditandoId) : null,
+    () => (nascimentoEditandoId ? db.nascimentos.get(nascimentoEditandoId) : null),
     [nascimentoEditandoId]
   );
 
-  const { register: registerEdicao, handleSubmit: handleSubmitEdicao, formState: { errors: errorsEdicao }, reset: resetEdicao, setValue: setValueEdicao, watch: watchEdicao } = useForm<FormDataNascimento>({ 
+  const { register: registerEdicao, handleSubmit: handleSubmitEdicao, formState: { errors: errorsEdicao }, reset: resetEdicao, setValue: setValueEdicao, watch: watchEdicao, setError: setErrorEdicao } = useForm<FormDataNascimento>({
     resolver: zodResolver(schemaNascimento),
     shouldUnregister: false
   });
@@ -419,21 +548,21 @@ export default function Home() {
     }
   }, [nascimentoEditando, modalEditarNascimentoOpen, resetEdicao]);
 
-  const handleAbrirEdicao = (id: string) => {
-    setNascimentoEditandoId(id);
-    setModalEditarNascimentoOpen(true);
-  };
-
-  const handleFecharEdicao = () => {
-    setModalEditarNascimentoOpen(false);
-    setNascimentoEditandoId(null);
-  };
-
   async function onSubmitEdicao(values: FormDataNascimento) {
     if (isSubmittingEdicao || !nascimentoEditandoId) return;
     
     setIsSubmittingEdicao(true);
     try {
+      // Validação de brinco duplicado por fazenda (case-insensitive)
+      if (values.brincoNumero && values.fazendaId) {
+        const duplicado = await verificarBrincoDuplicado(values.brincoNumero, values.fazendaId, nascimentoEditandoId);
+        if (duplicado) {
+          setErrorEdicao('brincoNumero', { type: 'manual', message: 'Brinco já cadastrado para esta fazenda.' });
+          setIsSubmittingEdicao(false);
+          return;
+        }
+      }
+
       const novilha = values.tipo === 'novilha';
       const vaca = values.tipo === 'vaca';
       
@@ -458,17 +587,24 @@ export default function Home() {
       handleFecharEdicao();
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar. Tente novamente.');
+      showToast({ type: 'error', title: 'Erro ao salvar', message: 'Tente novamente.' });
     } finally {
       setIsSubmittingEdicao(false);
     }
   }
 
-  const handleRacaCadastradaEdicao = (racaNome: string) => {
-    setValueEdicao('raca', racaNome);
-  };
 
   // Aplicar filtros (mantendo a ordem de lançamento)
+  const fazendaMap = useMemo(() => {
+    const map = new Map<string, string>();
+    fazendas.forEach((f) => {
+      if (f.id) {
+        map.set(f.id, f.nome || '');
+      }
+    });
+    return map;
+  }, [fazendas]);
+
   const nascimentosFiltrados = useMemo(() => {
     if (!nascimentosTodos || !Array.isArray(nascimentosTodos) || nascimentosTodos.length === 0) {
       return [];
@@ -487,22 +623,48 @@ export default function Home() {
     }
     
     // Filtrar por fazenda (só se houver uma fazenda selecionada)
-    if (filtroFazenda && filtroFazenda !== '') {
-      filtrados = filtrados.filter(n => n.fazendaId === filtroFazenda);
+    if (filtroFazendaDeferred && filtroFazendaDeferred !== '') {
+      filtrados = filtrados.filter(n => n.fazendaId === filtroFazendaDeferred);
     }
     
     // Filtrar por matriz/brinco
-    if (filtroMatrizBrinco && filtroMatrizBrinco.trim() !== '') {
-      const busca = filtroMatrizBrinco.toLowerCase().trim();
+    if (filtroMatrizBrincoDeferred && filtroMatrizBrincoDeferred.trim() !== '') {
+      const busca = filtroMatrizBrincoDeferred.toLowerCase().trim();
       filtrados = filtrados.filter(n => {
         const matrizMatch = n.matrizId?.toLowerCase().includes(busca);
         const brincoMatch = n.brincoNumero?.toLowerCase().includes(busca);
         return matrizMatch || brincoMatch;
       });
     }
+
+    // Filtrar por sexo
+    if (filtroSexoDeferred) {
+      filtrados = filtrados.filter((n) => n.sexo === filtroSexoDeferred);
+    }
+
+    // Filtrar por status (vivos/mortos)
+    if (filtroStatusDeferred === 'vivos') {
+      filtrados = filtrados.filter((n) => !n.morto);
+    } else if (filtroStatusDeferred === 'mortos') {
+      filtrados = filtrados.filter((n) => n.morto);
+    }
+
+    // Busca global (matriz, brinco, raça, fazenda, obs)
+    if (buscaGlobalDeferred.trim()) {
+      const termo = buscaGlobalDeferred.trim().toLowerCase();
+      filtrados = filtrados.filter((n) => {
+        const matriz = n.matrizId?.toLowerCase().includes(termo);
+        const brinco = n.brincoNumero?.toLowerCase().includes(termo);
+        const raca = n.raca?.toLowerCase().includes(termo);
+        const obs = n.obs?.toLowerCase().includes(termo);
+        const fazendaNome = fazendaMap.get(n.fazendaId)?.toLowerCase() || '';
+        const fazendaMatch = fazendaNome.includes(termo);
+        return matriz || brinco || raca || obs || fazendaMatch;
+      });
+    }
     
     return filtrados;
-  }, [nascimentosTodos, filtroMes, filtroAno, filtroFazenda, filtroMatrizBrinco]);
+  }, [nascimentosTodos, filtroMes, filtroAno, filtroFazendaDeferred, filtroMatrizBrincoDeferred, filtroSexoDeferred, filtroStatusDeferred, buscaGlobalDeferred, fazendaMap]);
 
   // Paginação
   const totalPaginas = useMemo(() => {
@@ -526,6 +688,9 @@ export default function Home() {
     return nascimentosFiltrados.slice(inicio, fim);
   }, [nascimentosFiltrados, inicio, fim]);
 
+  // Adiar renderização de grandes listas para não travar inputs
+  const nascimentosView = useDeferredValue(nascimentos);
+
   // Ajustar página atual quando itens por página mudar ou quando total de páginas mudar
   useEffect(() => {
     if (totalPaginas > 0 && paginaAtual > totalPaginas) {
@@ -541,6 +706,51 @@ export default function Home() {
     }
     return map;
   }, [desmamas]);
+
+  // Histórico da matriz selecionada
+  const matrizHistorico = useMemo(() => {
+    if (!matrizHistoricoId) return [];
+    if (!Array.isArray(nascimentosTodos) || nascimentosTodos.length === 0) return [];
+
+    const itens = nascimentosTodos.filter((n) => n.matrizId === matrizHistoricoId);
+    if (itens.length === 0) return [];
+
+    const lista = itens.map((n) => {
+      const desmama = desmamas.find((d) => d.nascimentoId === n.id);
+      const fazendaNome = fazendaMap.get(n.fazendaId) || 'Sem fazenda';
+      return {
+        id: n.id,
+        ano: n.ano,
+        mes: n.mes,
+        periodo: n.mes && n.ano ? `${String(n.mes).padStart(2, '0')}/${n.ano}` : String(n.ano || ''),
+        fazenda: fazendaNome,
+        sexo: n.sexo || '',
+        raca: n.raca || '',
+        brinco: n.brincoNumero || '',
+        morto: n.morto || false,
+        dataNascimento: n.dataNascimento,
+        dataDesmama: desmama?.dataDesmama,
+        pesoDesmama: desmama?.pesoDesmama ?? null,
+      };
+    });
+
+    return lista.sort((a, b) => {
+      const aKey = (a.ano || 0) * 100 + (a.mes || 0);
+      const bKey = (b.ano || 0) * 100 + (b.mes || 0);
+      return aKey - bKey;
+    });
+  }, [matrizHistoricoId, nascimentosTodos, desmamas, fazendaMap]);
+
+  const matrizResumo = useMemo(() => {
+    if (!matrizHistoricoId || matrizHistorico.length === 0) return null;
+    const totalPartos = matrizHistorico.length;
+    const mortos = matrizHistorico.filter((i) => i.morto).length;
+    const vivos = totalPartos - mortos;
+    const comPeso = matrizHistorico.filter((i) => i.pesoDesmama && i.pesoDesmama > 0).length;
+    const somaPeso = matrizHistorico.reduce((sum, i) => sum + (i.pesoDesmama || 0), 0);
+    const mediaPeso = comPeso > 0 ? somaPeso / comPeso : 0;
+    return { totalPartos, vivos, mortos, comPeso, mediaPeso };
+  }, [matrizHistoricoId, matrizHistorico]);
 
   // Calcular totais detalhados (usando dados filtrados, não paginados)
   const totais = useMemo(() => {
@@ -607,7 +817,7 @@ export default function Home() {
   // Função para gerar relatório PDF
   const handleGerarRelatorio = () => {
     if (!podeGerarRelatorio || !fazendaSelecionada) {
-      alert('Por favor, preencha os filtros de Fazenda, Mês e Ano para gerar o relatório.');
+      showToast({ type: 'warning', title: 'Filtros obrigatórios', message: 'Preencha Fazenda, Mês e Ano para gerar o relatório.' });
       return;
     }
 
@@ -630,7 +840,7 @@ export default function Home() {
       setMenuExportarAberto(false);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
-      alert('Erro ao gerar relatório. Tente novamente.');
+      showToast({ type: 'error', title: 'Erro ao gerar PDF', message: 'Tente novamente.' });
     }
   };
 
@@ -647,7 +857,7 @@ export default function Home() {
       setMenuExportarAberto(false);
     } catch (error) {
       console.error('Erro ao exportar para Excel:', error);
-      alert('Erro ao exportar para Excel. Tente novamente.');
+      showToast({ type: 'error', title: 'Erro ao exportar Excel', message: 'Tente novamente.' });
     }
   };
 
@@ -664,7 +874,7 @@ export default function Home() {
       setMenuExportarAberto(false);
     } catch (error) {
       console.error('Erro ao exportar para CSV:', error);
-      alert('Erro ao exportar para CSV. Tente novamente.');
+      showToast({ type: 'error', title: 'Erro ao exportar CSV', message: 'Tente novamente.' });
     }
   };
 
@@ -686,7 +896,7 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 break-words">PLANILHA NASCIMENTO/DESMAMA</h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-1 break-words">
@@ -696,10 +906,10 @@ export default function Home() {
                 {fazendaSelecionada && ` - ${fazendaSelecionada.nome}`}
               </p>
             </div>
-            <button
+      <button
               onClick={() => {
                 if (fazendas.length === 0) {
-                  alert('Você precisa cadastrar pelo menos uma fazenda antes de criar um nascimento.');
+                  showToast({ type: 'warning', title: 'Cadastre uma fazenda', message: 'Crie pelo menos uma fazenda antes de lançar nascimentos.' });
                   return;
                 }
                 setModalNovoNascimentoOpen(true);
@@ -712,13 +922,13 @@ export default function Home() {
           </div>
 
           {/* Filtros */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-4 border-t">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-4 border-t">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Fazenda</label>
               <Combobox
                 value={filtroFazenda}
                 onChange={setFiltroFazenda}
-                options={[{ label: 'Todas', value: '' }, ...fazendas.map(f => ({ label: f.nome, value: f.id }))]}
+                options={fazendaOptions}
                 placeholder="Todas as fazendas"
                 allowCustomValue={false}
               />
@@ -765,6 +975,79 @@ export default function Home() {
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Sexo</label>
+              <select
+                value={filtroSexo}
+                onChange={(e) => setFiltroSexo(e.target.value as '' | 'M' | 'F')}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="M">Macho</option>
+                <option value="F">Fêmea</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={filtroStatus}
+                onChange={(e) => setFiltroStatus(e.target.value as 'todos' | 'vivos' | 'mortos')}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="todos">Todos</option>
+                <option value="vivos">Vivos</option>
+                <option value="mortos">Mortos</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Busca global</label>
+                <input
+                  type="text"
+                  value={buscaGlobal}
+                  onChange={(e) => setBuscaGlobal(e.target.value)}
+                  onBlur={(e) => salvarBuscaRecente(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      salvarBuscaRecente(buscaGlobal);
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Brinco, matriz, fazenda, raça, obs"
+                />
+              </div>
+              {buscasRecentes.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {buscasRecentes.map((termo) => (
+                    <button
+                      key={termo}
+                      onClick={() => {
+                        setBuscaGlobal(termo);
+                        salvarBuscaRecente(termo);
+                      }}
+                      className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full border border-gray-200 transition-colors"
+                      title="Aplicar busca recente"
+                    >
+                      {termo}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setBuscasRecentes([]);
+                      localStorage.removeItem('gf-buscas-recentes');
+                    }}
+                    className="text-[10px] px-2 py-1 text-gray-500 hover:text-gray-700"
+                    title="Limpar histórico de buscas"
+                  >
+                    limpar
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-end gap-2">
               {/* Dropdown de Exportação */}
               <div className="relative flex-1" ref={menuExportarRef}>
@@ -808,6 +1091,136 @@ export default function Home() {
                         <FileText className="w-4 h-4 text-red-600" />
                         Gerar PDF
                       </button>
+                      <button
+                        onClick={() => {
+                          try {
+                            const desmamasComDados = nascimentosFiltrados
+                              .filter(n => desmamasMap.has(n.id))
+                              .map(n => {
+                                const desmama = desmamasMap.get(n.id);
+                                const fazenda = fazendas.find(f => f.id === n.fazendaId);
+                                return {
+                                  matrizId: n.matrizId,
+                                  brinco: n.brincoNumero,
+                                  fazenda: fazenda?.nome || 'Sem fazenda',
+                                  raca: n.raca,
+                                  sexo: n.sexo,
+                                  dataNascimento: n.dataNascimento,
+                                  dataDesmama: desmama?.dataDesmama,
+                                  pesoDesmama: desmama?.pesoDesmama
+                                };
+                              });
+
+                            const periodoLabel = filtroMes && filtroAno
+                              ? `${filtroMes.toString().padStart(2, '0')}/${filtroAno}`
+                              : filtroAno
+                              ? `Ano ${filtroAno}`
+                              : 'Todos os períodos';
+
+                            gerarRelatorioDesmamaPDF({
+                              periodo: periodoLabel,
+                              desmamas: desmamasComDados
+                            });
+                            setMenuExportarAberto(false);
+                            showToast({ type: 'success', title: 'Relatório gerado', message: 'PDF de desmama com médias de peso gerado com sucesso.' });
+                          } catch (error) {
+                            console.error('Erro ao gerar relatório de desmama:', error);
+                            showToast({ type: 'error', title: 'Erro ao gerar PDF', message: 'Tente novamente.' });
+                          }
+                        }}
+                        disabled={nascimentosFiltrados.filter(n => desmamasMap.has(n.id)).length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={nascimentosFiltrados.filter(n => desmamasMap.has(n.id)).length === 0 ? 'Nenhuma desmama encontrada nos dados filtrados' : 'Gerar relatório de desmama com médias de peso'}
+                      >
+                        <FileText className="w-4 h-4 text-purple-600" />
+                        PDF Desmama (Médias)
+                      </button>
+                      <button
+                        onClick={() => {
+                          const fazendasAgrupadas = nascimentosFiltrados.reduce((map, n) => {
+                            const nome = fazendas.find((f) => f.id === n.fazendaId)?.nome || 'Sem fazenda';
+                            const entry = map.get(nome) || { total: 0, mortos: 0, desmamas: 0 };
+                            entry.total += 1;
+                            if (n.morto) entry.mortos += 1;
+                            if (desmamasMap.has(n.id)) entry.desmamas += 1;
+                            map.set(nome, entry);
+                            return map;
+                          }, new Map<string, { total: number; mortos: number; desmamas: number }>());
+
+                          const periodoLabel = `${(filtroMes || mesAtual).toString().padStart(2, '0')}/${filtroAno || anoAtual}`;
+                          const payload = Array.from(fazendasAgrupadas.entries()).map(([fazendaNome, dados]) => {
+                            const vivos = dados.total - dados.mortos;
+                            const taxaMortandade = dados.total > 0 ? ((dados.mortos / dados.total) * 100).toFixed(2) : '0.00';
+                            const taxaDesmama = dados.total > 0 ? ((dados.desmamas / dados.total) * 100).toFixed(2) : '0.00';
+                            return {
+                              fazenda: fazendaNome,
+                              totalNascimentos: dados.total,
+                              mortos: dados.mortos,
+                              vivos,
+                              taxaMortandade,
+                              desmamas: dados.desmamas,
+                              taxaDesmama,
+                              periodo: periodoLabel
+                            };
+                          });
+
+                          gerarRelatorioProdutividadePDF({
+                            periodo: periodoLabel,
+                            fazendas: payload
+                          });
+                          setMenuExportarAberto(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <FileText className="w-4 h-4 text-indigo-600" />
+                        PDF Produtividade
+                      </button>
+                      <button
+                        onClick={() => {
+                          const agrupadoPorRaca = nascimentosFiltrados.reduce((map, n) => {
+                            const raca = (n.raca || 'Sem raça').toUpperCase();
+                            const entry = map.get(raca) || { total: 0, mortos: 0 };
+                            entry.total += 1;
+                            if (n.morto) entry.mortos += 1;
+                            map.set(raca, entry);
+                            return map;
+                          }, new Map<string, { total: number; mortos: number }>());
+
+                          const periodoLabel = filtroMes && filtroAno
+                            ? `${filtroMes.toString().padStart(2, '0')}/${filtroAno}`
+                            : filtroAno
+                            ? `Ano ${filtroAno}`
+                            : 'Todos os períodos';
+
+                          const linhas = Array.from(agrupadoPorRaca.entries())
+                            .map(([raca, dados]) => {
+                              const vivos = dados.total - dados.mortos;
+                              const taxaMortandade = dados.total > 0
+                                ? ((dados.mortos / dados.total) * 100).toFixed(2)
+                                : '0.00';
+                              return {
+                                raca,
+                                totalNascimentos: dados.total,
+                                vivos,
+                                mortos: dados.mortos,
+                                taxaMortandade
+                              };
+                            })
+                            .sort((a, b) => b.mortos - a.mortos);
+
+                          gerarRelatorioMortalidadePDF({
+                            periodo: periodoLabel,
+                            linhas
+                          });
+                          setMenuExportarAberto(false);
+                        }}
+                        disabled={nascimentosFiltrados.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Gerar relatório de mortalidade por raça'}
+                      >
+                        <FileText className="w-4 h-4 text-red-600" />
+                        PDF Mortalidade (Raças)
+                      </button>
                     </div>
                   </div>
                 )}
@@ -849,19 +1262,26 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {nascimentos.length === 0 ? (
+                {nascimentosView.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                       Nenhum nascimento cadastrado ainda.
                     </td>
                   </tr>
                 ) : (
-                  nascimentos.map((n) => {
+                  nascimentosView.map((n) => {
                     const desmama = desmamasMap.get(n.id);
                     return (
                       <tr key={n.id} className={`hover:bg-gray-50 ${n.morto ? 'bg-red-50' : ''}`}>
                         <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 border-r">
-                          {n.matrizId}
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
+                            className="text-left text-blue-700 hover:text-blue-900 hover:underline"
+                            title="Ver histórico da matriz"
+                          >
+                            {n.matrizId}
+                          </button>
                         </td>
                         <td className="px-1 py-2 whitespace-nowrap text-center border-r">
                           {n.novilha ? <span className="text-blue-600 font-bold text-xs">X</span> : ''}
@@ -969,7 +1389,7 @@ export default function Home() {
                                     await db.nascimentos.delete(n.id);
                                   } catch (error) {
                                     console.error('Erro ao excluir:', error);
-                                    alert(`Erro ao excluir: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+                                    showToast({ type: 'error', title: 'Erro ao excluir', message: error instanceof Error ? error.message : 'Erro desconhecido' });
                                   }
                                 }
                               }}
@@ -1097,19 +1517,25 @@ export default function Home() {
 
         {/* Versão Mobile - Cards */}
         <div className="md:hidden space-y-3 mt-4">
-          {nascimentos.length === 0 ? (
+          {nascimentosView.length === 0 ? (
             <div className="bg-white p-6 rounded-lg shadow-sm text-center text-gray-500">
               Nenhum nascimento cadastrado ainda.
             </div>
         ) : (
-            nascimentos.map((n) => {
+            nascimentosView.map((n) => {
               const desmama = desmamasMap.get(n.id);
               return (
                 <div key={n.id} className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-sm sm:text-base font-semibold text-gray-900 break-words">Matriz: {n.matrizId}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
+                          className="text-sm sm:text-base font-semibold text-blue-700 hover:text-blue-900 break-words underline-offset-2 hover:underline"
+                        >
+                          Matriz: {n.matrizId}
+                        </button>
                         {n.novilha && <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded whitespace-nowrap">Novilha</span>}
                         {n.vaca && <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded whitespace-nowrap">Vaca</span>}
                       </div>
@@ -1201,7 +1627,7 @@ export default function Home() {
                               await db.nascimentos.delete(n.id);
                             } catch (error) {
                               console.error('Erro ao excluir:', error);
-                              alert(`Erro ao excluir: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+                              showToast({ type: 'error', title: 'Erro ao excluir', message: error instanceof Error ? error.message : 'Erro desconhecido' });
                             }
                           }
                         }}
@@ -1290,7 +1716,7 @@ export default function Home() {
           </div>
           <div className="p-6">
             {/* Cards principais */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-6">
               {/* Card Vacas */}
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
                 <div className="flex items-center justify-between mb-2">
@@ -1332,7 +1758,7 @@ export default function Home() {
             {totais.totaisPorRaca.length > 0 && (
               <div className="mb-6">
                 <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-3">Totais por Raça</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {totais.totaisPorRaca.map(({ raca, total }) => (
                     <div key={raca} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                       <div className="text-xs sm:text-sm text-gray-600 mb-1 break-words">{raca}</div>
@@ -1354,7 +1780,7 @@ export default function Home() {
                 <span className="ml-2 text-xs sm:text-sm text-gray-700">nascimentos</span>
               </div>
               <div className="mt-3 pt-3 border-t border-gray-300">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2 text-xs sm:text-sm">
                   <div>
                     <span className="text-gray-600">Vacas: </span>
                     <span className="font-semibold text-gray-800">{totais.vacas}</span>
@@ -1406,7 +1832,7 @@ export default function Home() {
                     <Combobox
                       value={watchNascimento('fazendaId') || ''}
                       onChange={(value) => setValueNascimento('fazendaId', value)}
-                      options={fazendas.map(f => ({ label: f.nome, value: f.id }))}
+                  options={fazendaOptions.filter(opt => opt.value !== '')}
                       placeholder="Selecione a fazenda"
                       allowCustomValue={false}
                     />
@@ -1483,9 +1909,20 @@ export default function Home() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
                     <input 
-                      type="date"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                      {...registerNascimento('dataNascimento')} 
+                      placeholder="dd/mm/yyyy"
+                      value={watchNascimento('dataNascimento') ? normalizarDataInput(watchNascimento('dataNascimento') || '') : ''}
+                      onChange={(e) => {
+                        const norm = normalizarDataInput(e.target.value);
+                        setValueNascimento('dataNascimento', norm, { shouldValidate: true });
+                      }}
+                      onBlur={(e) => {
+                        const norm = normalizarDataInput(e.target.value);
+                        setValueNascimento('dataNascimento', norm, { shouldValidate: true });
+                      }}
                     />
                   </div>
 
@@ -1511,7 +1948,7 @@ export default function Home() {
                     <Combobox
                       value={watchNascimento('raca') || ''}
                       onChange={(value) => setValueNascimento('raca', value)}
-                      options={racas.map(r => r.nome)}
+                      options={racasOptions}
                       placeholder="Digite ou selecione uma raça"
                       onAddNew={() => setModalRacaOpen(true)}
                       addNewLabel="Cadastrar nova raça"
@@ -1520,7 +1957,7 @@ export default function Home() {
 
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input 
                           type="radio" 
@@ -1566,7 +2003,7 @@ export default function Home() {
                   </label>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <div className="flex gap-2 pt-4 border-t border-gray-200">
                   <button 
                     type="submit" 
                     disabled={isSubmitting}
@@ -1701,9 +2138,20 @@ export default function Home() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
                     <input 
-                      type="date"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                      {...registerEdicao('dataNascimento')} 
+                      placeholder="dd/mm/yyyy"
+                      value={watchEdicao('dataNascimento') ? normalizarDataInput(watchEdicao('dataNascimento') || '') : ''}
+                      onChange={(e) => {
+                        const norm = normalizarDataInput(e.target.value);
+                        setValueEdicao('dataNascimento', norm, { shouldValidate: true });
+                      }}
+                      onBlur={(e) => {
+                        const norm = normalizarDataInput(e.target.value);
+                        setValueEdicao('dataNascimento', norm, { shouldValidate: true });
+                      }}
                     />
                   </div>
 
@@ -1729,7 +2177,7 @@ export default function Home() {
                     <Combobox
                       value={watchEdicao('raca') || ''}
                       onChange={(value) => setValueEdicao('raca', value)}
-                      options={racas.map(r => r.nome)}
+                      options={racasOptions}
                       placeholder="Digite ou selecione uma raça"
                       onAddNew={() => setModalRacaOpen(true)}
                       addNewLabel="Cadastrar nova raça"
@@ -1738,7 +2186,7 @@ export default function Home() {
 
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input 
                           type="radio" 
@@ -1784,7 +2232,7 @@ export default function Home() {
                   </label>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <div className="flex gap-2 pt-4 border-t border-gray-200">
                   <button 
                     type="submit" 
                     disabled={isSubmittingEdicao}
@@ -1802,6 +2250,136 @@ export default function Home() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Histórico Matriz */}
+      {matrizHistoricoOpen && matrizHistoricoId && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+          <div
+            className="fixed inset-0 bg-gray-500 bg-opacity-60 transition-opacity"
+            onClick={handleFecharHistoricoMatriz}
+          />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-white">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+                    Histórico da matriz {matrizHistoricoId}
+                  </h2>
+                  {matrizResumo && (
+                    <p className="mt-1 text-xs sm:text-sm text-gray-600">
+                      Partos:{' '}
+                      <span className="font-semibold">{matrizResumo.totalPartos}</span>
+                      {' • '}
+                      Vivos:{' '}
+                      <span className="font-semibold text-green-700">{matrizResumo.vivos}</span>
+                      {' • '}
+                      Mortos:{' '}
+                      <span className="font-semibold text-red-700">{matrizResumo.mortos}</span>
+                      {' • '}
+                      Média peso desmama:{' '}
+                      <span className="font-semibold">
+                        {matrizResumo.mediaPeso.toFixed(2)} kg
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFecharHistoricoMatriz}
+                  className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-auto p-4 sm:p-6">
+                {matrizHistorico.length === 0 ? (
+                  <p className="text-sm text-gray-600">
+                    Nenhum parto encontrado para esta matriz.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                            Período
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                            Fazenda
+                          </th>
+                          <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider">
+                            Sexo
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                            Raça
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                            Brinco
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                            Data nasc.
+                          </th>
+                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                            Data desmama
+                          </th>
+                          <th className="px-2 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">
+                            Peso desmama
+                          </th>
+                          <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider">
+                            Morto
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {matrizHistorico.map((item) => (
+                          <tr key={item.id} className={item.morto ? 'bg-red-50' : ''}>
+                            <td className="px-2 py-1 whitespace-nowrap text-gray-900">
+                              {item.periodo}
+                            </td>
+                            <td className="px-2 py-1 whitespace-nowrap text-gray-700">
+                              {item.fazenda}
+                            </td>
+                            <td className="px-2 py-1 text-center">
+                              {item.sexo || '-'}
+                            </td>
+                            <td className="px-2 py-1 whitespace-nowrap">
+                              {item.raca || '-'}
+                            </td>
+                            <td className="px-2 py-1 whitespace-nowrap">
+                              {item.brinco || '-'}
+                            </td>
+                            <td className="px-2 py-1 whitespace-nowrap">
+                              {item.dataNascimento ? formatDate(item.dataNascimento) : '-'}
+                            </td>
+                            <td className="px-2 py-1 whitespace-nowrap">
+                              {item.dataDesmama ? formatDate(item.dataDesmama) : '-'}
+                            </td>
+                            <td className="px-2 py-1 text-right">
+                              {item.pesoDesmama ? `${item.pesoDesmama} kg` : '-'}
+                            </td>
+                            <td className="px-2 py-1 text-center">
+                              {item.morto ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold">
+                                  SIM
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">
+                                  NÃO
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

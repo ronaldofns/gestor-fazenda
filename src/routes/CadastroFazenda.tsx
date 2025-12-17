@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
+import { showToast } from '../utils/toast';
 
 const schema = z.object({
   nome: z.string().min(1, 'Informe o nome da fazenda'),
@@ -66,7 +67,7 @@ export default function CadastroFazenda() {
       navigate('/fazendas', { replace: true });
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar. Tente novamente.');
+      showToast({ type: 'error', title: 'Erro ao salvar', message: 'Tente novamente.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -114,7 +115,7 @@ export default function CadastroFazenda() {
           />
         </div>
 
-        <div className="flex gap-3 pt-4">
+        <div className="flex gap-2 pt-4">
           <button 
             type="submit" 
             disabled={isSubmitting}

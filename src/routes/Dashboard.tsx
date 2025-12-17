@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
 import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
-import SyncStatus from '../components/SyncStatus';
+import { useAlertSettings } from '../hooks/useAlertSettings';
 import { 
   TrendingUp, 
   Users, 
@@ -19,6 +19,7 @@ import {
 
 export default function Dashboard() {
   useSync();
+  const { alertSettings } = useAlertSettings();
   
   const nascimentosTodosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
@@ -77,6 +78,46 @@ export default function Dashboard() {
       return dateA - dateB;
     });
   }, [nascimentosTodosRaw]);
+
+  // Mapas auxiliares
+  const fazendaMap = useMemo(() => {
+    const map = new Map<string, string>();
+    fazendas.forEach((f) => {
+      if (f.id) map.set(f.id, f.nome || '');
+    });
+    return map;
+  }, [fazendas]);
+
+  const desmamaSet = useMemo(() => {
+    const set = new Set<string>();
+    if (Array.isArray(desmamas)) {
+      desmamas.forEach((d) => {
+        if (d.nascimentoId) set.add(d.nascimentoId);
+      });
+    }
+    return set;
+  }, [desmamas]);
+
+  const parseDate = (value?: string) => {
+    if (!value) return null;
+    // Suporte a dd/mm/yyyy
+    if (value.includes('/')) {
+      const [dia, mes, ano] = value.split('/');
+      if (dia && mes && ano) {
+        const iso = `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+        const dParsed = new Date(iso);
+        if (!isNaN(dParsed.getTime())) return dParsed;
+      }
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const diffMeses = (a: Date, b: Date) => {
+    const anos = b.getFullYear() - a.getFullYear();
+    const meses = b.getMonth() - a.getMonth();
+    return anos * 12 + meses;
+  };
 
   // Métricas gerais
   const metricas = useMemo(() => {
@@ -188,11 +229,72 @@ export default function Dashboard() {
     return Math.max(...metricas.nascimentosPorMes.map(m => m.total), 1);
   }, [metricas.nascimentosPorMes]);
 
+  const alertas = useMemo(() => {
+    const agora = new Date();
+    const { limiteMesesDesmama, janelaMesesMortalidade, limiarMortalidade } = alertSettings;
+
+    // Alertas de desmama atrasada
+    const desmamaAtrasada = nascimentosTodos
+      .filter((n) => {
+        if (n.morto) return false;
+        const dataNasc = parseDate(n.dataNascimento);
+        if (!dataNasc) return false;
+        const meses = diffMeses(dataNasc, agora);
+        const semDesmama = !desmamaSet.has(n.id);
+        return semDesmama && meses >= limiteMesesDesmama;
+      })
+      .map((n) => {
+        const dataNasc = parseDate(n.dataNascimento)!;
+        const meses = diffMeses(dataNasc, agora);
+        return {
+          id: n.id,
+          matrizId: n.matrizId,
+          brinco: n.brincoNumero,
+          fazenda: fazendaMap.get(n.fazendaId) || 'Sem fazenda',
+          meses,
+          dataNascimento: n.dataNascimento
+        };
+      })
+      .sort((a, b) => b.meses - a.meses)
+      .slice(0, 10); // limitar visual
+
+    // Mortalidade por fazenda (janela móvel)
+    const dataLimite = new Date(agora.getFullYear(), agora.getMonth() - (janelaMesesMortalidade - 1), 1);
+    const estatisticas = new Map<string, { vivos: number; mortos: number; nome: string }>();
+
+    nascimentosTodos.forEach((n) => {
+      const dataRef = parseDate(n.dataNascimento) || parseDate(n.createdAt);
+      if (!dataRef) return;
+      if (dataRef < dataLimite) return;
+      const entry = estatisticas.get(n.fazendaId) || { vivos: 0, mortos: 0, nome: fazendaMap.get(n.fazendaId) || 'Sem fazenda' };
+      if (n.morto) entry.mortos += 1;
+      else entry.vivos += 1;
+      estatisticas.set(n.fazendaId, entry);
+    });
+
+    const mortalidadeAlta = Array.from(estatisticas.entries())
+      .map(([fazendaId, dados]) => {
+        const total = dados.vivos + dados.mortos;
+        const taxa = total > 0 ? (dados.mortos / total) * 100 : 0;
+        return {
+          fazendaId,
+          fazenda: dados.nome,
+          taxa: Number(taxa.toFixed(2)),
+          mortos: dados.mortos,
+          total
+        };
+      })
+      .filter((f) => f.total >= 5 && f.taxa >= limiarMortalidade)
+      .sort((a, b) => b.taxa - a.taxa);
+
+    return { desmamaAtrasada, mortalidadeAlta };
+  }, [nascimentosTodos, desmamaSet, fazendaMap, alertSettings]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <header className="bg-white shadow-sm border-b">
         <div className="px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
               <p className="text-sm text-gray-600 mt-1">Visão geral do seu rebanho</p>
@@ -202,8 +304,91 @@ export default function Dashboard() {
       </header>
 
       <main className="px-4 sm:px-6 lg:px-8 py-6">
+        {/* Alertas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-6">
+          <div className="bg-white rounded-xl shadow-md p-5 border border-amber-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <h3 className="text-lg font-semibold text-gray-900">Alerta: Desmama atrasada</h3>
+              </div>
+              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
+                {alertSettings.limiteMesesDesmama}+ meses
+              </span>
+            </div>
+            {alertas.desmamaAtrasada.length === 0 ? (
+              <p className="text-sm text-gray-600">Nenhum bezerro pendente de desmama no limite configurado.</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-auto">
+                {alertas.desmamaAtrasada.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-amber-100 bg-amber-50">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Matriz {item.matrizId} {item.brinco ? `• Brinco ${item.brinco}` : ''}
+                      </p>
+                      <p className="text-xs text-gray-600 truncate">
+                        Fazenda: {item.fazenda} • Nasc.: {item.dataNascimento || '-'}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+                      {item.meses} meses
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 flex justify-end">
+              <Link
+                to="/planilha"
+                className="text-xs font-semibold text-amber-700 hover:text-amber-900"
+              >
+                Ver na planilha
+              </Link>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-5 border border-red-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <h3 className="text-lg font-semibold text-gray-900">Alerta: Mortalidade alta</h3>
+              </div>
+              <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full">
+                Últimos {alertSettings.janelaMesesMortalidade} meses
+              </span>
+            </div>
+            {alertas.mortalidadeAlta.length === 0 ? (
+              <p className="text-sm text-gray-600">Nenhuma fazenda acima do limiar de {alertSettings.limiarMortalidade}% na janela.</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-auto">
+                {alertas.mortalidadeAlta.map((item) => (
+                  <div key={item.fazendaId} className="flex items-center justify-between p-2 rounded-md border border-red-100 bg-red-50">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{item.fazenda}</p>
+                      <p className="text-xs text-gray-600">
+                        {item.mortos} mortos de {item.total} nascimentos
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-red-700 whitespace-nowrap">
+                      {item.taxa}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 flex justify-end">
+              <Link
+                to="/planilha"
+                className="text-xs font-semibold text-red-700 hover:text-red-900"
+              >
+                Ver na planilha
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {/* Cards de Métricas Principais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-6">
           <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Nascimentos</h3>
@@ -267,11 +452,11 @@ export default function Dashboard() {
         </div>
 
         {/* Cards de Sexo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
           <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Distribuição por Sexo</h3>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2">
                   <Venus className="w-5 h-5 text-pink-500" />
                   <span className="text-sm text-gray-600">Fêmeas</span>
@@ -331,8 +516,109 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Gráficos básicos */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
+          <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Nascimentos (últimos 12 meses)</h3>
+              <span className="text-xs text-gray-500">Linha</span>
+            </div>
+            {metricas.nascimentosPorMes.length === 0 ? (
+              <p className="text-sm text-gray-500">Sem dados suficientes.</p>
+            ) : (
+              <div className="w-full h-36 relative">
+                <svg viewBox="0 0 120 60" className="w-full h-full">
+                  <defs>
+                    <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
+                    </linearGradient>
+                  </defs>
+                  {(() => {
+                    const values = metricas.nascimentosPorMes.map((m) => m.total);
+                    const max = Math.max(...values, 1);
+                    const width = 120;
+                    const height = 60;
+                    const padding = 8;
+                    const usableWidth = width - padding * 2;
+                    const usableHeight = height - padding * 2;
+                    const points = values.map((v, i) => {
+                      const x = values.length === 1 ? padding : padding + (i / (values.length - 1)) * usableWidth;
+                      const y = height - padding - (v / max) * usableHeight;
+                      return `${x},${y}`;
+                    }).join(' ');
+                    const area = `${padding},${height - padding} ${points} ${width - padding},${height - padding}`;
+                    return (
+                      <>
+                        <polyline
+                          points={area}
+                          fill="url(#sparkFill)"
+                          stroke="none"
+                          opacity="0.8"
+                        />
+                        <polyline
+                          points={points}
+                          fill="none"
+                          stroke="#2563eb"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        {values.map((v, i) => {
+                          const x = values.length === 1 ? padding : padding + (i / (values.length - 1)) * usableWidth;
+                          const y = height - padding - (v / max) * usableHeight;
+                          return (
+                            <circle
+                              key={i}
+                              cx={x}
+                              cy={y}
+                              r={1.6}
+                              fill="#2563eb"
+                            />
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
+                </svg>
+                <div className="absolute left-3 right-3 bottom-1 flex justify-between text-xs text-gray-600 leading-none pointer-events-none">
+                  <span>há 12 meses</span>
+                  <span>agora</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Mortalidade por fazenda (janela)</h3>
+              <span className="text-xs text-gray-500">Barras</span>
+            </div>
+            {alertas.mortalidadeAlta.length === 0 ? (
+              <p className="text-sm text-gray-500">Nenhuma fazenda acima do limiar configurado.</p>
+            ) : (
+              <div className="space-y-3 max-h-64 overflow-auto pr-1">
+                {alertas.mortalidadeAlta.map((item) => (
+                  <div key={item.fazendaId}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-700 font-medium truncate">{item.fazenda}</span>
+                      <span className="font-semibold text-red-600">{item.taxa}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-red-500 to-red-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(item.taxa, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Gráficos por Fazenda e Raça */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-6">
           <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center gap-2 mb-4">
               <Building2 className="w-5 h-5 text-gray-600" />
@@ -396,21 +682,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Link para página principal */}
-        <div className="bg-white rounded-xl shadow-md p-6 border-2 border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Ver todos os nascimentos</h3>
-              <p className="text-sm text-gray-600">Acesse a planilha completa com todos os registros</p>
-            </div>
-            <Link
-              to="/"
-              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-            >
-              Ver Planilha
-            </Link>
-          </div>
-        </div>
       </main>
     </div>
   );

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { createUser } from '../utils/auth';
 import { UserPlus, LogIn, RefreshCw } from 'lucide-react';
 import { db } from '../db/dexieDB';
+import { showToast } from '../utils/toast';
 
 const schema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
@@ -85,11 +86,11 @@ export default function SetupInicial() {
         role: 'admin' // Primeiro usuário sempre é admin
       });
       
-      alert('Usuário administrador criado com sucesso! Redirecionando para login...');
+      showToast({ type: 'success', title: 'Administrador criado', message: 'Redirecionando para login...' });
       navigate('/login');
     } catch (error: any) {
       console.error('Erro ao criar usuário:', error);
-      alert(error.message || 'Erro ao criar usuário');
+      showToast({ type: 'error', title: 'Erro ao criar usuário', message: error?.message || 'Tente novamente.' });
     } finally {
       setLoading(false);
     }

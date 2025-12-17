@@ -48,6 +48,24 @@ export interface Desmama {
   remoteId?: number | null;
 }
 
+export type CategoriaMatriz = 'novilha' | 'vaca';
+
+export interface Matriz {
+  id: string; // UUID interno
+  identificador: string; // Código da matriz usado na planilha (ex: 123, V-01, etc.)
+  fazendaId: string;
+  categoria: CategoriaMatriz; // Novilha ou Vaca
+  raca?: string;
+  dataNascimento?: string; // dd/mm/yyyy
+  pai?: string; // Identificador do pai
+  mae?: string; // Identificador da mãe
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+}
+
 export type UserRole = 'admin' | 'gerente' | 'peao' | 'visitante';
 
 export interface Usuario {

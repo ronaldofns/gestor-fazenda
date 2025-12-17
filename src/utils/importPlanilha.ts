@@ -378,6 +378,10 @@ function processarLinha(
   return { dados, erros };
 }
 
+function normalizarBrinco(valor?: string) {
+  return (valor || '').trim().toLowerCase();
+}
+
 /**
  * Importa os dados da planilha para o banco
  */
@@ -391,6 +395,17 @@ export async function importarNascimentos(
   const fazendas = await db.fazendas.toArray();
   const sucesso: number[] = [];
   const erros: LinhaImportacao[] = [];
+  const jaExistentes = new Set<string>();
+  const jaNoArquivo = new Set<string>();
+
+  // Mapear brincos já existentes por fazenda (case-insensitive)
+  const nascimentosExistentes = await db.nascimentos.toArray();
+  nascimentosExistentes.forEach((n) => {
+    const brinco = normalizarBrinco(n.brincoNumero);
+    if (brinco && n.fazendaId) {
+      jaExistentes.add(`${n.fazendaId}::${brinco}`);
+    }
+  });
   
   for (let i = 0; i < dados.length; i++) {
     const linha = dados[i];
@@ -426,6 +441,29 @@ export async function importarNascimentos(
       dadosProcessados.ano = anoPadrao || new Date().getFullYear();
     }
     
+    // Validar brinco duplicado por fazenda (já existente ou repetido na própria planilha)
+    const brincoNormalizado = normalizarBrinco(dadosProcessados.brincoNumero);
+    if (brincoNormalizado && dadosProcessados.fazendaId) {
+      const chave = `${dadosProcessados.fazendaId}::${brincoNormalizado}`;
+      if (jaExistentes.has(chave)) {
+        erros.push({
+          dados: linha,
+          linha: linhaNum,
+          erros: [...errosLinha, 'Brinco já cadastrado para esta fazenda.']
+        });
+        continue;
+      }
+      if (jaNoArquivo.has(chave)) {
+        erros.push({
+          dados: linha,
+          linha: linhaNum,
+          erros: [...errosLinha, 'Brinco duplicado na própria planilha para esta fazenda.']
+        });
+        continue;
+      }
+      jaNoArquivo.add(chave);
+    }
+
     try {
       const id = uuid();
       const now = new Date().toISOString();
