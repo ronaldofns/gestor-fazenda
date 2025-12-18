@@ -8,6 +8,8 @@ import { uuid } from '../utils/uuid';
 import { showToast } from '../utils/toast';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { registrarAudit } from '../utils/audit';
 
 const schema = z.object({
   dataDesmama: z.string().min(1, 'Informe a data de desmama'),
@@ -18,6 +20,7 @@ export default function CadastroDesmama() {
   const { nascimentoId } = useParams<{ nascimentoId: string }>();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user: currentUser } = useAuth();
   
   // useLiveQuery retorna dados imediatamente do cache local, sem piscar tela
   const nascimento = useLiveQuery(
@@ -40,19 +43,35 @@ export default function CadastroDesmama() {
       
       if (desmamasExistentes.length > 0) {
         // Atualizar desmama existente
-        const desmamaId = desmamasExistentes[0].id;
+        const atual = desmamasExistentes[0];
+        const desmamaId = atual.id;
         const now = new Date().toISOString();
-        await db.desmamas.update(desmamaId, {
+
+        const depois = {
+          ...atual,
           dataDesmama: values.dataDesmama,
           pesoDesmama: values.pesoDesmama,
           updatedAt: now,
           synced: false
+        };
+
+        await db.desmamas.update(desmamaId, depois);
+
+        await registrarAudit({
+          entity: 'desmama',
+          entityId: desmamaId,
+          action: 'update',
+          before: atual,
+          after: depois,
+          user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+          description: 'Edição de desmama'
         });
       } else {
         // Criar nova desmama
         const id = uuid();
         const now = new Date().toISOString();
-        await db.desmamas.add({
+
+        const novaDesmama = {
           id,
           nascimentoId,
           dataDesmama: values.dataDesmama,
@@ -60,6 +79,18 @@ export default function CadastroDesmama() {
           createdAt: now,
           updatedAt: now,
           synced: false
+        };
+
+        await db.desmamas.add(novaDesmama);
+
+        await registrarAudit({
+          entity: 'desmama',
+          entityId: id,
+          action: 'create',
+          before: null,
+          after: novaDesmama,
+          user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+          description: 'Cadastro de desmama'
         });
       }
       

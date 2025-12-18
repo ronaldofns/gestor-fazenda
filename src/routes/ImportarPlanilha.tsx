@@ -5,6 +5,7 @@ import { db } from '../db/dexieDB';
 import { lerPlanilha, detectarMapeamento, importarNascimentos, MapeamentoColunas, LinhaImportacao, InfoPlanilha } from '../utils/importPlanilha';
 import { showToast } from '../utils/toast';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
+import Combobox from '../components/Combobox';
 
 export default function ImportarPlanilha() {
   const navigate = useNavigate();
@@ -141,7 +142,7 @@ export default function ImportarPlanilha() {
   ];
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl sm:text-2xl font-semibold">Importar Planilha</h2>
         <button
@@ -152,10 +153,10 @@ export default function ImportarPlanilha() {
         </button>
       </div>
 
-      <div className="bg-white shadow-sm rounded-lg p-4 sm:p-6 space-y-6">
+      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg p-4 sm:p-6 space-y-6">
         {/* Upload de Arquivo */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
             Selecione o arquivo (Excel ou CSV)
           </label>
           <div className="flex items-center gap-2">
@@ -174,7 +175,7 @@ export default function ImportarPlanilha() {
               Selecionar Arquivo
             </button>
             {arquivo && (
-              <div className="flex items-center gap-2 text-sm text-gray-700">
+              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
                 <FileSpreadsheet className="w-5 h-5 text-green-600" />
                 <span>{arquivo.name}</span>
                 <span className="text-gray-500">({dados.length} linhas)</span>
@@ -186,32 +187,31 @@ export default function ImportarPlanilha() {
         {/* Fazenda Padrão */}
         {fazendas.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
               Fazenda Padrão (usada quando não houver coluna de Fazenda ou quando a fazenda não for encontrada)
             </label>
-            <select
+
+            <Combobox
               value={fazendaPadraoId}
-              onChange={(e) => setFazendaPadraoId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Selecione uma fazenda</option>
-              {fazendas.map(f => (
-                <option key={f.id} value={f.id}>{f.nome}</option>
-              ))}
-            </select>
+              onChange={(value) => setFazendaPadraoId(value)}
+              options={fazendas.map(f => ({ label: f.nome, value: f.id }))}
+              placeholder="Selecione uma fazenda"
+              allowCustomValue={false}
+            />
+            
           </div>
         )}
 
         {/* Mapeamento de Colunas */}
         {colunas.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-3">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
               Mapear Colunas da Planilha
             </h3>
             <div className="space-y-3">
               {camposMapeamento.map(campo => (
                 <div key={campo.key} className="flex items-center gap-2">
-                  <label className="w-32 text-sm text-gray-700 flex-shrink-0">
+                  <label className="w-32 text-sm text-gray-700 dark:text-slate-300 flex-shrink-0">
                     {campo.label}
                     {campo.obrigatorio && <span className="text-red-500 ml-1">*</span>}
                   </label>
@@ -223,7 +223,7 @@ export default function ImportarPlanilha() {
                         [campo.key]: e.target.value || undefined
                       });
                     }}
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">-- Não mapear --</option>
                     {colunas.map(col => (
@@ -239,25 +239,25 @@ export default function ImportarPlanilha() {
         {/* Preview */}
         {preview.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-3">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
               Preview (primeiras 5 linhas)
             </h3>
-            <div className="overflow-x-auto border border-gray-200 rounded-md">
-              <table className="min-w-full divide-y divide-gray-200 text-xs">
-                <thead className="bg-gray-50">
+            <div className="overflow-x-auto border border-gray-200 dark:border-slate-800 rounded-md">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-xs">
+                <thead className="bg-gray-50 dark:bg-slate-800">
                   <tr>
                     {colunas.map(col => (
-                      <th key={col} className="px-2 py-2 text-left font-medium text-gray-700">
+                      <th key={col} className="px-2 py-2 text-left font-medium text-gray-700 dark:text-slate-300">
                         {col}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                   {preview.map((linha, idx) => (
                     <tr key={idx}>
                       {colunas.map(col => (
-                        <td key={col} className="px-2 py-2 text-gray-900">
+                        <td key={col} className="px-2 py-2 text-gray-900 dark:text-slate-100">
                           {linha[col] || '-'}
                         </td>
                       ))}

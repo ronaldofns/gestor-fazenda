@@ -13,7 +13,9 @@ import {
   Download,
   Settings,
   Bell,
-  ListTree
+  ListTree,
+  Moon,
+  Sun
 } from 'lucide-react';
 import SyncStatus from './SyncStatus';
 import useSync from '../hooks/useSync';
@@ -21,7 +23,9 @@ import { useAuth } from '../hooks/useAuth';
 import { showToast } from '../utils/toast';
 import { AlertSettings, useAlertSettings } from '../hooks/useAlertSettings';
 import { useNotifications } from '../hooks/useNotifications';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import Modal from './Modal';
+import { applyTheme, getInitialTheme, Theme } from '../utils/theme';
 
 // Variável global para rastrear estado de sincronização
 let globalSyncing = false;
@@ -55,6 +59,16 @@ export default function Sidebar() {
     resetSettings
   } = useAlertSettings();
   const notificacoes = useNotifications();
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
+  useKeyboardShortcuts();
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
   
   // Hook de sincronização automática
   useSync();
@@ -106,7 +120,7 @@ export default function Sidebar() {
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/notificacoes', label: 'Notificações', icon: Bell, badge: notificacoes.total },
-    { path: '/planilha', label: 'Planilha', icon: FileSpreadsheet },
+    { path: '/planilha', label: 'Nascimento/Desmama', icon: FileSpreadsheet },
     { path: '/matrizes', label: 'Matrizes', icon: ListTree },
     { path: '/fazendas', label: 'Fazendas', icon: Building2 },
     { path: '/importar-planilha', label: 'Importar Planilha', icon: Upload },
@@ -143,7 +157,7 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-white border-r border-gray-200 shadow-sm z-40
+          fixed top-0 left-0 h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm z-40
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
@@ -152,13 +166,34 @@ export default function Sidebar() {
       >
         <div className="flex flex-col h-full">
           {/* Logo/Header */}
-          <div className="p-6 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-gray-900">Gestor Fazenda</h1>
-            <p className="text-sm text-gray-600 mt-1">Sistema de Gestão</p>
+          <div className="p-3 border-b border-gray-300 dark:border-slate-500">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Gerenciador de Fazendas</h1>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Sistema de Gestão</p>
+              </div>
+              <button
+                onClick={toggleTheme}
+                className="inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1 text-[10px] text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                title={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="w-3 h-3 mr-1" />
+                    <span>Claro</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-3 h-3 mr-1" />
+                    <span>Escuro</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Menu Items */}
-          <nav className="flex-1 overflow-y-auto p-4">
+          <nav className="flex-1 overflow-y-auto p-2">
             <ul className="space-y-2">
               {menuItems.map((item) => {
                 const Icon = item.icon;
@@ -169,14 +204,19 @@ export default function Sidebar() {
                       to={item.path}
                       onClick={() => setSidebarOpen(false)}
                       className={`
-                        flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full
-                        ${active
-                          ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600'
-                          : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                        flex items-center gap-1 px-2 py-3 rounded-lg transition-colors w-full
+                        ${
+                          active
+                            ? 'bg-blue-200 text-blue-700 border-l-4 border-blue-600 dark:bg-blue-800 dark:text-blue-300 dark:border-blue-400'
+                            : 'text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-slate-600 dark:hover:text-white'
                         }
                       `}
                     >
-                      <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
+                      <Icon
+                        className={`w-5 h-5 shrink-0 ${
+                          active ? 'text-blue-600 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'
+                        }`}
+                      />
                       <span className="font-medium whitespace-nowrap flex-1">{item.label}</span>
                       {item.badge ? (
                         <span className="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1 text-[11px] font-semibold rounded-full bg-red-500 text-white">
@@ -191,14 +231,14 @@ export default function Sidebar() {
           </nav>
 
           {/* Sync Status e Botão Manual */}
-          <div className="p-4 border-t border-gray-200 space-y-3 bg-gray-50">
+          <div className="p-2 border-t border-gray-300 dark:border-slate-500 space-y-3 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Sincronização</span>
+              <span className="text-sm text-gray-600 dark:text-gray-300">Sincronização</span>
               <SyncStatus />
             </div>
             <button
               onClick={() => setSettingsOpen(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-200 dark:border-indigo-900/60"
             >
               <Settings className="w-4 h-4" />
               <span>Configurações de alertas</span>
@@ -300,10 +340,10 @@ export default function Sidebar() {
           </div>
 
           {/* Logout */}
-          <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <div className="p-2 border-t border-gray-300 dark:border-slate-500 bg-gray-50 dark:bg-slate-900">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               <LogOut className="w-5 h-5" />
               <span className="font-medium">Sair</span>

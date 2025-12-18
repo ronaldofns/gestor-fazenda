@@ -204,11 +204,11 @@ export default function Matrizes() {
   };
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-6">
         <div>
           <h2 className="text-xl sm:text-2xl font-semibold">Matrizes</h2>
-          <p className="text-xs sm:text-sm text-gray-600">
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">
             Visão geral de performance por matriz (partos, mortalidade e peso de desmama).
           </p>
         </div>
@@ -216,7 +216,7 @@ export default function Matrizes() {
           <button
             type="button"
             onClick={() => navigate('/planilha')}
-            className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           >
             <span>Ir para planilha</span>
             <ChevronRight className="w-4 h-4" />
@@ -233,7 +233,7 @@ export default function Matrizes() {
 
       <div className="mb-4">
         <div className="max-w-sm">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
             Buscar por matriz ou fazenda
           </label>
           <input
@@ -241,121 +241,170 @@ export default function Matrizes() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Ex: 123, Fazenda Boa Vista..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-md shadow-sm text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
       </div>
 
-      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
         {matrizesFiltradas.length === 0 ? (
           <div className="p-8 text-center text-gray-500 text-sm">
-            Nenhuma matriz encontrada. Cadastre nascimentos na planilha para ver esta visão.
+            Nenhuma matriz encontrado. Cadastre nascimentos na planilha para ver esta visão.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort('matriz')}
-                      className="inline-flex items-center gap-1"
-                    >
-                      Matriz
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort('fazenda')}
-                      className="inline-flex items-center gap-1"
-                    >
-                      Fazenda
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort('partos')}
-                      className="inline-flex items-center gap-1"
-                    >
-                      Partos
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort('vivos')}
-                      className="inline-flex items-center gap-1"
-                    >
-                      Vivos
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort('mortos')}
-                      className="inline-flex items-center gap-1"
-                    >
-                      Mortos
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort('ultimoParto')}
-                      className="inline-flex items-center gap-1"
-                    >
-                      Último parto
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort('mediaPeso')}
-                      className="inline-flex items-center gap-1"
-                    >
-                      Média peso desmama (kg)
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {matrizesPagina.map((m) => (
-                  <tr key={m.matrizId} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
-                      {m.matrizId}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-gray-700">
-                      {m.fazenda}
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      {m.totalPartos}
-                    </td>
-                    <td className="px-2 py-2 text-center text-green-700">
-                      {m.vivos}
-                    </td>
-                    <td className="px-2 py-2 text-center text-red-700">
-                      {m.mortos}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {m.ultimoParto || '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {m.mediaPesoDesmama > 0 ? m.mediaPesoDesmama.toFixed(2) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right space-x-1">
+          <>
+            {/* Tabela Desktop */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-xs sm:text-sm">
+                <thead className="bg-gray-100 dark:bg-slate-800">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('matriz')}
+                        className="inline-flex items-center gap-1"
+                      >
+                        Matriz
+                        <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('fazenda')}
+                        className="inline-flex items-center gap-1"
+                      >
+                        Fazenda
+                        <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('partos')}
+                        className="inline-flex items-center gap-1"
+                      >
+                        Partos
+                        <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('vivos')}
+                        className="inline-flex items-center gap-1"
+                      >
+                        Vivos
+                        <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('mortos')}
+                        className="inline-flex items-center gap-1"
+                      >
+                        Mortos
+                        <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('ultimoParto')}
+                        className="inline-flex items-center gap-1"
+                      >
+                        Último parto
+                        <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('mediaPeso')}
+                        className="inline-flex items-center gap-1"
+                      >
+                        Média peso desmama (kg)
+                        <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
+                  {matrizesPagina.map((m) => (
+                    <tr key={m.matrizId} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                      <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900 dark:text-slate-100">
+                        {m.matrizId}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-gray-700 dark:text-slate-200">
+                        {m.fazenda}
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        {m.totalPartos}
+                      </td>
+                      <td className="px-2 py-2 text-center text-green-700">
+                        {m.vivos}
+                      </td>
+                      <td className="px-2 py-2 text-center text-red-700">
+                        {m.mortos}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {m.ultimoParto || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {m.mediaPesoDesmama > 0 ? m.mediaPesoDesmama.toFixed(2) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right space-x-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              `/planilha?fazenda=${encodeURIComponent(
+                                m.fazendaId
+                              )}&matrizBrinco=${encodeURIComponent(m.matrizId)}`
+                            )
+                          }
+                          className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
+                          title="Ver na planilha"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" />
+                        </button>
+                        <Link
+                          to={`/matrizes/nova?identificador=${encodeURIComponent(
+                            m.matrizId
+                          )}&fazenda=${encodeURIComponent(m.fazendaId)}`}
+                          className="inline-flex items-center justify-center p-1.5 text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md"
+                          title="Abrir cadastro da matriz"
+                        >
+                          <FilePenLine className="w-4 h-4" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Lista em cards para mobile */}
+            <div className="md:hidden space-y-3">
+              {matrizesPagina.map((m) => (
+                <div
+                  key={m.matrizId}
+                  className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-slate-800"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">
+                        Matriz {m.matrizId}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                        {m.fazenda}
+                      </div>
+                    </div>
+                    <div className="flex flex-shrink-0 gap-1">
                       <button
                         type="button"
                         onClick={() =>
@@ -365,7 +414,7 @@ export default function Matrizes() {
                             )}&matrizBrinco=${encodeURIComponent(m.matrizId)}`
                           )
                         }
-                        className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 rounded-md"
+                        className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
                         title="Ver na planilha"
                       >
                         <FileSpreadsheet className="w-4 h-4" />
@@ -374,20 +423,42 @@ export default function Matrizes() {
                         to={`/matrizes/nova?identificador=${encodeURIComponent(
                           m.matrizId
                         )}&fazenda=${encodeURIComponent(m.fazendaId)}`}
-                        className="inline-flex items-center justify-center p-1.5 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                        className="inline-flex items-center justify-center p-1.5 text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md"
                         title="Abrir cadastro da matriz"
                       >
                         <FilePenLine className="w-4 h-4" />
                       </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-slate-300 mt-1">
+                    <div>
+                      <span className="font-semibold">Partos: </span>
+                      {m.totalPartos}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-green-700 dark:text-green-400">Vivos: </span>
+                      {m.vivos}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-red-700 dark:text-red-400">Mortos: </span>
+                      {m.mortos}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Últ. parto: </span>
+                      {m.ultimoParto || '-'}
+                    </div>
+                    <div className="col-span-2">
+                      <span className="font-semibold">Média peso desmama: </span>
+                      {m.mediaPesoDesmama > 0 ? `${m.mediaPesoDesmama.toFixed(2)} kg` : '-'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             {matrizesFiltradas.length > ITENS_POR_PAGINA && (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 border-t border-gray-200 bg-gray-50 text-xs sm:text-sm">
-                <p className="text-gray-600">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800 text-xs sm:text-sm">
+                <p className="text-gray-600 dark:text-slate-300">
                   Mostrando{' '}
                   <span className="font-semibold">
                     {matrizesFiltradas.length === 0 ? 0 : inicio + 1}
@@ -404,7 +475,7 @@ export default function Matrizes() {
                     type="button"
                     onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
                     disabled={paginaAtual === 1}
-                    className="inline-flex items-center px-2 py-1 border border-gray-300 bg-white text-gray-600 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-200 rounded-l-md hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -427,7 +498,7 @@ export default function Matrizes() {
                         className={`inline-flex items-center px-2.5 py-1 border text-xs sm:text-sm ${
                           paginaAtual === paginaNumero
                             ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-200 border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800'
                         }`}
                       >
                         {paginaNumero}
@@ -438,14 +509,14 @@ export default function Matrizes() {
                     type="button"
                     onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
                     disabled={paginaAtual === totalPaginas}
-                    className="inline-flex items-center px-2 py-1 border border-gray-300 bg-white text-gray-600 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-200 rounded-r-md hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>

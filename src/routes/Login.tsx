@@ -81,10 +81,10 @@ export default function Login() {
   
   if (authLoading || verificandoUsuarios) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-gray-500">
+          <div className="text-gray-500 dark:text-slate-400">
             {sincronizando ? 'Sincronizando usuários...' : 'Carregando...'}
           </div>
           {sincronizando && (
@@ -105,20 +105,20 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 px-4">
       <div className="max-w-md w-full">
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl shadow-lg mb-4">
             <LogIn className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestor Fazenda</h1>
-          <p className="text-gray-600">Sistema de Gestão de Rebanho</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Gestor Fazenda</h1>
+          <p className="text-gray-600 dark:text-slate-400">Sistema de Gestão de Rebanho</p>
         </div>
 
         {/* Card de Login */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Entrar</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-slate-800">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6 text-center">Entrar</h2>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {error && (
               <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-md">
@@ -127,14 +127,14 @@ export default function Login() {
             )}
             
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input 
                   type="email"
-                  className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
+                  className="w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
                   placeholder="seu@email.com" 
                   {...register('email', { required: 'Email é obrigatório' })} 
                 />
@@ -145,14 +145,14 @@ export default function Login() {
             </div>
             
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Senha</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Senha</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input 
                   type="password"
-                  className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
+                  className="w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
                   placeholder="Sua senha" 
                   {...register('password', { required: 'Senha é obrigatória' })} 
                 />
@@ -197,7 +197,7 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-gray-500 text-sm mt-6">
+        <p className="text-center text-gray-500 dark:text-slate-400 text-sm mt-6">
           © 2024 Gestor Fazenda. Todos os direitos reservados.
         </p>
       </div>

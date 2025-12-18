@@ -35,6 +35,20 @@ export interface DadosRelatorioProdutividade {
   fazendas: DadosRelatorioProdutividadePorFazenda[];
 }
 
+function abrirPDF(doc: jsPDF, nomeArquivo: string) {
+  try {
+    const blobUrl = doc.output('bloburl');
+    if (typeof window !== 'undefined') {
+      window.open(blobUrl, '_blank');
+    } else {
+      doc.save(nomeArquivo);
+    }
+  } catch {
+    // Fallback: baixar direto
+    doc.save(nomeArquivo);
+  }
+}
+
 export function gerarRelatorioPDF(dados: DadosRelatorio) {
   const doc = new jsPDF({
     orientation: 'portrait', // Retrato para melhor uso da área de impressão
@@ -103,7 +117,10 @@ export function gerarRelatorioPDF(dados: DadosRelatorio) {
     (contentWidth * prop) / totalProportion
   );
 
-  // Criar tabela
+  // Altura de linha aproximada (30px ~ 8mm)
+  const ROW_HEIGHT_MM = 8;
+
+  // Criar tabela principal
   autoTable(doc, {
     head: [[
       'Matriz',
@@ -126,7 +143,9 @@ export function gerarRelatorioPDF(dados: DadosRelatorio) {
       cellPadding: 1,
       overflow: 'linebreak',
       cellWidth: 'wrap',
-      lineWidth: 0.1
+      lineWidth: 0.1,
+      minCellHeight: ROW_HEIGHT_MM,
+      valign: 'middle'
     },
     headStyles: {
       fillColor: [220, 220, 220],
@@ -160,7 +179,7 @@ export function gerarRelatorioPDF(dados: DadosRelatorio) {
     }
   });
 
-  // Adicionar totalizadores no final
+  // Adicionar totalizadores no final (como tabela)
   const finalY = (doc as any).lastAutoTable.finalY || pageHeight - 40;
   let currentY = finalY + 8;
 
@@ -170,55 +189,69 @@ export function gerarRelatorioPDF(dados: DadosRelatorio) {
     currentY = margin + 10;
   }
 
-  // Linha separadora
-  doc.setDrawColor(200, 200, 200);
-  doc.line(margin, currentY, pageWidth - margin, currentY);
-  currentY += 6;
-
   // Título dos totalizadores
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text('TOTALIZADORES', margin, currentY);
-  currentY += 6;
+  currentY += 4;
 
-  // Totalizadores em formato compacto - duas colunas
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  
-  const totalizadores = [
-    { label: 'Total de Nascimentos', valor: dados.totais.totalGeral },
-    { label: 'Vacas', valor: dados.totais.vacas },
-    { label: 'Novilhas', valor: dados.totais.novilhas },
-    { label: 'Fêmeas', valor: dados.totais.femeas },
-    { label: 'Machos', valor: dados.totais.machos },
-    { label: 'Mortos', valor: dados.totais.totalMortos },
-    { label: 'Vivos', valor: dados.totais.totalGeral - dados.totais.totalMortos }
+  const totalHeaders = [
+    'Total de Nascimentos',
+    'Vacas',
+    'Novilhas',
+    'Fêmeas',
+    'Machos',
+    'Mortos',
+    'Vivos'
   ];
 
-  // Organizar em duas colunas para economizar espaço
-  const colWidth = (contentWidth - 10) / 2; // Duas colunas com espaçamento
-  const rowHeight = 3;
-  const startX = margin + 3;
-  
-  totalizadores.forEach((totalizador, index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    const x = startX + (col * colWidth);
-    const y = currentY + (row * rowHeight);
+  const totalValues = [
+    dados.totais.totalGeral.toString(),
+    dados.totais.vacas.toString(),
+    dados.totais.novilhas.toString(),
+    dados.totais.femeas.toString(),
+    dados.totais.machos.toString(),
+    dados.totais.totalMortos.toString(),
+    (dados.totais.totalGeral - dados.totais.totalMortos).toString()
+  ];
 
-    // Label
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text(`${totalizador.label}:`, x, y);
-    
-    // Valor (em negrito)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    const labelWidth = doc.getTextWidth(`${totalizador.label}:`);
-    doc.text(totalizador.valor.toString(), x + labelWidth + 3, y);
+  autoTable(doc, {
+    head: [totalHeaders],
+    body: [totalValues],
+    startY: currentY,
+    margin: { left: margin, right: margin },
+    tableWidth: contentWidth,
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+      lineWidth: 0.1,
+      minCellHeight: ROW_HEIGHT_MM,
+      valign: 'middle'
+    },
+    headStyles: {
+      fillColor: [220, 220, 220],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize: 8,
+      halign: 'center',
+      valign: 'middle',
+      lineWidth: 0.1
+    },
+    columnStyles: {
+      0: { halign: 'center' },
+      1: { halign: 'center' },
+      2: { halign: 'center' },
+      3: { halign: 'center' },
+      4: { halign: 'center' },
+      5: { halign: 'center' },
+      6: { halign: 'center' }
+    },
+    alternateRowStyles: {
+      fillColor: [250, 250, 250]
+    }
   });
 
-  // Rodapé com data de geração
+  // Rodapé: data de geração (esquerda) e contador de páginas (direita)
   const dataGeracao = new Date().toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
@@ -226,20 +259,29 @@ export function gerarRelatorioPDF(dados: DadosRelatorio) {
     hour: '2-digit',
     minute: '2-digit'
   });
-  
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(128, 128, 128);
-  doc.text(
-    `Relatório gerado em: ${dataGeracao}`,
-    pageWidth - margin,
-    pageHeight - 10,
-    { align: 'right' }
-  );
 
-  // Salvar PDF
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    doc.setPage(pageNumber);
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(128, 128, 128);
+
+    // Esquerda inferior: data
+    doc.text(`Relatório gerado em: ${dataGeracao}`, margin, ph - 8);
+
+    // Direita inferior: página X de N
+    doc.text(`Página ${pageNumber} de ${totalPages}`, pw - margin, ph - 8, {
+      align: 'right'
+    });
+  }
+
+  // Salvar/abrir PDF
   const nomeArquivo = `Relatorio_${dados.fazendaNome.replace(/\s+/g, '_')}_${dados.mes}_${dados.ano}.pdf`;
-  doc.save(nomeArquivo);
+  abrirPDF(doc, nomeArquivo);
 }
 
 // Relatório de produtividade por fazenda (compacto)
@@ -272,6 +314,8 @@ export function gerarRelatorioProdutividadePDF(dados: DadosRelatorioProdutividad
     `${f.taxaDesmama}%`,
   ]);
 
+  const ROW_HEIGHT_MM = 8;
+
   autoTable(doc, {
     head: [[
       'Fazenda',
@@ -289,14 +333,17 @@ export function gerarRelatorioProdutividadePDF(dados: DadosRelatorioProdutividad
     styles: {
       fontSize: 9,
       cellPadding: 2,
-      lineWidth: 0.1
+      lineWidth: 0.1,
+      minCellHeight: ROW_HEIGHT_MM
     },
     headStyles: {
-      fillColor: [52, 116, 235],
-      textColor: [255, 255, 255],
+      fillColor: [220, 220, 220],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 9,
-      halign: 'center'
+      halign: 'center',
+      valign: 'middle',
+      lineWidth: 0.1
     },
     columnStyles: {
       0: { cellWidth: contentWidth * 0.28, halign: 'left' },
@@ -313,13 +360,27 @@ export function gerarRelatorioProdutividadePDF(dados: DadosRelatorioProdutividad
   });
 
   const dataGeracao = new Date().toLocaleString('pt-BR');
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(128, 128, 128);
-  doc.text(`Gerado em: ${dataGeracao}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    doc.setPage(pageNumber);
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(128, 128, 128);
+
+    // Esquerda inferior
+    doc.text(`Relatório gerado em: ${dataGeracao}`, margin, ph - 8);
+
+    // Direita inferior
+    doc.text(`Página ${pageNumber} de ${totalPages}`, pw - margin, ph - 8, {
+      align: 'right'
+    });
+  }
 
   const nomeArquivo = `Produtividade_${dados.periodo.replace(/\s+/g, '_')}.pdf`;
-  doc.save(nomeArquivo);
+  abrirPDF(doc, nomeArquivo);
 }
 
 export interface DadosRelatorioMortalidade {
@@ -360,6 +421,8 @@ export function gerarRelatorioMortalidadePDF(dados: DadosRelatorioMortalidade) {
     `${l.taxaMortandade}%`
   ]);
 
+  const ROW_HEIGHT_MM = 8;
+
   autoTable(doc, {
     head: [[
       'Raça',
@@ -375,14 +438,17 @@ export function gerarRelatorioMortalidadePDF(dados: DadosRelatorioMortalidade) {
     styles: {
       fontSize: 9,
       cellPadding: 2,
-      lineWidth: 0.1
+      lineWidth: 0.1,
+      minCellHeight: ROW_HEIGHT_MM
     },
     headStyles: {
-      fillColor: [239, 68, 68],
-      textColor: [255, 255, 255],
+      fillColor: [220, 220, 220],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 9,
-      halign: 'center'
+      halign: 'center',
+      valign: 'middle',
+      lineWidth: 0.1
     },
     columnStyles: {
       0: { cellWidth: contentWidth * 0.35, halign: 'left' },
@@ -397,13 +463,24 @@ export function gerarRelatorioMortalidadePDF(dados: DadosRelatorioMortalidade) {
   });
 
   const dataGeracao = new Date().toLocaleString('pt-BR');
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(128, 128, 128);
-  doc.text(`Gerado em: ${dataGeracao}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    doc.setPage(pageNumber);
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(128, 128, 128);
+
+    doc.text(`Relatório gerado em: ${dataGeracao}`, margin, ph - 8);
+    doc.text(`Página ${pageNumber} de ${totalPages}`, pw - margin, ph - 8, {
+      align: 'right'
+    });
+  }
 
   const nomeArquivo = `Mortalidade_${dados.periodo.replace(/\s+/g, '_')}.pdf`;
-  doc.save(nomeArquivo);
+  abrirPDF(doc, nomeArquivo);
 }
 
 export interface DadosRelatorioDesmama {
@@ -430,6 +507,7 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
+  const ROW_HEIGHT_MM = 8;
   const contentWidth = pageWidth - margin * 2;
 
   // Cabeçalho
@@ -525,14 +603,17 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
       styles: {
         fontSize: 7,
         cellPadding: 1.5,
-        lineWidth: 0.1
+        lineWidth: 0.1,
+        minCellHeight: ROW_HEIGHT_MM
       },
       headStyles: {
-        fillColor: [52, 116, 235],
-        textColor: [255, 255, 255],
+        fillColor: [220, 220, 220],
+        textColor: [0, 0, 0],
         fontStyle: 'bold',
         fontSize: 7,
-        halign: 'center'
+        halign: 'center',
+        valign: 'middle',
+        lineWidth: 0.1
       },
       columnStyles: {
         0: { cellWidth: contentWidth * 0.12, halign: 'left' },
@@ -581,14 +662,17 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
     styles: {
       fontSize: 8,
       cellPadding: 2,
-      lineWidth: 0.1
+      lineWidth: 0.1,
+      minCellHeight: ROW_HEIGHT_MM
     },
     headStyles: {
-      fillColor: [34, 197, 94],
-      textColor: [255, 255, 255],
+      fillColor: [220, 220, 220],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 8,
-      halign: 'center'
+      halign: 'center',
+      valign: 'middle',
+      lineWidth: 0.1
     },
     columnStyles: {
       0: { cellWidth: contentWidth * 0.4, halign: 'left' },
@@ -633,14 +717,17 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
     styles: {
       fontSize: 8,
       cellPadding: 2,
-      lineWidth: 0.1
+      lineWidth: 0.1,
+      minCellHeight: ROW_HEIGHT_MM
     },
     headStyles: {
-      fillColor: [168, 85, 247],
-      textColor: [255, 255, 255],
+      fillColor: [220, 220, 220],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 8,
-      halign: 'center'
+      halign: 'center',
+      valign: 'middle',
+      lineWidth: 0.1
     },
     columnStyles: {
       0: { cellWidth: contentWidth * 0.4, halign: 'left' },
@@ -685,14 +772,17 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
     styles: {
       fontSize: 8,
       cellPadding: 2,
-      lineWidth: 0.1
+      lineWidth: 0.1,
+      minCellHeight: ROW_HEIGHT_MM
     },
     headStyles: {
-      fillColor: [236, 72, 153],
-      textColor: [255, 255, 255],
+      fillColor: [220, 220, 220],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 8,
-      halign: 'center'
+      halign: 'center',
+      valign: 'middle',
+      lineWidth: 0.1
     },
     columnStyles: {
       0: { cellWidth: contentWidth * 0.4, halign: 'left' },
@@ -707,12 +797,23 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
 
   // Rodapé
   const dataGeracao = new Date().toLocaleString('pt-BR');
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(128, 128, 128);
-  doc.text(`Gerado em: ${dataGeracao}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+    doc.setPage(pageNumber);
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(128, 128, 128);
+
+    doc.text(`Relatório gerado em: ${dataGeracao}`, margin, ph - 8);
+    doc.text(`Página ${pageNumber} de ${totalPages}`, pw - margin, ph - 8, {
+      align: 'right'
+    });
+  }
 
   const nomeArquivo = `Desmama_Medias_${dados.periodo.replace(/\s+/g, '_')}.pdf`;
-  doc.save(nomeArquivo);
+  abrirPDF(doc, nomeArquivo);
 }
 

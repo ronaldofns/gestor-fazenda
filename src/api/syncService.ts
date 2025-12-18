@@ -136,6 +136,54 @@ export async function pushPending() {
     console.error('Erro geral ao fazer push de fazendas:', err);
   }
 
+  // Sincronizar matrizes (vacas/novilhas)
+  try {
+    const todasMatrizes = await db.matrizes.toArray();
+    const pendMatrizes = todasMatrizes.filter(m => m.synced === false);
+
+    for (const m of pendMatrizes) {
+      try {
+        const { data, error } = await supabase
+          .from('matrizes_online')
+          .upsert(
+            {
+              uuid: m.id,
+              identificador: m.identificador,
+              fazenda_uuid: m.fazendaId,
+              categoria: m.categoria,
+              raca: m.raca || null,
+              data_nascimento: toIsoDate(m.dataNascimento),
+              pai: m.pai || null,
+              mae: m.mae || null,
+              ativo: m.ativo,
+              created_at: m.createdAt,
+              updated_at: m.updatedAt
+            },
+            { onConflict: 'uuid' }
+          )
+          .select('id, uuid');
+
+        if (!error && data && data.length) {
+          await db.matrizes.update(m.id, { synced: true, remoteId: data[0].id });
+        } else if (error) {
+          console.error('Erro ao sincronizar matriz:', {
+            error,
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            matrizId: m.id,
+            identificador: m.identificador
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao processar matriz:', err, m.id);
+      }
+    }
+  } catch (err) {
+    console.error('Erro geral ao fazer push de matrizes:', err);
+  }
+
   // Sincronizar nascimentos
   try {
     // Query mais segura: buscar todos e filtrar manualmente
@@ -276,6 +324,57 @@ export async function pushPending() {
     console.error('Erro geral ao fazer push de usuários:', err);
     throw err;
   }
+
+  // Sincronizar auditoria (somente push - não puxa de volta)
+  try {
+    if (db.audits) {
+      const todosAudits = await db.audits.toArray();
+      const pendAudits = todosAudits.filter((a) => a.synced === false);
+
+      for (const a of pendAudits) {
+        try {
+          const { data, error } = await supabase
+            .from('audits_online')
+            .upsert(
+              {
+                uuid: a.id,
+                entity: a.entity,
+                entity_id: a.entityId,
+                action: a.action,
+                timestamp: a.timestamp,
+                user_uuid: a.userId || null,
+                user_nome: a.userNome || null,
+                before_json: a.before ? JSON.parse(a.before) : null,
+                after_json: a.after ? JSON.parse(a.after) : null,
+                description: a.description || null,
+                created_at: a.timestamp
+              },
+              { onConflict: 'uuid' }
+            )
+            .select('id, uuid');
+
+          if (!error && data && data.length) {
+            await db.audits.update(a.id, { synced: true, remoteId: data[0].id });
+          } else if (error) {
+            console.error('Erro ao sincronizar audit log:', {
+              error,
+              message: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint,
+              auditId: a.id,
+              entity: a.entity,
+              entityId: a.entityId
+            });
+          }
+        } catch (err) {
+          console.error('Erro ao processar audit log:', err, a.id);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro geral ao fazer push de auditoria:', err);
+  }
 }
 
 export async function pullUpdates() {
@@ -398,6 +497,95 @@ export async function pullUpdates() {
     }
   } catch (err) {
     console.error('Erro ao processar pull de fazendas:', err);
+  }
+
+  // Buscar matrizes
+  try {
+    const { data: servMatrizes, error: errorMatrizes } = await supabase.from('matrizes_online').select('*');
+    if (errorMatrizes) {
+      console.error('Erro ao buscar matrizes do servidor:', {
+        error: errorMatrizes,
+        message: errorMatrizes.message,
+        code: errorMatrizes.code,
+        details: errorMatrizes.details,
+        hint: errorMatrizes.hint
+      });
+      // Não excluir dados locais em caso de erro
+    } else if (servMatrizes && servMatrizes.length > 0) {
+      // IMPORTANTE: Só processar se houver dados no servidor
+      // Se servMatrizes for [] (vazio), preservar dados locais
+
+      // Criar conjunto de UUIDs que existem no servidor
+      const servUuids = new Set(servMatrizes.map((m: any) => m.uuid));
+
+      // Buscar todas as matrizes locais que foram sincronizadas (têm remoteId)
+      const todasMatrizesLocais = await db.matrizes.toArray();
+      const matrizesSincronizadas = todasMatrizesLocais.filter((m: any) => m.remoteId != null);
+
+      // Excluir localmente as que não existem mais no servidor
+      // Mas só se o servidor retornou dados (não está vazio)
+      for (const local of matrizesSincronizadas) {
+        if (!servUuids.has(local.id)) {
+          console.log('Matriz excluída no servidor, excluindo localmente:', local.id, local.identificador);
+          await db.matrizes.delete(local.id);
+        }
+      }
+
+      // Adicionar/atualizar matrizes do servidor
+      for (const s of servMatrizes as any[]) {
+        const local = await db.matrizes.get(s.uuid);
+
+        // Converter data_nascimento (ISO) para formato dd/mm/aaaa usado localmente
+        let dataNascimentoBR: string | undefined = undefined;
+        if (s.data_nascimento) {
+          try {
+            const d = new Date(s.data_nascimento);
+            if (!isNaN(d.getTime())) {
+              dataNascimentoBR = d.toLocaleDateString('pt-BR');
+            }
+          } catch {
+            // Se der erro, mantém undefined e evita quebrar
+          }
+        }
+
+        if (!local) {
+          await db.matrizes.add({
+            id: s.uuid,
+            identificador: s.identificador,
+            fazendaId: s.fazenda_uuid,
+            categoria: s.categoria,
+            raca: s.raca || undefined,
+            dataNascimento: dataNascimentoBR,
+            pai: s.pai || undefined,
+            mae: s.mae || undefined,
+            ativo: s.ativo,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+        } else {
+          // Atualizar apenas se a versão do servidor for mais recente ou se não tiver remoteId
+          if (!local.remoteId || new Date(local.updatedAt) < new Date(s.updated_at)) {
+            await db.matrizes.update(local.id, {
+              identificador: s.identificador,
+              fazendaId: s.fazenda_uuid,
+              categoria: s.categoria,
+              raca: s.raca || undefined,
+              dataNascimento: dataNascimentoBR,
+              pai: s.pai || undefined,
+              mae: s.mae || undefined,
+              ativo: s.ativo,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de matrizes:', err);
   }
 
   // Buscar nascimentos

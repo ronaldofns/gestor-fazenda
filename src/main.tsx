@@ -8,6 +8,7 @@ import App from './App';
 import { migrateOldData } from './db/migration';
 import { AuthProvider } from './hooks/useAuth';
 import './index.css';
+import { applyTheme, getInitialTheme } from './utils/theme';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +42,12 @@ persistQueryClient({
 
 // Executar migração de dados antigos
 migrateOldData().catch(console.error);
+
+// Inicializar tema (light/dark) antes do render
+if (typeof window !== 'undefined') {
+  const initialTheme = getInitialTheme();
+  applyTheme(initialTheme);
+}
 
 // Limpar sessão antiga do Supabase Auth (se existir) - agora usamos autenticação local
 if (typeof window !== 'undefined') {

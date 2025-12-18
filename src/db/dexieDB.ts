@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Usuario, Matriz } from './models';
+import { Nascimento, Desmama, Fazenda, Raca, Usuario, Matriz, AuditLog } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -17,6 +17,7 @@ class AppDB extends Dexie {
   usuarios!: Dexie.Table<Usuario, string>; // Tabela de usuários locais
   matrizes!: Dexie.Table<Matriz, string>;
   deletedRecords!: Dexie.Table<DeletedRecord, string>; // Tabela para rastrear exclusões
+  audits!: Dexie.Table<AuditLog, string>; // Tabela de auditoria / histórico de alterações
 
   constructor() {
     super('FazendaDB');
@@ -91,6 +92,18 @@ class AppDB extends Dexie {
       usuarios: 'id, email, nome, role, fazendaId, ativo',
       matrizes: 'id, identificador, fazendaId, categoria, raca, dataNascimento, ativo',
       deletedRecords: 'id, uuid, remoteId, deletedAt, synced'
+    });
+
+    // Versão 10: Tabela de auditoria
+    this.version(10).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, categoria, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId'
     });
   }
 }

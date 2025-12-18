@@ -142,21 +142,21 @@ export default function CadastroUsuario() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100">
+      <header className="bg-white dark:bg-slate-900 shadow-sm border-b border-gray-200 dark:border-slate-800">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-2">
             <Link
               to="/usuarios"
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 rounded-md transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-slate-100">
                 {isEditing ? 'Editar Usuário' : 'Novo Usuário'}
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-1">
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1">
                 {isEditing ? 'Editar informações do usuário' : 'Cadastrar novo usuário no sistema'}
               </p>
             </div>
@@ -165,7 +165,7 @@ export default function CadastroUsuario() {
       </header>
 
       <main className="px-2 sm:px-4 lg:px-8 py-4 sm:py-6">
-        <div className="bg-white shadow-sm rounded-lg p-6">
+        <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>

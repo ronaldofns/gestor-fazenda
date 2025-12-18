@@ -81,3 +81,22 @@ export interface Usuario {
   synced: boolean; // Se foi sincronizado com o servidor
   remoteId?: number | null; // ID remoto no Supabase
 }
+
+export type AuditEntity = 'fazenda' | 'raca' | 'nascimento' | 'desmama' | 'matriz' | 'usuario';
+
+export type AuditAction = 'create' | 'update' | 'delete';
+
+export interface AuditLog {
+  id: string; // UUID interno
+  entity: AuditEntity;
+  entityId: string; // ID local do registro
+  action: AuditAction;
+  timestamp: string; // ISO string
+  userId?: string | null;
+  userNome?: string | null;
+  before?: string | null; // JSON com snapshot anterior
+  after?: string | null; // JSON com snapshot atual
+  description?: string | null;
+  synced: boolean;
+  remoteId?: number | null;
+}

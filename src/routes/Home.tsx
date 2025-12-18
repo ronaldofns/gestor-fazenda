@@ -6,18 +6,66 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
-import SyncStatus from '../components/SyncStatus';
 import Combobox from '../components/Combobox';
 import ModalRaca from '../components/ModalRaca';
-import { Plus, Edit, Trash2, Users, User, TrendingUp, Mars, Venus, Upload, ChevronLeft, ChevronRight, X, FileText, Download, FileSpreadsheet } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, User, TrendingUp, Mars, Venus, ChevronLeft, ChevronRight, X, FileText, Download, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
 import { cleanDuplicateNascimentos } from '../utils/cleanDuplicates';
 import { uuid } from '../utils/uuid';
 import { gerarRelatorioPDF, gerarRelatorioProdutividadePDF, gerarRelatorioDesmamaPDF, gerarRelatorioMortalidadePDF } from '../utils/gerarRelatorioPDF';
 import { exportarParaExcel, exportarParaCSV } from '../utils/exportarDados';
 import { showToast } from '../utils/toast';
+import { useAuth } from '../hooks/useAuth';
+import { registrarAudit } from '../utils/audit';
 
-const OPCOES_ITENS_POR_PAGINA = [30, 50, 100];
-const ITENS_POR_PAGINA_PADRAO = 50;
+const OPCOES_ITENS_POR_PAGINA = [10, 20, 50, 70, 100];
+const ITENS_POR_PAGINA_PADRAO = 10;
+
+type ColunaChave =
+  | 'matriz'
+  | 'novilha'
+  | 'vaca'
+  | 'sexo'
+  | 'raca'
+  | 'brinco'
+  | 'morto'
+  | 'pesoDesmama'
+  | 'dataDesmama'
+  | 'obs';
+
+type ColunasVisiveis = Record<ColunaChave, boolean>;
+
+interface ColunaConfigItem {
+  chave: ColunaChave;
+  label: string;
+}
+
+const COLUNAS_DISPONIVEIS: ColunaConfigItem[] = [
+  { chave: 'matriz', label: 'Matriz' },
+  { chave: 'novilha', label: 'Novilha' },
+  { chave: 'vaca', label: 'Vaca' },
+  { chave: 'sexo', label: 'Sexo' },
+  { chave: 'raca', label: 'Raça' },
+  { chave: 'brinco', label: 'Número brinco' },
+  { chave: 'morto', label: 'Morto' },
+  { chave: 'pesoDesmama', label: 'Peso desmama' },
+  { chave: 'dataDesmama', label: 'Data desmama' },
+  { chave: 'obs', label: 'Observação' }
+];
+
+const COLUNAS_VISIVEIS_PADRAO: ColunasVisiveis = {
+  matriz: true,
+  novilha: true,
+  vaca: true,
+  sexo: true,
+  raca: true,
+  brinco: true,
+  morto: true,
+  pesoDesmama: true,
+  dataDesmama: true,
+  obs: true
+};
+
+const STORAGE_COLUNAS_KEY = 'gf-colunas-nascimento-desmama';
 
 const schemaNascimento = z.object({
   fazendaId: z.string().min(1, 'Selecione a fazenda'),
@@ -37,6 +85,7 @@ type FormDataNascimento = z.infer<typeof schemaNascimento>;
 
 export default function Home() {
   useSync();
+  const { user: currentUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalNovoNascimentoOpen, setModalNovoNascimentoOpen] = useState(false);
   const [modalEditarNascimentoOpen, setModalEditarNascimentoOpen] = useState(false);
@@ -49,6 +98,8 @@ export default function Home() {
   const [forceRefresh, setForceRefresh] = useState(0);
   const [menuExportarAberto, setMenuExportarAberto] = useState(false);
   const menuExportarRef = useRef<HTMLDivElement>(null);
+  const [menuColunasAberto, setMenuColunasAberto] = useState(false);
+  const menuColunasRef = useRef<HTMLDivElement | null>(null);
   const matrizInputRef = useRef<HTMLInputElement>(null);
   const matrizInputRefEdicao = useRef<HTMLInputElement>(null);
   
@@ -67,7 +118,7 @@ export default function Home() {
     };
     initDB();
   }, []);
-
+  
   // Limpar duplicados uma vez ao carregar a página
   useEffect(() => {
     cleanDuplicateNascimentos().catch(err => {
@@ -106,12 +157,43 @@ export default function Home() {
     return OPCOES_ITENS_POR_PAGINA.includes(valor) ? valor : ITENS_POR_PAGINA_PADRAO;
   });
 
-  // Valores diferidos para evitar travar a UI ao filtrar listas grandes
-  const filtroFazendaDeferred = useDeferredValue(filtroFazenda);
-  const filtroMatrizBrincoDeferred = useDeferredValue(filtroMatrizBrinco);
-  const filtroSexoDeferred = useDeferredValue(filtroSexo);
-  const filtroStatusDeferred = useDeferredValue(filtroStatus);
-  const buscaGlobalDeferred = useDeferredValue(buscaGlobal);
+  const [colunasVisiveis, setColunasVisiveis] = useState<ColunasVisiveis>(() => {
+    if (typeof window === 'undefined') return COLUNAS_VISIVEIS_PADRAO;
+    try {
+      const saved = localStorage.getItem(STORAGE_COLUNAS_KEY);
+      if (!saved) return COLUNAS_VISIVEIS_PADRAO;
+      const parsed = JSON.parse(saved) as Partial<ColunasVisiveis>;
+      return { ...COLUNAS_VISIVEIS_PADRAO, ...parsed };
+    } catch {
+      return COLUNAS_VISIVEIS_PADRAO;
+    }
+  });
+
+  // Persistir preferências de colunas da tabela
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_COLUNAS_KEY, JSON.stringify(colunasVisiveis));
+    } catch (err) {
+      console.warn('Não foi possível salvar preferências de colunas:', err);
+    }
+  }, [colunasVisiveis]);
+
+  // Ref para controlar auto-seleção inicial de fazenda (não interferir quando usuário escolhe "Todas")
+  const autoFazendaSelecionadaRef = useRef(false);
+
+  const totalColunasTabela =
+    (colunasVisiveis.matriz ? 1 : 0) +
+    (colunasVisiveis.novilha ? 1 : 0) +
+    (colunasVisiveis.vaca ? 1 : 0) +
+    (colunasVisiveis.sexo ? 1 : 0) +
+    (colunasVisiveis.raca ? 1 : 0) +
+    (colunasVisiveis.brinco ? 1 : 0) +
+    (colunasVisiveis.morto ? 1 : 0) +
+    (colunasVisiveis.pesoDesmama ? 1 : 0) +
+    (colunasVisiveis.dataDesmama ? 1 : 0) +
+    (colunasVisiveis.obs ? 1 : 0) +
+    1; // AÇÕES
 
   // Carregar fazendas antes de usar no useEffect
   const fazendasRaw = useLiveQuery(
@@ -135,20 +217,17 @@ export default function Home() {
     return [...fazendasRaw].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [fazendasRaw]);
 
-  const fazendaOptions = useMemo(() => {
-    return [{ label: 'Todas', value: '' }, ...fazendas.map(f => ({ label: f.nome, value: f.id }))];
-  }, [fazendas]);
-
-  // Selecionar primeira fazenda automaticamente se não houver filtro na URL e houver fazendas
+  // Selecionar primeira fazenda automaticamente APENAS na inicialização (se não vier na URL)
   useEffect(() => {
-    // Só selecionar automaticamente se não houver filtro na URL e não houver fazenda selecionada
+    if (autoFazendaSelecionadaRef.current) return;
     if (!filtroFazendaFromUrl && Array.isArray(fazendas) && fazendas.length > 0 && filtroFazenda === '') {
       const primeiraFazenda = fazendas[0];
       if (primeiraFazenda && primeiraFazenda.id) {
         setFiltroFazenda(primeiraFazenda.id);
       }
     }
-  }, [fazendas, filtroFazendaFromUrl, filtroFazenda]);
+    autoFazendaSelecionadaRef.current = true;
+  }, [fazendas, filtroFazendaFromUrl]);
 
   // Resetar página quando filtros mudarem
   useEffect(() => {
@@ -273,6 +352,28 @@ export default function Home() {
     });
   }, [nascimentosTodosRaw]);
   
+  // Uso de fazendas e raças (para ordenar por mais utilizadas)
+  const usoFazenda = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!Array.isArray(nascimentosTodos)) return map;
+    for (const n of nascimentosTodos) {
+      if (!n.fazendaId) continue;
+      map.set(n.fazendaId, (map.get(n.fazendaId) || 0) + 1);
+    }
+    return map;
+  }, [nascimentosTodos]);
+
+  const usoRaca = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!Array.isArray(nascimentosTodos)) return map;
+    for (const n of nascimentosTodos) {
+      const nomeRaca = (n.raca || '').trim();
+      if (!nomeRaca) continue;
+      map.set(nomeRaca, (map.get(nomeRaca) || 0) + 1);
+    }
+    return map;
+  }, [nascimentosTodos]);
+  
   const desmamas = useLiveQuery(
     async () => {
       try {
@@ -311,7 +412,29 @@ export default function Home() {
     return [...racasRaw].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [racasRaw]);
 
-  const racasOptions = useMemo(() => racas.map(r => r.nome), [racas]);
+  const fazendaOptions = useMemo(() => {
+    if (!Array.isArray(fazendas) || fazendas.length === 0) {
+      return [{ label: 'Todas', value: '' }];
+    }
+    const ordenadas = [...fazendas].sort((a, b) => {
+      const usoA = usoFazenda.get(a.id) || 0;
+      const usoB = usoFazenda.get(b.id) || 0;
+      if (usoA !== usoB) return usoB - usoA; // mais usadas primeiro
+      return (a.nome || '').localeCompare(b.nome || '');
+    });
+    return [{ label: 'Todas', value: '' }, ...ordenadas.map(f => ({ label: f.nome, value: f.id }))];
+  }, [fazendas, usoFazenda]);
+
+  const racasOptions = useMemo(() => {
+    if (!Array.isArray(racas) || racas.length === 0) return [];
+    const ordenadas = [...racas].sort((a, b) => {
+      const usoA = usoRaca.get((a.nome || '').trim()) || 0;
+      const usoB = usoRaca.get((b.nome || '').trim()) || 0;
+      if (usoA !== usoB) return usoB - usoA;
+      return (a.nome || '').localeCompare(b.nome || '');
+    });
+    return ordenadas.map(r => r.nome);
+  }, [racas, usoRaca]);
 
   // Carregar buscas recentes do localStorage
   useEffect(() => {
@@ -359,20 +482,6 @@ export default function Home() {
     },
     [normalizarBrinco]
   );
-
-  const formatarDataParaBR = useCallback((valor?: string) => {
-    if (!valor) return '';
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(valor)) return valor;
-    const somenteData = valor.split('T')[0];
-    const partes = somenteData.split('-');
-    if (partes.length === 3) {
-      const [ano, mes, dia] = partes;
-      if (ano && mes && dia) {
-        return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${ano}`;
-      }
-    }
-    return valor;
-  }, []);
 
   const normalizarDataInput = useCallback((valor: string) => {
     const digits = valor.replace(/\D/g, '').slice(0, 8);
@@ -451,7 +560,7 @@ export default function Home() {
       const novilha = values.tipo === 'novilha';
       const vaca = values.tipo === 'vaca';
       
-      await db.nascimentos.add({ 
+      const novoNascimento = { 
         fazendaId: values.fazendaId,
         mes: Number(values.mes),
         ano: Number(values.ano),
@@ -468,6 +577,19 @@ export default function Home() {
         createdAt: now, 
         updatedAt: now, 
         synced: false 
+      } as const;
+      
+      await db.nascimentos.add(novoNascimento);
+
+      // Auditoria: criação de nascimento
+      await registrarAudit({
+        entity: 'nascimento',
+        entityId: id,
+        action: 'create',
+        before: null,
+        after: novoNascimento,
+        user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+        description: 'Cadastro de nascimento na planilha'
       });
       
       // Manter campos: Fazenda, Mês, Ano, Data de Nascimento, Raça, Tipo
@@ -519,7 +641,7 @@ export default function Home() {
   };
 
   const nascimentoEditando = useLiveQuery(
-    () => (nascimentoEditandoId ? db.nascimentos.get(nascimentoEditandoId) : null),
+    () => (nascimentoEditandoId ? db.nascimentos.get(nascimentoEditandoId) : undefined),
     [nascimentoEditandoId]
   );
 
@@ -567,7 +689,10 @@ export default function Home() {
       const vaca = values.tipo === 'vaca';
       
       const now = new Date().toISOString();
-      await db.nascimentos.update(nascimentoEditandoId, { 
+
+      const antes = nascimentoEditando || null;
+
+      const updates = {
         fazendaId: values.fazendaId,
         mes: Number(values.mes),
         ano: Number(values.ano),
@@ -582,7 +707,24 @@ export default function Home() {
         vaca,
         updatedAt: now,
         synced: false
-      });
+      };
+
+      await db.nascimentos.update(nascimentoEditandoId, updates);
+
+      const depois = nascimentoEditando ? { ...nascimentoEditando, ...updates } : null;
+
+      if (depois) {
+        // Auditoria: edição de nascimento
+        await registrarAudit({
+          entity: 'nascimento',
+          entityId: nascimentoEditandoId,
+          action: 'update',
+          before: antes,
+          after: depois,
+          user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+          description: 'Edição de nascimento na planilha'
+        });
+      }
       
       handleFecharEdicao();
     } catch (error) {
@@ -623,13 +765,13 @@ export default function Home() {
     }
     
     // Filtrar por fazenda (só se houver uma fazenda selecionada)
-    if (filtroFazendaDeferred && filtroFazendaDeferred !== '') {
-      filtrados = filtrados.filter(n => n.fazendaId === filtroFazendaDeferred);
+    if (filtroFazenda && filtroFazenda !== '') {
+      filtrados = filtrados.filter(n => n.fazendaId === filtroFazenda);
     }
     
     // Filtrar por matriz/brinco
-    if (filtroMatrizBrincoDeferred && filtroMatrizBrincoDeferred.trim() !== '') {
-      const busca = filtroMatrizBrincoDeferred.toLowerCase().trim();
+    if (filtroMatrizBrinco && filtroMatrizBrinco.trim() !== '') {
+      const busca = filtroMatrizBrinco.toLowerCase().trim();
       filtrados = filtrados.filter(n => {
         const matrizMatch = n.matrizId?.toLowerCase().includes(busca);
         const brincoMatch = n.brincoNumero?.toLowerCase().includes(busca);
@@ -638,20 +780,20 @@ export default function Home() {
     }
 
     // Filtrar por sexo
-    if (filtroSexoDeferred) {
-      filtrados = filtrados.filter((n) => n.sexo === filtroSexoDeferred);
+    if (filtroSexo) {
+      filtrados = filtrados.filter((n) => n.sexo === filtroSexo);
     }
 
     // Filtrar por status (vivos/mortos)
-    if (filtroStatusDeferred === 'vivos') {
+    if (filtroStatus === 'vivos') {
       filtrados = filtrados.filter((n) => !n.morto);
-    } else if (filtroStatusDeferred === 'mortos') {
+    } else if (filtroStatus === 'mortos') {
       filtrados = filtrados.filter((n) => n.morto);
     }
 
     // Busca global (matriz, brinco, raça, fazenda, obs)
-    if (buscaGlobalDeferred.trim()) {
-      const termo = buscaGlobalDeferred.trim().toLowerCase();
+    if (buscaGlobal.trim()) {
+      const termo = buscaGlobal.trim().toLowerCase();
       filtrados = filtrados.filter((n) => {
         const matriz = n.matrizId?.toLowerCase().includes(termo);
         const brinco = n.brincoNumero?.toLowerCase().includes(termo);
@@ -664,7 +806,7 @@ export default function Home() {
     }
     
     return filtrados;
-  }, [nascimentosTodos, filtroMes, filtroAno, filtroFazendaDeferred, filtroMatrizBrincoDeferred, filtroSexoDeferred, filtroStatusDeferred, buscaGlobalDeferred, fazendaMap]);
+  }, [nascimentosTodos, filtroMes, filtroAno, filtroFazenda, filtroMatrizBrinco, filtroSexo, filtroStatus, buscaGlobal, fazendaMap]);
 
   // Paginação
   const totalPaginas = useMemo(() => {
@@ -892,21 +1034,35 @@ export default function Home() {
     }
   }, [menuExportarAberto]);
 
+  // Fechar menu de colunas ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuColunasRef.current && !menuColunasRef.current.contains(event.target as Node)) {
+        setMenuColunasAberto(false);
+      }
+    };
+
+    if (menuColunasAberto) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [menuColunasAberto]);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100">
+      <header className="bg-white dark:bg-slate-900 shadow-sm border-b border-gray-200 dark:border-slate-800">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 break-words">PLANILHA NASCIMENTO/DESMAMA</h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-1 break-words">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-slate-100 break-words">PLANILHA NASCIMENTO/DESMAMA</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1 break-words">
                 {filtroMes !== '' && filtroAno !== '' && (
                   <>MÊS {filtroMes} ({nomeMes(filtroMes)}) ANO {filtroAno}</>
                 )}
                 {fazendaSelecionada && ` - ${fazendaSelecionada.nome}`}
               </p>
             </div>
-      <button
+            <button
               onClick={() => {
                 if (fazendas.length === 0) {
                   showToast({ type: 'warning', title: 'Cadastre uma fazenda', message: 'Crie pelo menos uma fazenda antes de lançar nascimentos.' });
@@ -924,7 +1080,7 @@ export default function Home() {
           {/* Filtros */}
           <div className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-4 border-t">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Fazenda</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda</label>
               <Combobox
                 value={filtroFazenda}
                 onChange={setFiltroFazenda}
@@ -935,7 +1091,7 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Mês</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Mês</label>
               <Combobox
                 value={filtroMes === '' ? '' : filtroMes.toString()}
                 onChange={(value) => setFiltroMes(value === '' ? '' : Number(value))}
@@ -952,58 +1108,62 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Ano</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Ano</label>
               <input
                 type="number"
                 min="2000"
                 max="2100"
                 value={filtroAno}
                 onChange={(e) => setFiltroAno(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Ano"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Matriz/Brinco</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Matriz/Brinco</label>
               <input
                 type="text"
                 value={filtroMatrizBrinco}
                 onChange={(e) => setFiltroMatrizBrinco(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Buscar por matriz ou brinco"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Sexo</label>
-              <select
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Sexo</label>
+              <Combobox
                 value={filtroSexo}
-                onChange={(e) => setFiltroSexo(e.target.value as '' | 'M' | 'F')}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Todos</option>
-                <option value="M">Macho</option>
-                <option value="F">Fêmea</option>
-              </select>
+                onChange={(value) => setFiltroSexo(value as '' | 'M' | 'F')}
+                options={[
+                  { label: 'Todos', value: '' },
+                  { label: 'Macho', value: 'M' },
+                  { label: 'Fêmea', value: 'F' }
+                ]}
+                placeholder="Todos"
+                allowCustomValue={false}
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-              <select
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Status</label>
+              <Combobox
                 value={filtroStatus}
-                onChange={(e) => setFiltroStatus(e.target.value as 'todos' | 'vivos' | 'mortos')}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="todos">Todos</option>
-                <option value="vivos">Vivos</option>
-                <option value="mortos">Mortos</option>
-              </select>
+                onChange={(value) => setFiltroStatus(value as 'todos' | 'vivos' | 'mortos')}
+                options={[
+                  { label: 'Todos', value: 'todos' },
+                  { label: 'Vivos', value: 'vivos' },
+                  { label: 'Mortos', value: 'mortos' }
+                ]}
+                placeholder="Todos"
+                allowCustomValue={false}
+              />
             </div>
 
             <div className="flex flex-col gap-2">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Busca global</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Busca global</label>
                 <input
                   type="text"
                   value={buscaGlobal}
@@ -1015,7 +1175,7 @@ export default function Home() {
                       salvarBuscaRecente(buscaGlobal);
                     }
                   }}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Brinco, matriz, fazenda, raça, obs"
                 />
               </div>
@@ -1049,6 +1209,49 @@ export default function Home() {
             </div>
 
             <div className="flex items-end gap-2">
+              {/* Configuração de colunas */}
+              <div className="relative" ref={menuColunasRef}>
+                <button
+                  type="button"
+                  onClick={() => setMenuColunasAberto((prev) => !prev)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
+                  title="Escolher colunas da tabela"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span className="hidden sm:inline">Colunas</span>
+                  <span className="sm:hidden">Cols</span>
+                </button>
+                {menuColunasAberto && (
+                  <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 z-50 max-h-64 overflow-y-auto">
+                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">
+                      Selecione as colunas que deseja visualizar na tabela.
+                    </div>
+                    <div className="py-1">
+                      {COLUNAS_DISPONIVEIS.map((coluna) => (
+                        <label
+                          key={coluna.chave}
+                          className="flex items-center gap-2 px-3 py-1 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            checked={colunasVisiveis[coluna.chave]}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setColunasVisiveis((prev) => ({
+                                ...prev,
+                                [coluna.chave]: checked
+                              }));
+                            }}
+                          />
+                          <span>{coluna.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Dropdown de Exportação */}
               <div className="relative flex-1" ref={menuExportarRef}>
                 <button
@@ -1147,7 +1350,12 @@ export default function Home() {
                             return map;
                           }, new Map<string, { total: number; mortos: number; desmamas: number }>());
 
-                          const periodoLabel = `${(filtroMes || mesAtual).toString().padStart(2, '0')}/${filtroAno || anoAtual}`;
+                          const periodoLabel =
+                            filtroMes && filtroAno
+                              ? `${filtroMes.toString().padStart(2, '0')}/${filtroAno}`
+                              : filtroAno
+                              ? `Ano ${filtroAno}`
+                              : 'Todos os períodos';
                           const payload = Array.from(fazendasAgrupadas.entries()).map(([fazendaNome, dados]) => {
                             const vivos = dados.total - dados.mortos;
                             const taxaMortandade = dados.total > 0 ? ((dados.mortos / dados.total) * 100).toFixed(2) : '0.00';
@@ -1243,28 +1451,74 @@ export default function Home() {
 
       <main className="px-2 sm:px-4 lg:px-8 py-4 sm:py-6">
         {/* Versão Desktop - Tabela */}
-        <div className="hidden md:block bg-white shadow-sm rounded-lg overflow-hidden">
+        <div className="hidden md:block bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-300 dark:divide-slate-600">
+              <thead className="bg-gray-100 dark:bg-slate-600">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-24">MATRIZ</th>
-                  <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-14">NOVILHA</th>
-                  <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-14">VACA</th>
-                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-16">SEXO</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-28">RAÇA</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-20">NÚMERO<br/>BRINCO</th>
-                  <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-16">MORTO</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-32">PESO<br/>DESMAMA</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-28">DATA<br/>DESMAMA</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r min-w-[140px]">OBS</th>
-                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sticky right-0 bg-gray-50 z-10">AÇÕES</th>
+                  {colunasVisiveis.matriz && (
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-24">
+                      MATRIZ
+                    </th>
+                  )}
+                  {colunasVisiveis.novilha && (
+                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-14">
+                      NOVILHA
+                    </th>
+                  )}
+                  {colunasVisiveis.vaca && (
+                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-14">
+                      VACA
+                    </th>
+                  )}
+                  {colunasVisiveis.sexo && (
+                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-16">
+                      SEXO
+                    </th>
+                  )}
+                  {colunasVisiveis.raca && (
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-28">
+                      RAÇA
+                    </th>
+                  )}
+                  {colunasVisiveis.brinco && (
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-20">
+                      NÚMERO
+                      <br />
+                      BRINCO
+                    </th>
+                  )}
+                  {colunasVisiveis.morto && (
+                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-16">
+                      MORTO
+                    </th>
+                  )}
+                  {colunasVisiveis.pesoDesmama && (
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-32">
+                      PESO
+                      <br />
+                      DESMAMA
+                    </th>
+                  )}
+                  {colunasVisiveis.dataDesmama && (
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-28">
+                      DATA
+                      <br />
+                      DESMAMA
+                    </th>
+                  )}
+                  {colunasVisiveis.obs && (
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 min-w-[140px]">
+                      OBS
+                    </th>
+                  )}
+                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-24 sticky right-0 z-10">AÇÕES</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-600">
                 {nascimentosView.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={totalColunasTabela} className="px-4 py-8 text-center text-gray-500">
                       Nenhum nascimento cadastrado ainda.
                     </td>
                   </tr>
@@ -1272,40 +1526,57 @@ export default function Home() {
                   nascimentosView.map((n) => {
                     const desmama = desmamasMap.get(n.id);
                     return (
-                      <tr key={n.id} className={`hover:bg-gray-50 ${n.morto ? 'bg-red-50' : ''}`}>
-                        <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 border-r">
-                          <button
-                            type="button"
-                            onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
-                            className="text-left text-blue-700 hover:text-blue-900 hover:underline"
-                            title="Ver histórico da matriz"
-                          >
-                            {n.matrizId}
-                          </button>
+                      <tr
+                        key={n.id}
+                        className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${n.morto ? 'bg-red-50 dark:bg-red-950/40' : ''}`}
+                      >
+                        {colunasVisiveis.matriz && (
+                          <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-slate-100 border-r border-gray-200 dark:border-slate-600">
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
+                              className="text-left text-blue-700 hover:text-blue-900 hover:underline"
+                              title="Ver histórico da matriz"
+                            >
+                          {n.matrizId}
+                            </button>
                         </td>
-                        <td className="px-1 py-2 whitespace-nowrap text-center border-r">
+                        )}
+                        {colunasVisiveis.novilha && (
+                          <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
                           {n.novilha ? <span className="text-blue-600 font-bold text-xs">X</span> : ''}
                         </td>
-                        <td className="px-1 py-2 whitespace-nowrap text-center border-r">
+                        )}
+                        {colunasVisiveis.vaca && (
+                          <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
                           {n.vaca ? <span className="text-blue-600 font-bold text-xs">X</span> : ''}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 text-center border-r">
+                        )}
+                        {colunasVisiveis.sexo && (
+                          <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200 text-center border-r border-gray-200 dark:border-slate-600">
                           {n.sexo || ''}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 border-r">
+                        )}
+                        {colunasVisiveis.raca && (
+                          <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200 border-r border-gray-200 dark:border-slate-600">
                           {n.raca || ''}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 border-r">
+                        )}
+                        {colunasVisiveis.brinco && (
+                          <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200 border-r border-gray-200 dark:border-slate-600">
                           {n.brincoNumero || '-'}
                         </td>
-                        <td className="px-1 py-2 whitespace-nowrap text-center border-r">
+                        )}
+                        {colunasVisiveis.morto && (
+                          <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
                           {n.morto ? <span className="text-red-600 font-bold text-xs">X</span> : ''}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 border-r">
+                        )}
+                        {colunasVisiveis.pesoDesmama && (
+                          <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200 border-r border-gray-200 dark:border-slate-600">
                           {desmama?.pesoDesmama ? (
                             <span>{desmama.pesoDesmama} kg</span>
-                          ) : (
-                            !desmama ? (
+                            ) : !desmama ? (
                               <Link 
                                 to={`/desmama/${n.id}`}
                                 className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
@@ -1314,18 +1585,24 @@ export default function Home() {
                                 <Plus className="w-3 h-3 mr-0.5" />
                                 <span className="hidden sm:inline">Cadastrar</span>
                               </Link>
-                            ) : '-'
+                            ) : (
+                              '-'
                           )}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 border-r">
+                        )}
+                        {colunasVisiveis.dataDesmama && (
+                          <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 border-r border-gray-200 dark:border-slate-600">
                           {desmama?.dataDesmama ? formatDate(desmama.dataDesmama) : '-'}
                         </td>
-                        <td className="px-2 py-2 text-sm text-gray-700 border-r">
+                        )}
+                        {colunasVisiveis.obs && (
+                          <td className="px-2 py-2 text-sm text-gray-700 dark:text-slate-200 border-r border-gray-200 dark:border-slate-600">
                           <span className="block max-w-[140px]" title={n.obs || ''}>
                             {n.obs || '-'}
                           </span>
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-center sticky right-0 bg-white border-l z-10">
+                        )}
+                        <td className="px-2 py-2 whitespace-nowrap text-sm text-center sticky right-0 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-600 z-10">
                           <div className="flex items-center justify-center gap-1">
                                 <button
                                   onClick={() => handleAbrirEdicao(n.id)}
@@ -1338,6 +1615,9 @@ export default function Home() {
                               onClick={async () => {
                                 if (confirm(`Deseja realmente excluir o nascimento da matriz ${n.matrizId}?`)) {
                                   try {
+                                    // Auditoria: snapshot antes da exclusão
+                                    const antes = n;
+
                                     // Excluir desmama associada se existir (local e remoto)
                                     const desmamasAssociadas = await db.desmamas.where('nascimentoId').equals(n.id).toArray();
                                     for (const d of desmamasAssociadas) {
@@ -1387,6 +1667,17 @@ export default function Home() {
                                     
                                     // Excluir nascimento local
                                     await db.nascimentos.delete(n.id);
+
+                                    // Auditoria: exclusão de nascimento
+                                    await registrarAudit({
+                                      entity: 'nascimento',
+                                      entityId: n.id,
+                                      action: 'delete',
+                                      before: antes,
+                                      after: null,
+                                      user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+                                      description: 'Exclusão de nascimento na planilha'
+                                    });
                                   } catch (error) {
                                     console.error('Erro ao excluir:', error);
                                     showToast({ type: 'error', title: 'Erro ao excluir', message: error instanceof Error ? error.message : 'Erro desconhecido' });
@@ -1410,11 +1701,11 @@ export default function Home() {
           
           {/* Controles de Paginação */}
           {(totalPaginas > 1 || nascimentosFiltrados.length > 0) && (
-            <div className="bg-white px-4 py-3 border-t border-gray-200">
+            <div className="bg-white dark:bg-slate-900 px-4 py-3 border-t border-gray-200 dark:border-slate-800">
               {/* Seletor de Itens por Página */}
-              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-slate-800">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-700">Itens por página:</label>
+                  <label className="text-sm text-gray-700 dark:text-slate-300">Itens por página:</label>
                   <select
                     value={itensPorPagina}
                     onChange={(e) => {
@@ -1423,14 +1714,14 @@ export default function Home() {
                         setItensPorPagina(novoValor);
                       }
                     }}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    className="px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-900"
                   >
                     {OPCOES_ITENS_POR_PAGINA.map(opcao => (
                       <option key={opcao} value={opcao}>{opcao}</option>
                     ))}
                   </select>
                 </div>
-                <div className="text-sm text-gray-700">
+                <div className="text-sm text-gray-700 dark:text-slate-300">
                   Total: <span className="font-medium">{nascimentosFiltrados.length}</span> registros
                 </div>
               </div>
@@ -1442,24 +1733,24 @@ export default function Home() {
                     <button
                       onClick={() => setPaginaAtual(p => Math.max(1, p - 1))}
                       disabled={paginaAtual === 1}
-                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-md text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Anterior
                     </button>
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm text-gray-700 dark:text-slate-300">
                       Página {paginaAtual} de {totalPaginas}
                     </span>
                     <button
                       onClick={() => setPaginaAtual(p => Math.min(totalPaginas, p + 1))}
                       disabled={paginaAtual === totalPaginas}
-                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-md text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Próxima
                     </button>
                   </div>
                   <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm text-gray-700">
+                      <p className="text-sm text-gray-700 dark:text-slate-300">
                         Mostrando <span className="font-medium">{inicio + 1}</span> até{' '}
                         <span className="font-medium">{Math.min(fim, nascimentosFiltrados.length)}</span> de{' '}
                         <span className="font-medium">{nascimentosFiltrados.length}</span> resultados
@@ -1470,7 +1761,7 @@ export default function Home() {
                         <button
                           onClick={() => setPaginaAtual(p => Math.max(1, p - 1))}
                           disabled={paginaAtual === 1}
-                          className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <ChevronLeft className="h-5 w-5" />
                         </button>
@@ -1491,8 +1782,8 @@ export default function Home() {
                               onClick={() => setPaginaAtual(paginaNumero)}
                               className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                                 paginaAtual === paginaNumero
-                                  ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                                  ? 'z-10 bg-blue-50 dark:bg-blue-900/40 border-blue-500 text-blue-600'
+                                  : 'bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'
                               }`}
                             >
                               {paginaNumero}
@@ -1502,7 +1793,7 @@ export default function Home() {
                         <button
                           onClick={() => setPaginaAtual(p => Math.min(totalPaginas, p + 1))}
                           disabled={paginaAtual === totalPaginas}
-                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <ChevronRight className="h-5 w-5" />
                         </button>
@@ -1518,14 +1809,14 @@ export default function Home() {
         {/* Versão Mobile - Cards */}
         <div className="md:hidden space-y-3 mt-4">
           {nascimentosView.length === 0 ? (
-            <div className="bg-white p-6 rounded-lg shadow-sm text-center text-gray-500">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm text-center text-gray-500 dark:text-slate-400">
               Nenhum nascimento cadastrado ainda.
             </div>
         ) : (
             nascimentosView.map((n) => {
               const desmama = desmamasMap.get(n.id);
               return (
-                <div key={n.id} className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+                <div key={n.id} className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-slate-800">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -1658,7 +1949,7 @@ export default function Home() {
           {(totalPaginas > 1 || nascimentosFiltrados.length > 0) && (
             <div className="mt-4 bg-white px-4 py-3 rounded-lg shadow-sm border border-gray-200">
               {/* Seletor de Itens por Página Mobile */}
-              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <label className="text-xs text-gray-700">Itens por página:</label>
                   <select
@@ -1687,18 +1978,18 @@ export default function Home() {
                   <button
                     onClick={() => setPaginaAtual(p => Math.max(1, p - 1))}
                     disabled={paginaAtual === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-md text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Anterior
                   </button>
-                  <span className="text-sm text-gray-700 font-medium">
+                  <span className="text-sm text-gray-700 dark:text-slate-300 font-medium">
                     Página {paginaAtual} de {totalPaginas}
                   </span>
                   <button
                     onClick={() => setPaginaAtual(p => Math.min(totalPaginas, p + 1))}
                     disabled={paginaAtual === totalPaginas}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-md text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Próxima
                     <ChevronRight className="h-4 w-4 ml-1" />
@@ -1710,59 +2001,59 @@ export default function Home() {
         </div>
 
         {/* Rodapé com Totalizadores */}
-        <div className="mt-6 bg-white shadow-sm rounded-lg overflow-hidden">
-          <div className="px-6 py-4 bg-gray-50 border-b">
-            <h3 className="text-lg font-semibold text-gray-900">Resumo</h3>
+        <div className="mt-6 bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
+          <div className="px-6 py-4 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Resumo</h3>
           </div>
           <div className="p-6">
             {/* Cards principais */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-6">
               {/* Card Vacas */}
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 rounded-lg p-4 border border-purple-200 dark:border-purple-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-medium text-purple-800 uppercase tracking-wide">Vacas</h4>
                   <Users className="w-6 h-6 text-purple-600" />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-purple-900">{totais.vacas}</div>
+                <div className="text-2xl sm:text-3xl font-bold text-purple-900 dark:text-purple-200">{totais.vacas}</div>
               </div>
 
               {/* Card Novilhas */}
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+              <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/10 rounded-lg p-4 border border-green-200 dark:border-green-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs sm:text-sm font-medium text-green-800 uppercase tracking-wide">Novilhas</h4>
                   <User className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-green-900">{totais.novilhas}</div>
+                <div className="text-2xl sm:text-3xl font-bold text-green-900 dark:text-green-200">{totais.novilhas}</div>
               </div>
 
               {/* Card Fêmeas */}
-              <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-lg p-4 border border-pink-200">
+              <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-900/10 rounded-lg p-4 border border-pink-200 dark:border-pink-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs sm:text-sm font-medium text-pink-800 uppercase tracking-wide">Fêmeas</h4>
                   <Venus className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-pink-900">{totais.femeas}</div>
+                <div className="text-2xl sm:text-3xl font-bold text-pink-900 dark:text-pink-200">{totais.femeas}</div>
               </div>
 
               {/* Card Machos */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 rounded-lg p-4 border border-blue-200 dark:border-blue-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wide">Machos</h4>
                   <Mars className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-blue-900">{totais.machos}</div>
+                <div className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-200">{totais.machos}</div>
               </div>
             </div>
 
             {/* Totais por Raça */}
             {totais.totaisPorRaca.length > 0 && (
               <div className="mb-6">
-                <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-3">Totais por Raça</h4>
+                <h4 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Totais por Raça</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {totais.totaisPorRaca.map(({ raca, total }) => (
-                    <div key={raca} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <div className="text-xs sm:text-sm text-gray-600 mb-1 break-words">{raca}</div>
-                      <div className="text-lg sm:text-xl font-bold text-gray-900">{total}</div>
+                    <div key={raca} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 border border-gray-200 dark:border-slate-700">
+                      <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-300 mb-1 break-words">{raca}</div>
+                      <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-slate-100">{total}</div>
                     </div>
                   ))}
                 </div>
@@ -1770,32 +2061,32 @@ export default function Home() {
             )}
 
             {/* Card Total Geral */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 sm:p-6 border-2 border-gray-300">
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-800 dark:to-slate-900 rounded-lg p-4 sm:p-6 border-2 border-gray-300 dark:border-slate-600">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs sm:text-sm font-medium text-gray-800 uppercase tracking-wide">Total Geral</h4>
+                <h4 className="text-xs sm:text-sm font-medium text-gray-800 dark:text-slate-200 uppercase tracking-wide">Total Geral</h4>
                 <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-gray-600" />
               </div>
               <div className="flex items-baseline flex-wrap">
-                <span className="text-3xl sm:text-4xl font-bold text-gray-900">{totais.totalGeral}</span>
-                <span className="ml-2 text-xs sm:text-sm text-gray-700">nascimentos</span>
+                <span className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-slate-100">{totais.totalGeral}</span>
+                <span className="ml-2 text-xs sm:text-sm text-gray-700 dark:text-slate-300">nascimentos</span>
               </div>
-              <div className="mt-3 pt-3 border-t border-gray-300">
+              <div className="mt-3 pt-3 border-t border-gray-300 dark:border-slate-700">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2 text-xs sm:text-sm">
                   <div>
-                    <span className="text-gray-600">Vacas: </span>
-                    <span className="font-semibold text-gray-800">{totais.vacas}</span>
+                    <span className="text-gray-600 dark:text-slate-300">Vacas: </span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-100">{totais.vacas}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Novilhas: </span>
-                    <span className="font-semibold text-gray-800">{totais.novilhas}</span>
+                    <span className="text-gray-600 dark:text-slate-300">Novilhas: </span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-100">{totais.novilhas}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Fêmeas: </span>
-                    <span className="font-semibold text-gray-800">{totais.femeas}</span>
+                    <span className="text-gray-600 dark:text-slate-300">Fêmeas: </span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-100">{totais.femeas}</span>
                   </div>
                 <div>
-                    <span className="text-gray-600">Machos: </span>
-                    <span className="font-semibold text-gray-800">{totais.machos}</span>
+                    <span className="text-gray-600 dark:text-slate-300">Machos: </span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-100">{totais.machos}</span>
                   </div>
                 </div>
               </div>
@@ -1812,7 +2103,7 @@ export default function Home() {
 
           {/* Modal */}
           <div className="flex min-h-full items-center justify-center p-4">
-            <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
                 <h2 className="text-xl font-semibold text-gray-900">Novo Nascimento/Desmama</h2>
@@ -1991,7 +2282,7 @@ export default function Home() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/40 rounded-md">
                   <input 
                     type="checkbox" 
                     id="morto-modal"
@@ -2003,7 +2294,7 @@ export default function Home() {
                   </label>
                 </div>
 
-                <div className="flex gap-2 pt-4 border-t border-gray-200">
+                <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-slate-800">
                   <button 
                     type="submit" 
                     disabled={isSubmitting}
@@ -2044,8 +2335,8 @@ export default function Home() {
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               {/* Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-                <h2 className="text-xl font-semibold text-gray-900">Editar Nascimento/Desmama</h2>
+              <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Editar Nascimento/Desmama</h2>
                 <button
                   onClick={handleFecharEdicao}
                   className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
@@ -2220,7 +2511,7 @@ export default function Home() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/40 rounded-md">
                   <input 
                     type="checkbox" 
                     id="morto-edicao"

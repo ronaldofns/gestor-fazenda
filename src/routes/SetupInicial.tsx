@@ -98,10 +98,10 @@ export default function SetupInicial() {
 
   if (verificando) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-gray-500">
+          <div className="text-gray-500 dark:text-slate-400">
             {sincronizando ? 'Sincronizando usuários...' : 'Verificando...'}
           </div>
           {sincronizando && (
@@ -117,39 +117,39 @@ export default function SetupInicial() {
 
   if (temUsuarios) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
         <div className="text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <LogIn className="w-8 h-8 text-green-600" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Sistema já configurado</h2>
-          <p className="text-gray-600 mb-4">Redirecionando para login...</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">Sistema já configurado</h2>
+          <p className="text-gray-600 dark:text-slate-400 mb-4">Redirecionando para login...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 px-4">
       <div className="max-w-md w-full">
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl shadow-lg mb-4">
             <UserPlus className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Configuração Inicial</h1>
-          <p className="text-gray-600">Crie o primeiro usuário administrador</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Configuração Inicial</h1>
+          <p className="text-gray-600 dark:text-slate-400">Crie o primeiro usuário administrador</p>
         </div>
 
         {/* Card de Cadastro */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Criar Administrador</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-slate-800">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6 text-center">Criar Administrador</h2>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Nome *</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Nome *</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="Seu nome completo"
                 {...register('nome')}
               />
@@ -159,10 +159,10 @@ export default function SetupInicial() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Email *</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Email *</label>
               <input
                 type="email"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="seu@email.com"
                 {...register('email')}
               />
@@ -172,10 +172,10 @@ export default function SetupInicial() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Senha *</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Senha *</label>
               <input
                 type="password"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="Mínimo 6 caracteres"
                 {...register('senha')}
               />
@@ -185,10 +185,10 @@ export default function SetupInicial() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Confirmar Senha *</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Confirmar Senha *</label>
               <input
                 type="password"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="Digite a senha novamente"
                 {...register('confirmarSenha')}
               />
@@ -227,7 +227,7 @@ export default function SetupInicial() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-gray-500 text-sm mt-6">
+        <p className="text-center text-gray-500 dark:text-slate-400 text-sm mt-6">
           © 2024 Gestor Fazenda. Todos os direitos reservados.
         </p>
       </div>
