@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { LogIn, Mail, Lock, RefreshCw } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../db/dexieDB';
 import { pullUpdates } from '../api/syncService';
@@ -89,7 +89,7 @@ export default function Login() {
           </div>
           {sincronizando && (
             <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600">
-              <RefreshCw className="w-4 h-4 animate-spin" />
+              <Icons.RefreshCw className="w-4 h-4 animate-spin" />
               <span>Buscando usuários do servidor</span>
             </div>
           )}
@@ -110,7 +110,7 @@ export default function Login() {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl shadow-lg mb-4">
-            <LogIn className="w-10 h-10 text-white" />
+            <Icons.LogIn className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Gestor Fazenda</h1>
           <p className="text-gray-600 dark:text-slate-400">Sistema de Gestão de Rebanho</p>
@@ -130,7 +130,7 @@ export default function Login() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+                  <Icons.Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input 
                   type="email"
@@ -148,7 +148,7 @@ export default function Login() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Senha</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+                  <Icons.Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input 
                   type="password"
@@ -177,7 +177,7 @@ export default function Login() {
                 </>
               ) : (
                 <>
-                  <LogIn className="w-5 h-5" />
+                  <Icons.LogIn className="w-5 h-5" />
                   <span>Entrar</span>
                 </>
               )}

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { useAlertSettings } from './useAlertSettings';
+import { chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro } from '../utils/notificacoesLidas';
 
 interface NotificacaoDesmama {
   id: string;
@@ -20,9 +21,26 @@ interface NotificacaoMortalidade {
   total: number;
 }
 
+interface NotificacaoDadosIncompletos {
+  id: string;
+  matrizId: string;
+  brinco?: string;
+  fazenda: string;
+  problemas: string[]; // Ex: ['Sem raça', 'Sem data de nascimento']
+}
+
+interface NotificacaoMatrizSemCadastro {
+  matrizId: string;
+  fazendaId: string;
+  fazenda: string;
+  totalNascimentos: number;
+}
+
 export interface Notificacoes {
   desmamaAtrasada: NotificacaoDesmama[];
   mortalidadeAlta: NotificacaoMortalidade[];
+  dadosIncompletos: NotificacaoDadosIncompletos[];
+  matrizesSemCadastro: NotificacaoMatrizSemCadastro[];
   total: number;
 }
 
@@ -50,6 +68,8 @@ export function useNotifications(): Notificacoes {
   const nascimentosTodosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
+  const matrizesRaw = useLiveQuery(() => db.matrizes.toArray(), []) || [];
+  const notificacoesLidasRaw = useLiveQuery(() => db.notificacoesLidas.toArray(), []) || [];
   const { alertSettings } = useAlertSettings();
 
   const fazendaMap = useMemo(() => {
@@ -60,6 +80,46 @@ export function useNotifications(): Notificacoes {
     return map;
   }, [fazendasRaw]);
 
+  // Mapa de matrizes por ID (UUID) para buscar identificador
+  const matrizMap = useMemo(() => {
+    const map = new Map<string, string>(); // ID -> identificador
+    matrizesRaw.forEach((m) => {
+      if (m.id && m.identificador) {
+        map.set(m.id, m.identificador);
+      }
+    });
+    return map;
+  }, [matrizesRaw]);
+
+  const matrizSet = useMemo(() => {
+    const set = new Set<string>();
+    if (Array.isArray(matrizesRaw)) {
+      matrizesRaw.forEach((m) => {
+        if (m.identificador) {
+          // Criar chave composta: identificador + fazendaId
+          set.add(`${m.identificador}|${m.fazendaId}`);
+        }
+        // Também adicionar o ID da matriz (UUID) caso o nascimento use o ID em vez do identificador
+        if (m.id && m.fazendaId) {
+          set.add(`${m.id}|${m.fazendaId}`);
+        }
+      });
+    }
+    return set;
+  }, [matrizesRaw]);
+
+  const matrizesEmNascimentos = useMemo(() => {
+    const map = new Map<string, { fazendaId: string; count: number }>();
+    nascimentosTodosRaw.forEach((n) => {
+      if (!n.matrizId) return;
+      const key = `${n.matrizId}|${n.fazendaId}`;
+      const existing = map.get(key) || { fazendaId: n.fazendaId, count: 0 };
+      existing.count += 1;
+      map.set(key, existing);
+    });
+    return map;
+  }, [nascimentosTodosRaw]);
+
   const desmamaSet = useMemo(() => {
     const set = new Set<string>();
     if (Array.isArray(desmamas)) {
@@ -69,6 +129,10 @@ export function useNotifications(): Notificacoes {
     }
     return set;
   }, [desmamas]);
+
+  const notificacoesLidasSet = useMemo(() => {
+    return new Set(notificacoesLidasRaw.map(n => n.id));
+  }, [notificacoesLidasRaw]);
 
   const notificacoes = useMemo<Notificacoes>(() => {
     const agora = new Date();
@@ -81,14 +145,16 @@ export function useNotifications(): Notificacoes {
         if (!dataNasc) return false;
         const meses = diffMeses(dataNasc, agora);
         const semDesmama = !desmamaSet.has(n.id);
-        return semDesmama && meses >= limiteMesesDesmama;
+        const naoLida = !notificacoesLidasSet.has(chaveDesmama(n.id));
+        return semDesmama && meses >= limiteMesesDesmama && naoLida;
       })
       .map((n) => {
         const dataNasc = parseDate(n.dataNascimento)!;
         const meses = diffMeses(dataNasc, agora);
+        const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
         return {
           id: n.id,
-          matrizId: n.matrizId,
+          matrizId: matrizIdentificador,
           brinco: n.brincoNumero,
           fazenda: fazendaMap.get(n.fazendaId) || 'Sem fazenda',
           meses,
@@ -122,15 +188,63 @@ export function useNotifications(): Notificacoes {
           total
         };
       })
-      .filter((f) => f.total >= 5 && f.taxa >= limiarMortalidade)
+      .filter((f) => f.total >= 5 && f.taxa >= limiarMortalidade && !notificacoesLidasSet.has(chaveMortalidade(f.fazendaId)))
       .sort((a, b) => b.taxa - a.taxa);
+
+    // Dados incompletos: nascimentos sem informações importantes
+    const dadosIncompletos = nascimentosTodosRaw
+      .filter((n) => {
+        if (n.morto) return false; // Ignorar mortos
+        const problemas: string[] = [];
+        if (!n.raca || n.raca.trim() === '') problemas.push('Sem raça');
+        if (!n.dataNascimento || n.dataNascimento.trim() === '') problemas.push('Sem data de nascimento');
+        // if (!n.brincoNumero || n.brincoNumero.trim() === '') problemas.push('Sem brinco');
+        const temProblemas = problemas.length > 0;
+        const naoLida = !notificacoesLidasSet.has(chaveDadosIncompletos(n.id));
+        return temProblemas && naoLida;
+      })
+      .map((n) => {
+        const problemas: string[] = [];
+        if (!n.raca || n.raca.trim() === '') problemas.push('Sem raça');
+        if (!n.dataNascimento || n.dataNascimento.trim() === '') problemas.push('Sem data de nascimento');
+        // if (!n.brincoNumero || n.brincoNumero.trim() === '') problemas.push('Sem brinco');
+        const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+        return {
+          id: n.id,
+          matrizId: matrizIdentificador,
+          brinco: n.brincoNumero,
+          fazenda: fazendaMap.get(n.fazendaId) || 'Sem fazenda',
+          problemas
+        };
+      })
+      .sort((a, b) => b.problemas.length - a.problemas.length);
+
+    // Matrizes sem cadastro completo: matrizes que aparecem em nascimentos mas não têm cadastro
+    const matrizesSemCadastro = Array.from(matrizesEmNascimentos.entries())
+      .filter(([key]) => !matrizSet.has(key))
+      .map(([key, dados]) => {
+        const [matrizIdRaw] = key.split('|');
+        // Tentar buscar o identificador da matriz, senão usar o próprio valor
+        const matrizIdentificador = matrizMap.get(matrizIdRaw) || matrizIdRaw;
+        return {
+          matrizId: matrizIdentificador,
+          fazendaId: dados.fazendaId,
+          fazenda: fazendaMap.get(dados.fazendaId) || 'Sem fazenda',
+          totalNascimentos: dados.count
+        };
+      })
+      .filter((m) => !notificacoesLidasSet.has(chaveMatrizSemCadastro(m.matrizId, m.fazendaId)))
+      .sort((a, b) => b.totalNascimentos - a.totalNascimentos)
+      .slice(0, 20); // Limitar a 20 para não sobrecarregar
 
     return {
       desmamaAtrasada,
       mortalidadeAlta,
-      total: desmamaAtrasada.length + mortalidadeAlta.length
+      dadosIncompletos,
+      matrizesSemCadastro,
+      total: desmamaAtrasada.length + mortalidadeAlta.length + dadosIncompletos.length + matrizesSemCadastro.length
     };
-  }, [alertSettings, desmamaSet, fazendaMap, nascimentosTodosRaw]);
+  }, [alertSettings, desmamaSet, fazendaMap, nascimentosTodosRaw, matrizSet, matrizesEmNascimentos, matrizMap, notificacoesLidasSet]);
 
   return notificacoes;
 }

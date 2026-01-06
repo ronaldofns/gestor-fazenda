@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { db } from '../db/dexieDB';
 import { uuid } from './uuid';
 import { Nascimento } from '../db/models';
+import { criarMatrizSeNaoExistir } from './criarMatrizAutomatica';
 
 export interface MapeamentoColunas {
   matrizId?: string;
@@ -15,6 +16,8 @@ export interface MapeamentoColunas {
   sexo?: string;
   raca?: string;
   obs?: string;
+  dataDesmama?: string;
+  pesoDesmama?: string;
 }
 
 export interface LinhaImportacao {
@@ -120,7 +123,7 @@ export function lerPlanilha(file: File): Promise<InfoPlanilha> {
               }
               
               // Procurar linha de cabeçalho (MATRIZ, NOVILHA, VACA, etc)
-              const palavrasChave = ['matriz', 'novilha', 'vaca', 'sexo', 'raça', 'raza', 'brinco', 'peso', 'data', 'obs', 'observação'];
+              const palavrasChave = ['matriz', 'novilha', 'vaca', 'sexo', 'raça', 'raza', 'brinco', 'peso', 'data', 'obs', 'observação', 'desmama'];
               if (palavrasChave.some(palavra => valor.includes(palavra)) && primeiraLinhaDados === 0) {
                 primeiraLinhaDados = row + 1; // Próxima linha será a primeira com dados
               }
@@ -129,8 +132,9 @@ export function lerPlanilha(file: File): Promise<InfoPlanilha> {
         }
         
         // Converter para JSON (começando da linha de cabeçalho ou primeira linha)
+        // raw: true para manter números e datas como estão (será convertido depois)
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          raw: false,
+          raw: true,
           defval: '',
           header: primeiraLinhaDados > 0 ? primeiraLinhaDados - 1 : 0 // Usar linha anterior como header
         });
@@ -177,15 +181,22 @@ function normalizarNomeColuna(nome: string): string {
 export function detectarMapeamento(colunas: string[]): MapeamentoColunas {
   const mapeamento: MapeamentoColunas = {};
   
+  // IMPORTANTE: Ordem importa! Campos mais específicos primeiro para evitar conflitos
   const padroes: Record<string, string[]> = {
+    // Campos de desmama primeiro (mais específicos)
+    // Incluir variações com e sem underscore, e garantir que "desmama" esteja presente
+    dataDesmama: ['data_desmama', 'data_desm', 'dt_desmama', 'dt_desm', 'data desmama', 'data desm', 'desmama_data', 'desmama data', 'desmama'],
+    pesoDesmama: ['peso_desmama', 'peso_desm', 'peso desmama', 'peso desm', 'peso_em_kg_desmama', 'peso_em_kg_desm'],
+    // Depois campos de nascimento (mais específicos)
+    dataNascimento: ['data_nascimento', 'data_nasc', 'dt_nascimento', 'dt_nasc', 'data nascimento', 'nascimento_data', 'nascimento data'],
+    // Campos gerais
     matrizId: ['matriz', 'matriz_id', 'numero_matriz', 'matrizid', 'id_matriz', 'matrizes'],
     fazenda: ['fazenda', 'fazenda_nome', 'nome_fazenda', 'propriedade'],
-    mes: ['mes', 'mês', 'month'],
-    ano: ['ano', 'year', 'anho'],
+    mes: ['mes', 'mês', 'month', 'mes_', 'mes '],
+    ano: ['ano', 'year', 'anho', 'ano_', 'ano '],
     novilha: ['novilha', 'novilhas', 'novilha_x'],
     vaca: ['vaca', 'vacas', 'cow', 'vaca_x'],
     brincoNumero: ['brinco', 'numero_brinco', 'brinco_numero', 'numero_brinco', 'brinco_num', 'num_brinco', 'número_brinco', 'número brinco'],
-    dataNascimento: ['data_nascimento', 'data_nasc', 'nascimento', 'data', 'dt_nascimento', 'dt_nasc', 'data nascimento'],
     sexo: ['sexo', 'gender', 'genero'],
     raca: ['raca', 'raça', 'breed', 'raza', 'raças'],
     obs: ['obs', 'observacao', 'observação', 'observacoes', 'observações', 'notas', 'notes', 'comentarios', 'comentários', 'obs:', 'observações:']
@@ -194,10 +205,77 @@ export function detectarMapeamento(colunas: string[]): MapeamentoColunas {
   colunas.forEach(coluna => {
     const normalizada = normalizarNomeColuna(coluna);
     
+    // Verificar cada padrão na ordem definida (mais específicos primeiro)
     for (const [campo, variantes] of Object.entries(padroes)) {
-      if (variantes.some(v => normalizada.includes(v) || normalizada === v)) {
+      // Verificar se já foi mapeado (evitar sobrescrever com padrão menos específico)
+      if (mapeamento[campo as keyof MapeamentoColunas]) {
+        continue;
+      }
+      
+      // Verificar se alguma variante corresponde
+      const corresponde = variantes.some(v => {
+        const vNormalizado = normalizarNomeColuna(v);
+        // Match exato
+        if (normalizada === vNormalizado) {
+          return true;
+        }
+        
+        // Match parcial com validações específicas para evitar conflitos
+        // Para campos de desmama, garantir que não seja confundido com nascimento
+        if (campo === 'dataDesmama') {
+          // Deve conter "desmama" ou "desm" E não deve conter "peso" (para não confundir com pesoDesmama)
+          if ((normalizada.includes('desmama') || normalizada.includes('desm')) && !normalizada.includes('peso')) {
+            if (!normalizada.includes('nascimento') && !normalizada.includes('nasc')) {
+              return normalizada.includes(vNormalizado);
+            }
+          }
+          return false;
+        }
+        
+        // Para peso de desmama, garantir que contenha "peso" E "desmama"
+        if (campo === 'pesoDesmama') {
+          // Deve conter "peso" E ("desmama" ou "desm")
+          if (normalizada.includes('peso') && (normalizada.includes('desmama') || normalizada.includes('desm'))) {
+            return normalizada.includes(vNormalizado);
+          }
+          return false;
+        }
+        
+        // Para data de nascimento, garantir que não seja confundido com desmama
+        if (campo === 'dataNascimento') {
+          // Deve conter "nascimento" ou "nasc" E não deve conter "desmama" ou "desm"
+          if (normalizada.includes('nascimento') || normalizada.includes('nasc')) {
+            if (!normalizada.includes('desmama') && !normalizada.includes('desm')) {
+              return normalizada.includes(vNormalizado);
+            }
+          }
+          return false;
+        }
+        
+        // Para campos simples (mes, ano), verificar se a coluna começa com a variante
+        if (campo === 'mes' || campo === 'ano') {
+          // Verificar se a coluna normalizada começa com a variante normalizada
+          if (normalizada.startsWith(vNormalizado)) {
+            return true;
+          }
+          // Também verificar match parcial se a variante tiver pelo menos 3 caracteres
+          if (vNormalizado.length >= 3 && normalizada.includes(vNormalizado)) {
+            return true;
+          }
+          return false;
+        }
+        
+        // Para outros campos, match parcial simples (sem restrições)
+        if (vNormalizado.length >= 2 && normalizada.includes(vNormalizado)) {
+          return true;
+        }
+        
+        return false;
+      });
+      
+      if (corresponde) {
         mapeamento[campo as keyof MapeamentoColunas] = coluna;
-        break;
+        break; // Uma vez mapeado, não verificar outros padrões para esta coluna
       }
     }
   });
@@ -214,9 +292,10 @@ function processarLinha(
   mapeamento: MapeamentoColunas,
   fazendas: Array<{ id: string; nome: string }>,
   fazendaPadraoId?: string
-): { dados: Partial<Nascimento>; erros: string[] } {
+): { dados: Partial<Nascimento>; desmama?: { dataDesmama?: string; pesoDesmama?: number }; erros: string[] } {
   const erros: string[] = [];
   const dados: Partial<Nascimento> = {};
+  const desmama: { dataDesmama?: string; pesoDesmama?: number } = {};
   
   // Matriz (obrigatório)
   const matrizValor = mapeamento.matrizId ? linha[mapeamento.matrizId] : '';
@@ -325,23 +404,81 @@ function processarLinha(
         } else {
           const dataStr = String(dataValor).trim();
           if (dataStr) {
-            // Tentar formatos comuns: DD/MM/YYYY, YYYY-MM-DD, etc
+            // Tentar formatos comuns: DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, etc
             if (dataStr.includes('/')) {
               const partes = dataStr.split('/');
               if (partes.length === 3) {
-                const [dia, mes, ano] = partes;
-                data = new Date(Number(ano), Number(mes) - 1, Number(dia));
+                let [dia, mes, ano] = partes.map(p => p.trim());
+                // Se o ano tem 2 dígitos, assumir 2000-2099
+                if (ano.length === 2) {
+                  const anoNum = Number(ano);
+                  // Se for menor que 50, assumir 20XX, senão 19XX (mas isso é raro para datas recentes)
+                  ano = anoNum < 50 ? `20${ano}` : `19${ano}`;
+                }
+                // Validar valores
+                const diaNum = Number(dia);
+                const mesNum = Number(mes);
+                const anoNum = Number(ano);
+                if (diaNum >= 1 && diaNum <= 31 && mesNum >= 1 && mesNum <= 12 && anoNum >= 2000 && anoNum <= 2100) {
+                  data = new Date(anoNum, mesNum - 1, diaNum);
+                  // Validar se a data é válida (ex: não 31/02)
+                  if (data.getDate() !== diaNum || data.getMonth() !== mesNum - 1 || data.getFullYear() !== anoNum) {
+                    data = null;
+                  }
+                }
               }
             } else if (dataStr.includes('-')) {
-              data = new Date(dataStr);
+              // Formato YYYY-MM-DD ou DD-MM-YYYY
+              const partes = dataStr.split('-');
+              if (partes.length === 3) {
+                // Se a primeira parte tem 4 dígitos, é YYYY-MM-DD
+                if (partes[0].length === 4) {
+                  data = new Date(dataStr);
+                } else {
+                  // DD-MM-YYYY
+                  const [dia, mes, ano] = partes.map(p => p.trim());
+                  const anoNum = Number(ano);
+                  if (anoNum >= 2000 && anoNum <= 2100) {
+                    data = new Date(anoNum, Number(mes) - 1, Number(dia));
+                  }
+                }
+              } else {
+                data = new Date(dataStr);
+              }
             } else {
-              data = new Date(dataValor);
+              // Tentar parsear como número (pode ser serial date do Excel)
+              const numValor = Number(dataStr);
+              if (!isNaN(numValor) && numValor > 0) {
+                // Se for um número pequeno (provavelmente serial date do Excel)
+                if (numValor < 100000) {
+                  try {
+                    const excelDate = XLSX.SSF.parse_date_code(numValor);
+                    if (excelDate) {
+                      data = new Date(excelDate.y, excelDate.m - 1, excelDate.d);
+                    }
+                  } catch (e) {
+                    // Se não conseguir, tentar como timestamp
+                    data = new Date((numValor - 25569) * 86400 * 1000);
+                  }
+                } else {
+                  data = new Date(dataValor);
+                }
+              } else {
+                data = new Date(dataValor);
+              }
             }
           }
         }
         
         if (data && !isNaN(data.getTime())) {
-          dados.dataNascimento = data.toISOString().split('T')[0];
+          // Validar se a data é razoável (entre 2000 e 2100)
+          const ano = data.getFullYear();
+          if (ano >= 2000 && ano <= 2100) {
+            // Formatar como DD/MM/YYYY (formato usado no sistema)
+            const dia = String(data.getDate()).padStart(2, '0');
+            const mes = String(data.getMonth() + 1).padStart(2, '0');
+            dados.dataNascimento = `${dia}/${mes}/${ano}`;
+          }
         }
       } catch (e) {
         // Ignorar erro de parse de data
@@ -375,7 +512,129 @@ function processarLinha(
     }
   }
   
-  return { dados, erros };
+  // Data de Desmama
+  if (mapeamento.dataDesmama) {
+    const dataValor = linha[mapeamento.dataDesmama];
+    if (dataValor) {
+      try {
+        // Tentar parsear a data em vários formatos
+        let data: Date | null = null;
+        if (dataValor instanceof Date) {
+          data = dataValor;
+        } else if (typeof dataValor === 'number') {
+          // Excel serial date
+          try {
+            const excelDate = XLSX.SSF.parse_date_code(dataValor);
+            if (excelDate) {
+              data = new Date(excelDate.y, excelDate.m - 1, excelDate.d);
+            }
+          } catch (e) {
+            // Se não conseguir parsear como Excel date, tentar como timestamp
+            data = new Date((dataValor - 25569) * 86400 * 1000); // Excel epoch
+          }
+        } else {
+          const dataStr = String(dataValor).trim();
+          if (dataStr) {
+            // Tentar formatos comuns: DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, etc
+            if (dataStr.includes('/')) {
+              const partes = dataStr.split('/');
+              if (partes.length === 3) {
+                let [dia, mes, ano] = partes.map(p => p.trim());
+                // Se o ano tem 2 dígitos, assumir 2000-2099
+                if (ano.length === 2) {
+                  const anoNum = Number(ano);
+                  // Se for menor que 50, assumir 20XX, senão 19XX (mas isso é raro para datas recentes)
+                  ano = anoNum < 50 ? `20${ano}` : `19${ano}`;
+                }
+                // Validar valores
+                const diaNum = Number(dia);
+                const mesNum = Number(mes);
+                const anoNum = Number(ano);
+                if (diaNum >= 1 && diaNum <= 31 && mesNum >= 1 && mesNum <= 12 && anoNum >= 2000 && anoNum <= 2100) {
+                  data = new Date(anoNum, mesNum - 1, diaNum);
+                  // Validar se a data é válida (ex: não 31/02)
+                  if (data.getDate() !== diaNum || data.getMonth() !== mesNum - 1 || data.getFullYear() !== anoNum) {
+                    data = null;
+                  }
+                }
+              }
+            } else if (dataStr.includes('-')) {
+              // Formato YYYY-MM-DD ou DD-MM-YYYY
+              const partes = dataStr.split('-');
+              if (partes.length === 3) {
+                // Se a primeira parte tem 4 dígitos, é YYYY-MM-DD
+                if (partes[0].length === 4) {
+                  data = new Date(dataStr);
+                } else {
+                  // DD-MM-YYYY
+                  const [dia, mes, ano] = partes.map(p => p.trim());
+                  const anoNum = Number(ano);
+                  if (anoNum >= 2000 && anoNum <= 2100) {
+                    data = new Date(anoNum, Number(mes) - 1, Number(dia));
+                  }
+                }
+              } else {
+                data = new Date(dataStr);
+              }
+            } else {
+              // Tentar parsear como número (pode ser serial date do Excel)
+              const numValor = Number(dataStr);
+              if (!isNaN(numValor) && numValor > 0) {
+                // Se for um número pequeno (provavelmente serial date do Excel)
+                if (numValor < 100000) {
+                  try {
+                    const excelDate = XLSX.SSF.parse_date_code(numValor);
+                    if (excelDate) {
+                      data = new Date(excelDate.y, excelDate.m - 1, excelDate.d);
+                    }
+                  } catch (e) {
+                    // Se não conseguir, tentar como timestamp
+                    data = new Date((numValor - 25569) * 86400 * 1000);
+                  }
+                } else {
+                  data = new Date(dataValor);
+                }
+              } else {
+                data = new Date(dataValor);
+              }
+            }
+          }
+        }
+        
+        if (data && !isNaN(data.getTime())) {
+          // Validar se a data é razoável (entre 2000 e 2100)
+          const ano = data.getFullYear();
+          if (ano >= 2000 && ano <= 2100) {
+            // Formatar como DD/MM/YYYY (formato usado no sistema)
+            const dia = String(data.getDate()).padStart(2, '0');
+            const mes = String(data.getMonth() + 1).padStart(2, '0');
+            desmama.dataDesmama = `${dia}/${mes}/${ano}`;
+          }
+        }
+      } catch (e) {
+        // Ignorar erro de parse de data
+      }
+    }
+  }
+  
+  // Peso de Desmama
+  if (mapeamento.pesoDesmama) {
+    const pesoValor = linha[mapeamento.pesoDesmama];
+    if (pesoValor) {
+      try {
+        // Remover caracteres não numéricos (exceto vírgula/ponto para decimal)
+        const pesoStr = String(pesoValor).replace(/[^\d,.-]/g, '').replace(',', '.');
+        const peso = parseFloat(pesoStr);
+        if (!isNaN(peso) && peso > 0) {
+          desmama.pesoDesmama = peso;
+        }
+      } catch (e) {
+        // Ignorar erro de parse de peso
+      }
+    }
+  }
+  
+  return { dados, desmama: (desmama.dataDesmama || desmama.pesoDesmama) ? desmama : undefined, erros };
 }
 
 function normalizarBrinco(valor?: string) {
@@ -411,7 +670,7 @@ export async function importarNascimentos(
     const linha = dados[i];
     const linhaNum = i + 2; // +2 porque linha 1 é cabeçalho e arrays começam em 0
     
-    const { dados: dadosProcessados, erros: errosLinha } = processarLinha(
+    const { dados: dadosProcessados, desmama: dadosDesmama, erros: errosLinha } = processarLinha(
       linha,
       linhaNum,
       mapeamento,
@@ -440,6 +699,14 @@ export async function importarNascimentos(
     if (!dadosProcessados.ano) {
       dadosProcessados.ano = anoPadrao || new Date().getFullYear();
     }
+
+    // Se não tem data de nascimento, criar automaticamente como primeiro dia do mês/ano
+    if (!dadosProcessados.dataNascimento && dadosProcessados.mes && dadosProcessados.ano) {
+      const dia = '01';
+      const mes = String(dadosProcessados.mes).padStart(2, '0');
+      const ano = String(dadosProcessados.ano);
+      dadosProcessados.dataNascimento = `${dia}/${mes}/${ano}`;
+    }
     
     // Validar brinco duplicado por fazenda (já existente ou repetido na própria planilha)
     const brincoNormalizado = normalizarBrinco(dadosProcessados.brincoNumero);
@@ -465,11 +732,29 @@ export async function importarNascimentos(
     }
 
     try {
+      // Criar matriz automaticamente se não existir
+      let matrizId = dadosProcessados.matrizId;
+      if (matrizId && dadosProcessados.fazendaId) {
+        try {
+          const tipo = dadosProcessados.novilha ? 'novilha' : 'vaca';
+          matrizId = await criarMatrizSeNaoExistir(
+            matrizId,
+            dadosProcessados.fazendaId,
+            tipo,
+            dadosProcessados.raca
+          );
+        } catch (error) {
+          console.error('Erro ao criar matriz automaticamente:', error);
+          // Continuar mesmo se der erro na criação da matriz
+        }
+      }
+
       const id = uuid();
       const now = new Date().toISOString();
       
       await db.nascimentos.add({
         ...dadosProcessados,
+        matrizId, // Usar o ID da matriz (pode ser UUID se foi criada)
         id,
         createdAt: now,
         updatedAt: now,
@@ -477,6 +762,25 @@ export async function importarNascimentos(
         novilha: dadosProcessados.novilha || false,
         vaca: dadosProcessados.vaca || false
       } as Nascimento);
+      
+      // Se há dados de desmama, criar registro de desmama
+      if (dadosDesmama && (dadosDesmama.dataDesmama || dadosDesmama.pesoDesmama)) {
+        try {
+          await db.desmamas.add({
+            id: uuid(),
+            nascimentoId: id,
+            dataDesmama: dadosDesmama.dataDesmama,
+            pesoDesmama: dadosDesmama.pesoDesmama,
+            createdAt: now,
+            updatedAt: now,
+            synced: false,
+            remoteId: null
+          });
+        } catch (error) {
+          console.error('Erro ao criar desmama:', error);
+          // Continuar mesmo se der erro na criação da desmama
+        }
+      }
       
       sucesso.push(linhaNum);
     } catch (error: any) {

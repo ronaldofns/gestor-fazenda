@@ -4,18 +4,7 @@ import { Link } from 'react-router-dom';
 import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
 import { useAlertSettings } from '../hooks/useAlertSettings';
-import { 
-  TrendingUp, 
-  Users, 
-  User, 
-  Mars, 
-  Venus, 
-  Building2,
-  BarChart3,
-  Plus,
-  Upload,
-  AlertTriangle
-} from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 import {
   LineChart,
   Line,
@@ -99,6 +88,17 @@ export default function Dashboard() {
     });
     return map;
   }, [fazendas]);
+
+  const matrizes = useLiveQuery(() => db.matrizes.toArray(), []) || [];
+  const matrizMap = useMemo(() => {
+    const map = new Map<string, string>(); // ID -> identificador
+    matrizes.forEach((m) => {
+      if (m.id && m.identificador) {
+        map.set(m.id, m.identificador);
+      }
+    });
+    return map;
+  }, [matrizes]);
 
   const desmamaSet = useMemo(() => {
     const set = new Set<string>();
@@ -350,7 +350,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border border-amber-200 dark:border-amber-500/40">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <Icons.AlertTriangle className="w-5 h-5 text-amber-500" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Alerta: Desmama atrasada</h3>
               </div>
               <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full">
@@ -361,21 +361,24 @@ export default function Dashboard() {
               <p className="text-sm text-gray-600 dark:text-slate-400">Nenhum bezerro pendente de desmama no limite configurado.</p>
             ) : (
               <div className="space-y-2 max-h-60 overflow-auto">
-                {alertas.desmamaAtrasada.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-amber-100 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                        Matriz {item.matrizId} {item.brinco ? `• Brinco ${item.brinco}` : ''}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                        Fazenda: {item.fazenda} • Nasc.: {item.dataNascimento || '-'}
-                      </p>
+                {alertas.desmamaAtrasada.map((item) => {
+                  const matrizIdentificador = matrizMap.get(item.matrizId) || item.matrizId;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-amber-100 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                          Matriz {matrizIdentificador} {item.brinco ? `• Brinco ${item.brinco}` : ''}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
+                          Fazenda: {item.fazenda} • Nasc.: {item.dataNascimento || '-'}
+                        </p>
+                      </div>
+                      <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+                        {item.meses} meses
+                      </span>
                     </div>
-                    <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
-                      {item.meses} meses
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             <div className="mt-3 flex justify-end">
@@ -433,7 +436,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Total Nascimentos</h3>
-              <TrendingUp className="w-6 h-6 text-blue-500" />
+              <Icons.TrendingUp className="w-6 h-6 text-blue-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.totalNascimentos}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
@@ -444,7 +447,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Vacas</h3>
-              <Users className="w-6 h-6 text-purple-500" />
+              <Icons.Users className="w-6 h-6 text-purple-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.vacas}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
@@ -457,7 +460,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Novilhas</h3>
-              <User className="w-6 h-6 text-green-500" />
+              <Icons.User className="w-6 h-6 text-green-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.novilhas}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
@@ -483,7 +486,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-pink-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Taxa Desmama</h3>
-              <BarChart3 className="w-6 h-6 text-pink-500" />
+              <Icons.BarChart3 className="w-6 h-6 text-pink-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.taxaDesmama}%</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
@@ -499,11 +502,11 @@ export default function Dashboard() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Distribuição por Sexo</h3>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2">
-                  <Venus className="w-5 h-5 text-pink-500" />
+                  <Icons.Venus className="w-5 h-5 text-pink-500" />
                   <span className="text-sm text-gray-600 dark:text-slate-300">Fêmeas</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Mars className="w-5 h-5 text-blue-500" />
+                  <Icons.Mars className="w-5 h-5 text-blue-500" />
                   <span className="text-sm text-gray-600 dark:text-slate-300">Machos</span>
                 </div>
               </div>
@@ -662,7 +665,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
+                <Icons.Building2 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Comparativo por Fazenda</h3>
               </div>
               <span className="text-xs text-gray-500 dark:text-slate-400">Nasc. x Desm.</span>
@@ -727,7 +730,7 @@ export default function Dashboard() {
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
+              <Icons.BarChart3 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Top Raças</h3>
             </div>
             {metricas.totaisPorRaca.length > 0 ? (

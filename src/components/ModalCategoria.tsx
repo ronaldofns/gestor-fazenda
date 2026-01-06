@@ -3,40 +3,40 @@ import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { showToast } from '../utils/toast';
 
-interface ModalRacaProps {
+interface ModalCategoriaProps {
   open: boolean;
   onClose: () => void;
-  onRacaCadastrada: (racaNome: string) => void;
+  onCategoriaCadastrada: (categoriaId: string, categoriaNome: string) => void;
 }
 
-export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRacaProps) {
-  const [nomeRaca, setNomeRaca] = useState('');
+export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }: ModalCategoriaProps) {
+  const [nomeCategoria, setNomeCategoria] = useState('');
   const [salvando, setSalvando] = useState(false);
 
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nomeRaca.trim()) return;
+    if (!nomeCategoria.trim()) return;
 
     setSalvando(true);
     try {
       const id = uuid();
       const now = new Date().toISOString();
-      await db.racas.add({
+      await db.categorias.add({
         id,
-        nome: nomeRaca.trim().toUpperCase(),
+        nome: nomeCategoria.trim(),
         createdAt: now,
         updatedAt: now,
-        synced: false, // Marcar como não sincronizado
+        synced: false,
         remoteId: null
       });
-      onRacaCadastrada(nomeRaca.trim().toUpperCase());
-      setNomeRaca('');
+      onCategoriaCadastrada(id, nomeCategoria.trim());
+      setNomeCategoria('');
       onClose();
     } catch (error) {
-      console.error('Erro ao salvar raça:', error);
-      showToast({ type: 'error', title: 'Erro ao salvar raça', message: 'Tente novamente.' });
+      console.error('Erro ao salvar categoria:', error);
+      showToast({ type: 'error', title: 'Erro ao salvar categoria', message: 'Tente novamente.' });
     } finally {
       setSalvando(false);
     }
@@ -47,19 +47,19 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-4 sm:p-6">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
-            Cadastro Rápido de Raça
+            Cadastro Rápido de Categoria
           </h3>
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Nome da Raça *
+                Nome da Categoria *
               </label>
               <input
                 type="text"
-                value={nomeRaca}
-                onChange={(e) => setNomeRaca(e.target.value)}
+                value={nomeCategoria}
+                onChange={(e) => setNomeCategoria(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ex: ANGUS, NELORE"
+                placeholder="Ex: Novilha, Vaca, Touro..."
                 autoFocus
                 disabled={salvando}
               />
@@ -67,7 +67,7 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
             <div className="flex gap-3">
               <button
                 type="submit"
-                disabled={salvando || !nomeRaca.trim()}
+                disabled={salvando || !nomeCategoria.trim()}
                 className="flex-1 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {salvando ? 'Salvando...' : 'Salvar'}

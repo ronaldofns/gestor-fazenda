@@ -17,6 +17,15 @@ export interface Raca {
   remoteId?: number | null;
 }
 
+export interface Categoria {
+  id: string;
+  nome: string;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+}
+
 export interface Nascimento {
   id: string;
   matrizId: string;
@@ -48,13 +57,11 @@ export interface Desmama {
   remoteId?: number | null;
 }
 
-export type CategoriaMatriz = 'novilha' | 'vaca';
-
 export interface Matriz {
   id: string; // UUID interno
   identificador: string; // Código da matriz usado na planilha (ex: 123, V-01, etc.)
   fazendaId: string;
-  categoria: CategoriaMatriz; // Novilha ou Vaca
+  categoriaId: string; // ID da categoria (ex: novilha, vaca, etc.)
   raca?: string;
   dataNascimento?: string; // dd/mm/yyyy
   pai?: string; // Identificador do pai
@@ -99,4 +106,12 @@ export interface AuditLog {
   description?: string | null;
   synced: boolean;
   remoteId?: number | null;
+}
+
+export interface NotificacaoLida {
+  id: string; // Chave única da notificação (ex: "desmama-{id}", "mortalidade-{fazendaId}")
+  tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz';
+  marcadaEm: string; // ISO string
+  synced: boolean; // Se foi sincronizado com o servidor
+  remoteId?: number | null; // ID remoto no Supabase
 }

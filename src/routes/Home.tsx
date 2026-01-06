@@ -8,7 +8,8 @@ import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
 import Combobox from '../components/Combobox';
 import ModalRaca from '../components/ModalRaca';
-import { Plus, Edit, Trash2, Users, User, TrendingUp, Mars, Venus, ChevronLeft, ChevronRight, X, FileText, Download, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { cleanDuplicateNascimentos } from '../utils/cleanDuplicates';
 import { uuid } from '../utils/uuid';
 import { gerarRelatorioPDF, gerarRelatorioProdutividadePDF, gerarRelatorioDesmamaPDF, gerarRelatorioMortalidadePDF } from '../utils/gerarRelatorioPDF';
@@ -16,6 +17,8 @@ import { exportarParaExcel, exportarParaCSV } from '../utils/exportarDados';
 import { showToast } from '../utils/toast';
 import { useAuth } from '../hooks/useAuth';
 import { registrarAudit } from '../utils/audit';
+import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
+import { useFavoritos } from '../hooks/useFavoritos';
 
 const OPCOES_ITENS_POR_PAGINA = [10, 20, 50, 70, 100];
 const ITENS_POR_PAGINA_PADRAO = 10;
@@ -74,11 +77,13 @@ const schemaNascimento = z.object({
   matrizId: z.string().min(1, 'Informe a matriz'),
   tipo: z.enum(['novilha', 'vaca'], { required_error: 'Selecione o tipo: Vaca ou Novilha' }),
   brincoNumero: z.string().optional(),
-  dataNascimento: z.string().optional(),
+  dataNascimento: z.string().min(1, 'Informe a data de nascimento'),
   sexo: z.enum(['M', 'F'], { required_error: 'Selecione o sexo' }),
   raca: z.string().optional(),
   obs: z.string().optional(),
-  morto: z.boolean().optional()
+  morto: z.boolean().optional(),
+  dataDesmama: z.string().optional(),
+  pesoDesmama: z.string().optional()
 });
 
 type FormDataNascimento = z.infer<typeof schemaNascimento>;
@@ -86,12 +91,17 @@ type FormDataNascimento = z.infer<typeof schemaNascimento>;
 export default function Home() {
   useSync();
   const { user: currentUser } = useAuth();
+  const { favoritos, isFavorito, toggleFavorito } = useFavoritos();
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalNovoNascimentoOpen, setModalNovoNascimentoOpen] = useState(false);
   const [modalEditarNascimentoOpen, setModalEditarNascimentoOpen] = useState(false);
   const [nascimentoEditandoId, setNascimentoEditandoId] = useState<string | null>(null);
+  const [abaAtivaEdicao, setAbaAtivaEdicao] = useState<'nascimento' | 'desmama'>('nascimento');
   const [modalRacaOpen, setModalRacaOpen] = useState(false);
   const [matrizHistoricoOpen, setMatrizHistoricoOpen] = useState(false);
+  const [historicoOpen, setHistoricoOpen] = useState(false);
+  const [historicoEntityId, setHistoricoEntityId] = useState<string | null>(null);
+  const [historicoEntityNome, setHistoricoEntityNome] = useState<string>('');
   const [matrizHistoricoId, setMatrizHistoricoId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingEdicao, setIsSubmittingEdicao] = useState(false);
@@ -102,6 +112,17 @@ export default function Home() {
   const menuColunasRef = useRef<HTMLDivElement | null>(null);
   const matrizInputRef = useRef<HTMLInputElement>(null);
   const matrizInputRefEdicao = useRef<HTMLInputElement>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    open: false,
+    message: '',
+    onConfirm: () => {}
+  });
   
   // Garantir que o banco está aberto ao montar o componente
   useEffect(() => {
@@ -374,6 +395,19 @@ export default function Home() {
     return map;
   }, [nascimentosTodos]);
   
+  const matrizes = useLiveQuery(() => db.matrizes.toArray(), []) || [];
+  
+  // Mapa de matrizes por ID (UUID) para buscar identificador
+  const matrizMap = useMemo(() => {
+    const map = new Map<string, string>(); // ID -> identificador
+    matrizes.forEach((m) => {
+      if (m.id && m.identificador) {
+        map.set(m.id, m.identificador);
+      }
+    });
+    return map;
+  }, [matrizes]);
+
   const desmamas = useLiveQuery(
     async () => {
       try {
@@ -428,13 +462,30 @@ export default function Home() {
   const racasOptions = useMemo(() => {
     if (!Array.isArray(racas) || racas.length === 0) return [];
     const ordenadas = [...racas].sort((a, b) => {
-      const usoA = usoRaca.get((a.nome || '').trim()) || 0;
-      const usoB = usoRaca.get((b.nome || '').trim()) || 0;
+      const nomeA = (a.nome || '').trim();
+      const nomeB = (b.nome || '').trim();
+      
+      // Favoritos primeiro
+      const favA = favoritos.racas.includes(nomeA);
+      const favB = favoritos.racas.includes(nomeB);
+      if (favA && !favB) return -1;
+      if (!favA && favB) return 1;
+      
+      // Depois por uso
+      const usoA = usoRaca.get(nomeA) || 0;
+      const usoB = usoRaca.get(nomeB) || 0;
       if (usoA !== usoB) return usoB - usoA;
-      return (a.nome || '').localeCompare(b.nome || '');
+      
+      // Por último, alfabeticamente
+      return nomeA.localeCompare(nomeB);
     });
-    return ordenadas.map(r => r.nome);
-  }, [racas, usoRaca]);
+    return ordenadas.map(r => ({ label: r.nome, value: r.nome }));
+  }, [racas, usoRaca, favoritos.racas]);
+  
+  // Versão string[] para compatibilidade com NascimentoModal (se ainda for usado)
+  const racasOptionsStrings = useMemo(() => {
+    return racasOptions.map(opt => opt.value);
+  }, [racasOptions]);
 
   // Carregar buscas recentes do localStorage
   useEffect(() => {
@@ -498,6 +549,7 @@ export default function Home() {
   const handleFecharEdicao = () => {
     setModalEditarNascimentoOpen(false);
     setNascimentoEditandoId(null);
+    setAbaAtivaEdicao('nascimento'); // Reset para a aba de nascimento ao fechar
   };
 
   const handleAbrirHistoricoMatriz = (matrizId: string) => {
@@ -553,6 +605,21 @@ export default function Home() {
         }
       }
 
+      // Criar matriz automaticamente se não existir
+      const { criarMatrizSeNaoExistir } = await import('../utils/criarMatrizAutomatica');
+      let matrizId = values.matrizId;
+      try {
+        matrizId = await criarMatrizSeNaoExistir(
+          values.matrizId,
+          values.fazendaId,
+          values.tipo,
+          values.raca
+        );
+      } catch (error) {
+        console.error('Erro ao criar matriz automaticamente:', error);
+        // Continuar com o matrizId original mesmo se der erro
+      }
+
       const id = uuid();
       const now = new Date().toISOString();
       
@@ -564,7 +631,7 @@ export default function Home() {
         fazendaId: values.fazendaId,
         mes: Number(values.mes),
         ano: Number(values.ano),
-        matrizId: values.matrizId,
+        matrizId: matrizId,
         brincoNumero: values.brincoNumero || '',
         dataNascimento: values.dataNascimento || '',
         sexo: values.sexo,
@@ -645,30 +712,61 @@ export default function Home() {
     [nascimentoEditandoId]
   );
 
+  // Carregar desmama associada ao nascimento sendo editado
+  const desmamaEditando = useLiveQuery(
+    async () => {
+      if (!nascimentoEditandoId) return undefined;
+      const desmamas = await db.desmamas.where('nascimentoId').equals(nascimentoEditandoId).toArray();
+      return desmamas.length > 0 ? desmamas[0] : undefined;
+    },
+    [nascimentoEditandoId]
+  );
+
   const { register: registerEdicao, handleSubmit: handleSubmitEdicao, formState: { errors: errorsEdicao }, reset: resetEdicao, setValue: setValueEdicao, watch: watchEdicao, setError: setErrorEdicao } = useForm<FormDataNascimento>({
     resolver: zodResolver(schemaNascimento),
     shouldUnregister: false
   });
 
+  // Função para converter data de YYYY-MM-DD para DD/MM/YYYY se necessário
+  const converterDataParaFormatoInput = useCallback((data?: string): string => {
+    if (!data) return '';
+    // Se já está no formato DD/MM/YYYY, retornar como está
+    if (data.includes('/')) {
+      return data;
+    }
+    // Se está no formato YYYY-MM-DD, converter para DD/MM/YYYY
+    if (data.includes('-')) {
+      const partes = data.split('-');
+      if (partes.length === 3) {
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+    }
+    return data;
+  }, []);
+
   // Carregar dados quando nascimento para edição for carregado
   useEffect(() => {
     if (nascimentoEditando && modalEditarNascimentoOpen) {
       const tipo = nascimentoEditando.vaca ? 'vaca' : nascimentoEditando.novilha ? 'novilha' : undefined;
+      // Converter UUID da matriz para identificador para exibição
+      const matrizIdentificador = matrizMap.get(nascimentoEditando.matrizId) || nascimentoEditando.matrizId;
       resetEdicao({
         fazendaId: nascimentoEditando.fazendaId,
         mes: nascimentoEditando.mes,
         ano: nascimentoEditando.ano,
-        matrizId: nascimentoEditando.matrizId,
+        matrizId: matrizIdentificador,
         brincoNumero: nascimentoEditando.brincoNumero || '',
-        dataNascimento: nascimentoEditando.dataNascimento || '',
+        dataNascimento: converterDataParaFormatoInput(nascimentoEditando.dataNascimento),
         sexo: nascimentoEditando.sexo,
         raca: nascimentoEditando.raca || '',
         tipo: tipo as 'novilha' | 'vaca' | undefined,
         obs: nascimentoEditando.obs || '',
-        morto: nascimentoEditando.morto || false
+        morto: nascimentoEditando.morto || false,
+        dataDesmama: desmamaEditando?.dataDesmama ? converterDataParaFormatoInput(desmamaEditando.dataDesmama) : '',
+        pesoDesmama: desmamaEditando?.pesoDesmama ? desmamaEditando.pesoDesmama.toString() : ''
       });
     }
-  }, [nascimentoEditando, modalEditarNascimentoOpen, resetEdicao]);
+  }, [nascimentoEditando, desmamaEditando, modalEditarNascimentoOpen, resetEdicao, converterDataParaFormatoInput, matrizMap]);
 
   async function onSubmitEdicao(values: FormDataNascimento) {
     if (isSubmittingEdicao || !nascimentoEditandoId) return;
@@ -692,11 +790,29 @@ export default function Home() {
 
       const antes = nascimentoEditando || null;
 
+      // Criar matriz automaticamente se não existir e converter identificador para UUID
+      let matrizId = values.matrizId;
+      if (matrizId && values.fazendaId) {
+        try {
+          const { criarMatrizSeNaoExistir } = await import('../utils/criarMatrizAutomatica');
+          const tipo = values.tipo || (nascimentoEditando?.vaca ? 'vaca' : 'novilha');
+          matrizId = await criarMatrizSeNaoExistir(
+            matrizId,
+            values.fazendaId,
+            tipo,
+            values.raca
+          );
+        } catch (error) {
+          console.error('Erro ao criar matriz automaticamente:', error);
+          // Continuar com o matrizId original mesmo se der erro
+        }
+      }
+
       const updates = {
         fazendaId: values.fazendaId,
         mes: Number(values.mes),
         ano: Number(values.ano),
-        matrizId: values.matrizId,
+        matrizId: matrizId,
         brincoNumero: values.brincoNumero || '',
         dataNascimento: values.dataNascimento || '',
         sexo: values.sexo,
@@ -723,6 +839,77 @@ export default function Home() {
           after: depois,
           user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
           description: 'Edição de nascimento na planilha'
+        });
+      }
+
+      // Salvar ou atualizar dados de desmama
+      if (values.dataDesmama || values.pesoDesmama) {
+        const { uuid } = await import('../utils/uuid');
+        const pesoDesmamaNum = values.pesoDesmama ? parseFloat(values.pesoDesmama) : undefined;
+        
+        if (desmamaEditando) {
+          // Atualizar desmama existente
+          const antesDesmama = { ...desmamaEditando };
+          await db.desmamas.update(desmamaEditando.id, {
+            dataDesmama: values.dataDesmama || desmamaEditando.dataDesmama || '',
+            pesoDesmama: pesoDesmamaNum !== undefined ? pesoDesmamaNum : desmamaEditando.pesoDesmama,
+            updatedAt: now,
+            synced: false
+          });
+          
+          // Auditoria: edição de desmama
+          const depoisDesmama = await db.desmamas.get(desmamaEditando.id);
+          if (depoisDesmama) {
+            await registrarAudit({
+              entity: 'desmama',
+              entityId: desmamaEditando.id,
+              action: 'update',
+              before: antesDesmama,
+              after: depoisDesmama,
+              user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+              description: 'Edição de desmama na planilha'
+            });
+          }
+        } else {
+          // Criar nova desmama
+          const novaDesmama = {
+            id: uuid(),
+            nascimentoId: nascimentoEditandoId,
+            dataDesmama: values.dataDesmama || '',
+            pesoDesmama: pesoDesmamaNum,
+            createdAt: now,
+            updatedAt: now,
+            synced: false,
+            remoteId: null
+          };
+          
+          await db.desmamas.add(novaDesmama);
+          
+          // Auditoria: criação de desmama
+          await registrarAudit({
+            entity: 'desmama',
+            entityId: novaDesmama.id,
+            action: 'create',
+            before: null,
+            after: novaDesmama,
+            user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+            description: 'Criação de desmama na planilha'
+          });
+        }
+      } else if (desmamaEditando) {
+        // Se não há dados de desmama mas existe registro, remover
+        const antesDesmama = { ...desmamaEditando };
+        await db.desmamas.delete(desmamaEditando.id);
+        
+        // Auditoria: exclusão de desmama
+        await registrarAudit({
+          entity: 'desmama',
+          entityId: desmamaEditando.id,
+          action: 'delete',
+          before: antesDesmama,
+          after: null,
+          user: currentUser ? { id: currentUser.id, nome: currentUser.nome } : null,
+          description: 'Exclusão de desmama na planilha'
         });
       }
       
@@ -773,7 +960,8 @@ export default function Home() {
     if (filtroMatrizBrinco && filtroMatrizBrinco.trim() !== '') {
       const busca = filtroMatrizBrinco.toLowerCase().trim();
       filtrados = filtrados.filter(n => {
-        const matrizMatch = n.matrizId?.toLowerCase().includes(busca);
+        const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+        const matrizMatch = matrizIdentificador?.toLowerCase().includes(busca);
         const brincoMatch = n.brincoNumero?.toLowerCase().includes(busca);
         return matrizMatch || brincoMatch;
       });
@@ -795,7 +983,8 @@ export default function Home() {
     if (buscaGlobal.trim()) {
       const termo = buscaGlobal.trim().toLowerCase();
       filtrados = filtrados.filter((n) => {
-        const matriz = n.matrizId?.toLowerCase().includes(termo);
+        const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+        const matriz = matrizIdentificador?.toLowerCase().includes(termo);
         const brinco = n.brincoNumero?.toLowerCase().includes(termo);
         const raca = n.raca?.toLowerCase().includes(termo);
         const obs = n.obs?.toLowerCase().includes(termo);
@@ -978,7 +1167,7 @@ export default function Home() {
           totalGeral: totais.totalGeral,
           totalMortos: nascimentosFiltrados.filter(n => n.morto).length
         }
-      });
+      }, matrizMap);
       setMenuExportarAberto(false);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
@@ -994,7 +1183,8 @@ export default function Home() {
         desmamas: desmamasMap,
         fazendaNome: fazendaSelecionada?.nome,
         mes: filtroMes !== '' ? filtroMes as number : undefined,
-        ano: filtroAno !== '' ? filtroAno as number : undefined
+        ano: filtroAno !== '' ? filtroAno as number : undefined,
+        matrizMap
       });
       setMenuExportarAberto(false);
     } catch (error) {
@@ -1011,7 +1201,8 @@ export default function Home() {
         desmamas: desmamasMap,
         fazendaNome: fazendaSelecionada?.nome,
         mes: filtroMes !== '' ? filtroMes as number : undefined,
-        ano: filtroAno !== '' ? filtroAno as number : undefined
+        ano: filtroAno !== '' ? filtroAno as number : undefined,
+        matrizMap
       });
       setMenuExportarAberto(false);
     } catch (error) {
@@ -1051,7 +1242,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100">
       <header className="bg-white dark:bg-slate-900 shadow-sm border-b border-gray-200 dark:border-slate-800">
-        <div className="px-4 sm:px-6 lg:px-8 py-4">
+        <div className="px-3 sm:px-3 lg:px-3 py-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-slate-100 break-words">PLANILHA NASCIMENTO/DESMAMA</h1>
@@ -1072,26 +1263,30 @@ export default function Home() {
               }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" />
-              Novo Nascimento
+              <Icons.Plus className="w-4 h-4" />
+                Novo Nascimento
             </button>
           </div>
 
           {/* Filtros */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-2 pt-4 border-t">
+          <div className="pt-4 border-t space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda</label>
               <Combobox
                 value={filtroFazenda}
                 onChange={setFiltroFazenda}
-                options={fazendaOptions}
+                  options={fazendaOptions}
                 placeholder="Todas as fazendas"
                 allowCustomValue={false}
+                  favoritoTipo="fazenda"
+                  isFavorito={(value) => isFavorito('fazenda', value)}
+                  onToggleFavorito={(value) => toggleFavorito('fazenda', value)}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Mês</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Mês</label>
               <Combobox
                 value={filtroMes === '' ? '' : filtroMes.toString()}
                 onChange={(value) => setFiltroMes(value === '' ? '' : Number(value))}
@@ -1108,107 +1303,88 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Ano</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Ano</label>
               <input
                 type="number"
                 min="2000"
                 max="2100"
                 value={filtroAno}
                 onChange={(e) => setFiltroAno(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Ano"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Matriz/Brinco</label>
-              <input
-                type="text"
-                value={filtroMatrizBrinco}
-                onChange={(e) => setFiltroMatrizBrinco(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Buscar por matriz ou brinco"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Sexo</label>
-              <Combobox
-                value={filtroSexo}
-                onChange={(value) => setFiltroSexo(value as '' | 'M' | 'F')}
-                options={[
-                  { label: 'Todos', value: '' },
-                  { label: 'Macho', value: 'M' },
-                  { label: 'Fêmea', value: 'F' }
-                ]}
-                placeholder="Todos"
-                allowCustomValue={false}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Status</label>
-              <Combobox
-                value={filtroStatus}
-                onChange={(value) => setFiltroStatus(value as 'todos' | 'vivos' | 'mortos')}
-                options={[
-                  { label: 'Todos', value: 'todos' },
-                  { label: 'Vivos', value: 'vivos' },
-                  { label: 'Mortos', value: 'mortos' }
-                ]}
-                placeholder="Todos"
-                allowCustomValue={false}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
               <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Matriz/Brinco</label>
+                <input
+                  type="text"
+                  value={filtroMatrizBrinco}
+                  onChange={(e) => setFiltroMatrizBrinco(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Buscar por matriz ou brinco"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Sexo</label>
+                <Combobox
+                  value={filtroSexo}
+                  onChange={(value) => setFiltroSexo(value as '' | 'M' | 'F')}
+                  options={[
+                    { label: 'Todos', value: '' },
+                    { label: 'Macho', value: 'M' },
+                    { label: 'Fêmea', value: 'F' }
+                  ]}
+                  placeholder="Todos"
+                  allowCustomValue={false}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Status</label>
+                <Combobox
+                  value={filtroStatus}
+                  onChange={(value) => setFiltroStatus(value as 'todos' | 'vivos' | 'mortos')}
+                  options={[
+                    { label: 'Todos', value: 'todos' },
+                    { label: 'Vivos', value: 'vivos' },
+                    { label: 'Mortos', value: 'mortos' }
+                  ]}
+                  placeholder="Todos"
+                  allowCustomValue={false}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+              <div className="md:col-span-4">
                 <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Busca global</label>
                 <input
                   type="text"
                   value={buscaGlobal}
                   onChange={(e) => setBuscaGlobal(e.target.value)}
-                  onBlur={(e) => salvarBuscaRecente(e.target.value)}
+                  onBlur={(e) => {
+                    const valor = e.target.value.trim();
+                    if (valor) {
+                      salvarBuscaRecente(valor);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      salvarBuscaRecente(buscaGlobal);
+                      const valor = buscaGlobal.trim();
+                      if (valor) {
+                        salvarBuscaRecente(valor);
+                      }
                     }
                   }}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Brinco, matriz, fazenda, raça, obs"
                 />
               </div>
-              {buscasRecentes.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {buscasRecentes.map((termo) => (
-                    <button
-                      key={termo}
-                      onClick={() => {
-                        setBuscaGlobal(termo);
-                        salvarBuscaRecente(termo);
-                      }}
-                      className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full border border-gray-200 transition-colors"
-                      title="Aplicar busca recente"
-                    >
-                      {termo}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => {
-                      setBuscasRecentes([]);
-                      localStorage.removeItem('gf-buscas-recentes');
-                    }}
-                    className="text-[10px] px-2 py-1 text-gray-500 hover:text-gray-700"
-                    title="Limpar histórico de buscas"
-                  >
-                    limpar
-                  </button>
-                </div>
-              )}
-            </div>
 
-            <div className="flex items-end gap-2">
+              <div className="md:col-span-2 flex items-end gap-2">
               {/* Configuração de colunas */}
               <div className="relative" ref={menuColunasRef}>
                 <button
@@ -1217,7 +1393,7 @@ export default function Home() {
                   className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
                   title="Escolher colunas da tabela"
                 >
-                  <SlidersHorizontal className="w-4 h-4" />
+                  <Icons.SlidersHorizontal className="w-4 h-4" />
                   <span className="hidden sm:inline">Colunas</span>
                   <span className="sm:hidden">Cols</span>
                 </button>
@@ -1259,7 +1435,7 @@ export default function Home() {
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                   title="Exportar dados"
                 >
-                  <Download className="w-4 h-4" />
+                  <Icons.Download className="w-4 h-4" />
                   <span className="hidden sm:inline">Exportar</span>
                   <span className="sm:hidden">Exp</span>
                 </button>
@@ -1269,16 +1445,20 @@ export default function Home() {
                     <div className="py-1">
                       <button
                         onClick={handleExportarExcel}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                        disabled={nascimentosFiltrados.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Exportar dados para Excel'}
                       >
-                        <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                        <Icons.FileSpreadsheet className="w-4 h-4 text-green-600" />
                         Exportar Excel (.xlsx)
                       </button>
                       <button
                         onClick={handleExportarCSV}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                        disabled={nascimentosFiltrados.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Exportar dados para CSV'}
                       >
-                        <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                        <Icons.FileSpreadsheet className="w-4 h-4 text-blue-600" />
                         Exportar CSV (.csv)
                       </button>
                       <div className="border-t border-gray-200 my-1"></div>
@@ -1287,11 +1467,11 @@ export default function Home() {
                           handleGerarRelatorio();
                           setMenuExportarAberto(false);
                         }}
-                        disabled={!podeGerarRelatorio}
+                        disabled={!podeGerarRelatorio || nascimentosFiltrados.length === 0}
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={!podeGerarRelatorio ? 'Preencha Fazenda, Mês e Ano para gerar o relatório' : 'Gerar relatório PDF'}
+                        title={!podeGerarRelatorio ? 'Preencha Fazenda, Mês e Ano para gerar o relatório' : nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Gerar relatório PDF'}
                       >
-                        <FileText className="w-4 h-4 text-red-600" />
+                        <Icons.FileText className="w-4 h-4 text-red-600" />
                         Gerar PDF
                       </button>
                       <button
@@ -1323,7 +1503,7 @@ export default function Home() {
                             gerarRelatorioDesmamaPDF({
                               periodo: periodoLabel,
                               desmamas: desmamasComDados
-                            });
+                            }, matrizMap);
                             setMenuExportarAberto(false);
                             showToast({ type: 'success', title: 'Relatório gerado', message: 'PDF de desmama com médias de peso gerado com sucesso.' });
                           } catch (error) {
@@ -1335,7 +1515,7 @@ export default function Home() {
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={nascimentosFiltrados.filter(n => desmamasMap.has(n.id)).length === 0 ? 'Nenhuma desmama encontrada nos dados filtrados' : 'Gerar relatório de desmama com médias de peso'}
                       >
-                        <FileText className="w-4 h-4 text-purple-600" />
+                        <Icons.FileText className="w-4 h-4 text-purple-600" />
                         PDF Desmama (Médias)
                       </button>
                       <button
@@ -1350,12 +1530,22 @@ export default function Home() {
                             return map;
                           }, new Map<string, { total: number; mortos: number; desmamas: number }>());
 
-                          const periodoLabel =
-                            filtroMes && filtroAno
-                              ? `${filtroMes.toString().padStart(2, '0')}/${filtroAno}`
-                              : filtroAno
-                              ? `Ano ${filtroAno}`
-                              : 'Todos os períodos';
+                          // Formatar período: se mês específico selecionado, mostrar mês; se "Todos os meses", mostrar "Todos os períodos"
+                          let periodoLabel: string;
+                          if (filtroMes !== '') {
+                            // Mês específico selecionado - mostrar informação do mês
+                            const mesNum = typeof filtroMes === 'number' ? filtroMes : Number(filtroMes);
+                            const nomeMes = new Date(2000, mesNum - 1).toLocaleDateString('pt-BR', { month: 'long' });
+                            if (filtroAno !== '') {
+                              const anoNum = typeof filtroAno === 'number' ? filtroAno : Number(filtroAno);
+                              periodoLabel = `Mês ${mesNum.toString().padStart(2, '0')} (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)}) - Ano ${anoNum}`;
+                            } else {
+                              periodoLabel = `Mês ${mesNum.toString().padStart(2, '0')} (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)}) - Todos os anos`;
+                            }
+                          } else {
+                            // "Todos os meses" selecionado - mostrar "Todos os períodos"
+                            periodoLabel = 'Todos os períodos';
+                          }
                           const payload = Array.from(fazendasAgrupadas.entries()).map(([fazendaNome, dados]) => {
                             const vivos = dados.total - dados.mortos;
                             const taxaMortandade = dados.total > 0 ? ((dados.mortos / dados.total) * 100).toFixed(2) : '0.00';
@@ -1378,9 +1568,11 @@ export default function Home() {
                           });
                           setMenuExportarAberto(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                        disabled={nascimentosFiltrados.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Gerar relatório de produtividade por fazenda'}
                       >
-                        <FileText className="w-4 h-4 text-indigo-600" />
+                        <Icons.FileText className="w-4 h-4 text-indigo-600" />
                         PDF Produtividade
                       </button>
                       <button
@@ -1426,7 +1618,7 @@ export default function Home() {
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Gerar relatório de mortalidade por raça'}
                       >
-                        <FileText className="w-4 h-4 text-red-600" />
+                        <Icons.FileText className="w-4 h-4 text-red-600" />
                         PDF Mortalidade (Raças)
                       </button>
                     </div>
@@ -1439,17 +1631,55 @@ export default function Home() {
                   setFiltroAno('');
                   setFiltroFazenda('');
                   setFiltroMatrizBrinco('');
+                  setFiltroSexo('');
+                  setFiltroStatus('todos');
+                  setBuscaGlobal('');
                 }}
-                className="flex-1 px-3 py-2 text-sm bg-gray-200 text-gray-700 font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                className="flex-1 px-3 py-2 text-sm bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-300 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
               >
                 Limpar
               </button>
             </div>
+            </div>
+
+            {/* Buscas recentes em linha separada */}
+            {buscasRecentes.length > 0 && (
+              <div className="w-full pt-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-gray-600 dark:text-slate-400 whitespace-nowrap">Buscas recentes:</span>
+                  {buscasRecentes.map((termo) => (
+                    <button
+                      key={termo}
+                      type="button"
+                      onClick={() => {
+                        setBuscaGlobal(termo);
+                        salvarBuscaRecente(termo);
+                      }}
+                      className="text-xs px-2.5 py-1 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-full border border-gray-200 dark:border-slate-700 transition-colors whitespace-nowrap"
+                      title={`Aplicar busca: ${termo}`}
+                    >
+                      {termo}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBuscasRecentes([]);
+                      localStorage.removeItem('gf-buscas-recentes');
+                    }}
+                    className="text-xs px-2 py-1 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 underline whitespace-nowrap"
+                    title="Limpar histórico de buscas"
+                  >
+                    limpar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="px-2 sm:px-4 lg:px-8 py-4 sm:py-6">
+      <main className="px-3 sm:px-3 lg:px-3 py-3 sm:py-3">
         {/* Versão Desktop - Tabela */}
         <div className="hidden md:block bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
@@ -1508,7 +1738,7 @@ export default function Home() {
                     </th>
                   )}
                   {colunasVisiveis.obs && (
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 min-w-[140px]">
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 max-w-[300px]">
                       OBS
                     </th>
                   )}
@@ -1525,6 +1755,7 @@ export default function Home() {
                 ) : (
                   nascimentosView.map((n) => {
                     const desmama = desmamasMap.get(n.id);
+                    const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
                     return (
                       <tr
                         key={n.id}
@@ -1535,21 +1766,21 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
-                              className="text-left text-blue-700 hover:text-blue-900 hover:underline"
+                              className="text-left text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200 hover:underline"
                               title="Ver histórico da matriz"
                             >
-                          {n.matrizId}
+                          {matrizIdentificador}
                             </button>
                         </td>
                         )}
                         {colunasVisiveis.novilha && (
                           <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
-                          {n.novilha ? <span className="text-blue-600 font-bold text-xs">X</span> : ''}
+                          {n.novilha ? <span className="text-blue-600 dark:text-blue-400 font-bold text-xs">X</span> : ''}
                         </td>
                         )}
                         {colunasVisiveis.vaca && (
                           <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
-                          {n.vaca ? <span className="text-blue-600 font-bold text-xs">X</span> : ''}
+                          {n.vaca ? <span className="text-blue-600 dark:text-blue-400 font-bold text-xs">X</span> : ''}
                         </td>
                         )}
                         {colunasVisiveis.sexo && (
@@ -1569,7 +1800,7 @@ export default function Home() {
                         )}
                         {colunasVisiveis.morto && (
                           <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
-                          {n.morto ? <span className="text-red-600 font-bold text-xs">X</span> : ''}
+                          {n.morto ? <span className="text-red-600 dark:text-red-400 font-bold text-xs">X</span> : ''}
                         </td>
                         )}
                         {colunasVisiveis.pesoDesmama && (
@@ -1582,7 +1813,7 @@ export default function Home() {
                                 className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
                                 title="Cadastrar desmama"
                               >
-                                <Plus className="w-3 h-3 mr-0.5" />
+                                <Icons.Plus className="w-3 h-3 mr-0.5" />
                                 <span className="hidden sm:inline">Cadastrar</span>
                               </Link>
                             ) : (
@@ -1591,13 +1822,13 @@ export default function Home() {
                         </td>
                         )}
                         {colunasVisiveis.dataDesmama && (
-                          <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 border-r border-gray-200 dark:border-slate-600">
+                          <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200 border-r border-gray-200 dark:border-slate-600">
                           {desmama?.dataDesmama ? formatDate(desmama.dataDesmama) : '-'}
                         </td>
                         )}
                         {colunasVisiveis.obs && (
-                          <td className="px-2 py-2 text-sm text-gray-700 dark:text-slate-200 border-r border-gray-200 dark:border-slate-600">
-                          <span className="block max-w-[140px]" title={n.obs || ''}>
+                          <td className="px-2 py-2 text-sm text-gray-700 dark:text-slate-200 border-r border-gray-200 dark:border-slate-600 max-w-[300px]">
+                          <span className="block whitespace-nowrap overflow-hidden text-ellipsis" title={n.obs || ''}>
                             {n.obs || '-'}
                           </span>
                         </td>
@@ -1606,15 +1837,34 @@ export default function Home() {
                           <div className="flex items-center justify-center gap-1">
                                 <button
                                   onClick={() => handleAbrirEdicao(n.id)}
-                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
                                   title="Editar nascimento"
                                 >
-                              <Edit className="w-4 h-4" />
+                              <Icons.Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={async () => {
-                                if (confirm(`Deseja realmente excluir o nascimento da matriz ${n.matrizId}?`)) {
-                                  try {
+                              onClick={() => {
+                                setHistoricoEntityId(n.id);
+                                const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+                                setHistoricoEntityNome(`Matriz ${matrizIdentificador}${n.brincoNumero ? ` - Brinco ${n.brincoNumero}` : ''}`);
+                                setHistoricoOpen(true);
+                              }}
+                              className="p-1.5 text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                              title="Ver histórico de alterações"
+                            >
+                              <Icons.History className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+                                setConfirmDialog({
+                                  open: true,
+                                  title: 'Excluir nascimento',
+                                  message: `Deseja realmente excluir o nascimento da matriz ${matrizIdentificador}?`,
+                                  variant: 'danger',
+                                  onConfirm: async () => {
+                                    setConfirmDialog(prev => ({ ...prev, open: false }));
+                                    try {
                                     // Auditoria: snapshot antes da exclusão
                                     const antes = n;
 
@@ -1683,11 +1933,12 @@ export default function Home() {
                                     showToast({ type: 'error', title: 'Erro ao excluir', message: error instanceof Error ? error.message : 'Erro desconhecido' });
                                   }
                                 }
+                              });
                               }}
-                              className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                              className="p-1.5 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                               title="Excluir nascimento"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Icons.Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -1763,7 +2014,7 @@ export default function Home() {
                           disabled={paginaAtual === 1}
                               className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <ChevronLeft className="h-5 w-5" />
+                          <Icons.ChevronLeft className="h-5 w-5" />
                         </button>
                         {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
                           let paginaNumero;
@@ -1795,7 +2046,7 @@ export default function Home() {
                           disabled={paginaAtual === totalPaginas}
                           className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <ChevronRight className="h-5 w-5" />
+                          <Icons.ChevronRight className="h-5 w-5" />
                         </button>
                       </nav>
                     </div>
@@ -1815,6 +2066,7 @@ export default function Home() {
         ) : (
             nascimentosView.map((n) => {
               const desmama = desmamasMap.get(n.id);
+              const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
               return (
                 <div key={n.id} className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-slate-800">
                   <div className="flex items-start justify-between mb-3">
@@ -1825,10 +2077,10 @@ export default function Home() {
                           onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
                           className="text-sm sm:text-base font-semibold text-blue-700 hover:text-blue-900 break-words underline-offset-2 hover:underline"
                         >
-                          Matriz: {n.matrizId}
+                          Matriz: {matrizIdentificador}
                         </button>
-                        {n.novilha && <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded whitespace-nowrap">Novilha</span>}
-                        {n.vaca && <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded whitespace-nowrap">Vaca</span>}
+                        {n.novilha && <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded whitespace-nowrap">Novilha</span>}
+                        {n.vaca && <span className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded whitespace-nowrap">Vaca</span>}
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600">
                         <div><span className="font-medium">Mês/Ano:</span> {getMesNome(n.mes)}/{n.ano}</div>
@@ -1858,14 +2110,33 @@ export default function Home() {
                     <div className="flex flex-col gap-1 ml-2">
                       <button
                         onClick={() => handleAbrirEdicao(n.id)}
-                        className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                        className="p-1.5 text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
                         title="Editar"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={async () => {
-                          if (confirm(`Deseja realmente excluir o nascimento da matriz ${n.matrizId}?`)) {
+                        onClick={() => {
+                          setHistoricoEntityId(n.id);
+                          const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+                          setHistoricoEntityNome(`Matriz ${matrizIdentificador}${n.brincoNumero ? ` - Brinco ${n.brincoNumero}` : ''}`);
+                          setHistoricoOpen(true);
+                        }}
+                        className="p-1.5 text-purple-600 hover:text-purple-800 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                        title="Ver histórico"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+                          setConfirmDialog({
+                            open: true,
+                            title: 'Excluir nascimento',
+                            message: `Deseja realmente excluir o nascimento da matriz ${matrizIdentificador}?`,
+                            variant: 'danger',
+                            onConfirm: async () => {
+                              setConfirmDialog(prev => ({ ...prev, open: false }));
                             try {
                               // Excluir desmama associada se existir (local e remoto)
                               const desmamasAssociadas = await db.desmamas.where('nascimentoId').equals(n.id).toArray();
@@ -1921,8 +2192,9 @@ export default function Home() {
                               showToast({ type: 'error', title: 'Erro ao excluir', message: error instanceof Error ? error.message : 'Erro desconhecido' });
                             }
                           }
+                        });
                         }}
-                        className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                        className="p-1.5 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                         title="Excluir"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1935,7 +2207,7 @@ export default function Home() {
                         to={`/desmama/${n.id}`}
                         className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
                       >
-                        <Plus className="w-3 h-3 mr-1" />
+                        <Icons.Plus className="w-3 h-3 mr-1" />
                         Cadastrar Desmama
                       </Link>
                     </div>
@@ -1980,7 +2252,7 @@ export default function Home() {
                     disabled={paginaAtual === 1}
                       className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-md text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    <Icons.ChevronLeft className="h-4 w-4 mr-1" />
                     Anterior
                   </button>
                   <span className="text-sm text-gray-700 dark:text-slate-300 font-medium">
@@ -1992,7 +2264,7 @@ export default function Home() {
                       className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-md text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Próxima
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <Icons.ChevronRight className="h-4 w-4 ml-1" />
                   </button>
                 </div>
               )}
@@ -2002,17 +2274,17 @@ export default function Home() {
 
         {/* Rodapé com Totalizadores */}
         <div className="mt-6 bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
-          <div className="px-6 py-4 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-800">
+          <div className="px-3 py-3 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-800">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Resumo</h3>
           </div>
-          <div className="p-6">
+          <div className="p-3">
             {/* Cards principais */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-6">
               {/* Card Vacas */}
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 rounded-lg p-4 border border-purple-200 dark:border-purple-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-medium text-purple-800 uppercase tracking-wide">Vacas</h4>
-                  <Users className="w-6 h-6 text-purple-600" />
+                  <Icons.Users className="w-6 h-6 text-purple-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-purple-900 dark:text-purple-200">{totais.vacas}</div>
               </div>
@@ -2021,7 +2293,7 @@ export default function Home() {
               <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/10 rounded-lg p-4 border border-green-200 dark:border-green-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs sm:text-sm font-medium text-green-800 uppercase tracking-wide">Novilhas</h4>
-                  <User className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                  <Icons.User className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-green-900 dark:text-green-200">{totais.novilhas}</div>
               </div>
@@ -2030,7 +2302,7 @@ export default function Home() {
               <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-900/10 rounded-lg p-4 border border-pink-200 dark:border-pink-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs sm:text-sm font-medium text-pink-800 uppercase tracking-wide">Fêmeas</h4>
-                  <Venus className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
+                  <Icons.Venus className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-pink-900 dark:text-pink-200">{totais.femeas}</div>
               </div>
@@ -2039,7 +2311,7 @@ export default function Home() {
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 rounded-lg p-4 border border-blue-200 dark:border-blue-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wide">Machos</h4>
-                  <Mars className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                  <Icons.Mars className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-200">{totais.machos}</div>
               </div>
@@ -2064,7 +2336,7 @@ export default function Home() {
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-800 dark:to-slate-900 rounded-lg p-4 sm:p-6 border-2 border-gray-300 dark:border-slate-600">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-xs sm:text-sm font-medium text-gray-800 dark:text-slate-200 uppercase tracking-wide">Total Geral</h4>
-                <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-gray-600" />
+                <Icons.TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-gray-600" />
               </div>
               <div className="flex items-baseline flex-wrap">
                 <span className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-slate-100">{totais.totalGeral}</span>
@@ -2111,7 +2383,7 @@ export default function Home() {
                   onClick={() => setModalNovoNascimentoOpen(false)}
                   className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
                 >
-                  <X className="w-6 h-6" />
+                  <Icons.X className="w-6 h-6" />
                 </button>
               </div>
 
@@ -2198,14 +2470,14 @@ export default function Home() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento *</label>
                     <input 
                       type="text"
                       inputMode="numeric"
                       maxLength={10}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                       placeholder="dd/mm/yyyy"
-                      value={watchNascimento('dataNascimento') ? normalizarDataInput(watchNascimento('dataNascimento') || '') : ''}
+                      value={watchNascimento('dataNascimento') ? converterDataParaFormatoInput(watchNascimento('dataNascimento') || '') : ''}
                       onChange={(e) => {
                         const norm = normalizarDataInput(e.target.value);
                         setValueNascimento('dataNascimento', norm, { shouldValidate: true });
@@ -2215,6 +2487,7 @@ export default function Home() {
                         setValueNascimento('dataNascimento', norm, { shouldValidate: true });
                       }}
                     />
+                    {errorsNascimento.dataNascimento && <p className="text-red-600 text-sm mt-1">{String(errorsNascimento.dataNascimento.message)}</p>}
                   </div>
 
                   <div>
@@ -2243,6 +2516,9 @@ export default function Home() {
                       placeholder="Digite ou selecione uma raça"
                       onAddNew={() => setModalRacaOpen(true)}
                       addNewLabel="Cadastrar nova raça"
+                      favoritoTipo="raca"
+                      isFavorito={(value) => isFavorito('raca', value)}
+                      onToggleFavorito={(value) => toggleFavorito('raca', value)}
                     />
                   </div>
 
@@ -2341,12 +2617,47 @@ export default function Home() {
                   onClick={handleFecharEdicao}
                   className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
                 >
-                  <X className="w-6 h-6" />
+                  <Icons.X className="w-6 h-6" />
                 </button>
+              </div>
+
+              {/* Abas */}
+              <div className="border-b border-gray-200 dark:border-slate-700">
+                <nav className="flex -mb-px px-6" aria-label="Tabs">
+                  <button
+                    type="button"
+                    onClick={() => setAbaAtivaEdicao('nascimento')}
+                    className={`
+                      py-4 px-4 border-b-2 font-medium text-sm transition-colors
+                      ${abaAtivaEdicao === 'nascimento'
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                      }
+                    `}
+                  >
+                    Nascimento
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbaAtivaEdicao('desmama')}
+                    className={`
+                      py-4 px-4 border-b-2 font-medium text-sm transition-colors
+                      ${abaAtivaEdicao === 'desmama'
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                      }
+                    `}
+                  >
+                    Desmama
+                  </button>
+                </nav>
               </div>
 
               {/* Form */}
               <form onSubmit={handleSubmitEdicao(onSubmitEdicao)} className="p-6 space-y-4">
+                {/* Aba Nascimento */}
+                {abaAtivaEdicao === 'nascimento' && (
+                  <>
                 <div className="flex flex-col md:flex-row gap-2">
                   <div className="flex-1">
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Fazenda *</label>
@@ -2427,14 +2738,14 @@ export default function Home() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento *</label>
                     <input 
                       type="text"
                       inputMode="numeric"
                       maxLength={10}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                       placeholder="dd/mm/yyyy"
-                      value={watchEdicao('dataNascimento') ? normalizarDataInput(watchEdicao('dataNascimento') || '') : ''}
+                      value={watchEdicao('dataNascimento') ? converterDataParaFormatoInput(watchEdicao('dataNascimento') || '') : ''}
                       onChange={(e) => {
                         const norm = normalizarDataInput(e.target.value);
                         setValueEdicao('dataNascimento', norm, { shouldValidate: true });
@@ -2444,6 +2755,7 @@ export default function Home() {
                         setValueEdicao('dataNascimento', norm, { shouldValidate: true });
                       }}
                     />
+                    {errorsEdicao.dataNascimento && <p className="text-red-600 text-sm mt-1">{String(errorsEdicao.dataNascimento.message)}</p>}
                   </div>
 
                   <div>
@@ -2472,6 +2784,9 @@ export default function Home() {
                       placeholder="Digite ou selecione uma raça"
                       onAddNew={() => setModalRacaOpen(true)}
                       addNewLabel="Cadastrar nova raça"
+                      favoritoTipo="raca"
+                      isFavorito={(value) => isFavorito('raca', value)}
+                      onToggleFavorito={(value) => toggleFavorito('raca', value)}
                     />
                   </div>
 
@@ -2522,6 +2837,55 @@ export default function Home() {
                     Bezerro nasceu morto
                   </label>
                 </div>
+                  </>
+                )}
+
+                {/* Aba Desmama */}
+                {abaAtivaEdicao === 'desmama' && (
+                  <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Data de Desmama</label>
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100" 
+                      placeholder="dd/mm/yyyy"
+                      value={watchEdicao('dataDesmama') ? converterDataParaFormatoInput(watchEdicao('dataDesmama') || '') : ''}
+                      onChange={(e) => {
+                        const norm = normalizarDataInput(e.target.value);
+                        setValueEdicao('dataDesmama', norm, { shouldValidate: true });
+                      }}
+                      onBlur={(e) => {
+                        const norm = normalizarDataInput(e.target.value);
+                        setValueEdicao('dataDesmama', norm, { shouldValidate: true });
+                      }}
+                    />
+                    {errorsEdicao.dataDesmama && <p className="text-red-600 text-sm mt-1">{String(errorsEdicao.dataDesmama.message)}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Peso de Desmama (kg)</label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100" 
+                      placeholder="Ex: 180.5"
+                      value={watchEdicao('pesoDesmama') || ''}
+                      onChange={(e) => setValueEdicao('pesoDesmama', e.target.value, { shouldValidate: true })}
+                    />
+                    {errorsEdicao.pesoDesmama && <p className="text-red-600 text-sm mt-1">{String(errorsEdicao.pesoDesmama.message)}</p>}
+                  </div>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/40 rounded-md p-3">
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    <strong>Dica:</strong> Preencha pelo menos um dos campos (Data ou Peso) para salvar os dados de desmama. Se ambos estiverem vazios, o registro de desmama será removido.
+                  </p>
+                </div>
+                  </>
+                )}
 
                 <div className="flex gap-2 pt-4 border-t border-gray-200">
                   <button 
@@ -2547,7 +2911,9 @@ export default function Home() {
       )}
 
       {/* Modal Histórico Matriz */}
-      {matrizHistoricoOpen && matrizHistoricoId && (
+      {matrizHistoricoOpen && matrizHistoricoId && (() => {
+        const matrizIdentificador = matrizMap.get(matrizHistoricoId) || matrizHistoricoId;
+        return (
         <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
           <div
             className="fixed inset-0 bg-gray-500 bg-opacity-60 transition-opacity"
@@ -2558,7 +2924,7 @@ export default function Home() {
               <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-white">
                 <div>
                   <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-                    Histórico da matriz {matrizHistoricoId}
+                    Histórico da matriz {matrizIdentificador}
                   </h2>
                   {matrizResumo && (
                     <p className="mt-1 text-xs sm:text-sm text-gray-600">
@@ -2583,7 +2949,7 @@ export default function Home() {
                   onClick={handleFecharHistoricoMatriz}
                   className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <X className="w-5 h-5" />
+                  <Icons.X className="w-5 h-5" />
                 </button>
               </div>
 
@@ -2673,8 +3039,9 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+    </div>
+  );
+      })()}
 
       {/* Modal Raça */}
       <ModalRaca 
@@ -2687,6 +3054,34 @@ export default function Home() {
             handleRacaCadastrada(racaNome);
           }
         }}
+      />
+
+      {/* Modal Histórico de Alterações */}
+      {historicoEntityId && (
+        <HistoricoAlteracoes
+          open={historicoOpen}
+          entity="nascimento"
+          entityId={historicoEntityId}
+          entityNome={historicoEntityNome}
+          onClose={() => {
+            setHistoricoOpen(false);
+            setHistoricoEntityId(null);
+            setHistoricoEntityNome('');
+          }}
+          onRestored={() => {
+            // Dados serão atualizados automaticamente pelo useLiveQuery
+          }}
+        />
+      )}
+
+      {/* Modal de Confirmação */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
       />
     </div>
   );

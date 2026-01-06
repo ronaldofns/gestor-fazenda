@@ -1,8 +1,12 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../db/dexieDB';
-import { ArrowUpDown, ChevronRight, Plus, ChevronLeft, FileSpreadsheet, FilePenLine } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
+import MatrizModal from '../components/MatrizModal';
+import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
+import { Matriz } from '../db/models';
+import { ComboboxOption } from '../components/Combobox';
 
 type SortField = 'matriz' | 'fazenda' | 'partos' | 'vivos' | 'mortos' | 'ultimoParto' | 'mediaPeso';
 
@@ -24,11 +28,23 @@ export default function Matrizes() {
   const nascimentosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
   const fazendas = useLiveQuery(() => db.fazendas.toArray(), []) || [];
+  const matrizesCadastradas = useLiveQuery(() => db.matrizes.toArray(), []) || [];
 
   const [busca, setBusca] = useState('');
   const [sortField, setSortField] = useState<SortField>('matriz');
   const [sortAsc, setSortAsc] = useState(true);
   const [paginaAtual, setPaginaAtual] = useState(1);
+  
+  // Estados do modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [matrizEditando, setMatrizEditando] = useState<Matriz | null>(null);
+  const [defaultIdentificador, setDefaultIdentificador] = useState<string>('');
+  const [defaultFazendaId, setDefaultFazendaId] = useState<string>('');
+  
+  // Estados do histórico
+  const [historicoOpen, setHistoricoOpen] = useState(false);
+  const [historicoEntityId, setHistoricoEntityId] = useState<string | null>(null);
 
   const fazendaMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -47,6 +63,33 @@ export default function Matrizes() {
     });
     return map;
   }, [desmamas]);
+
+  // Mapa de matrizes: por ID (UUID) e por identificador
+  const matrizMap = useMemo(() => {
+    const mapById = new Map<string, Matriz>();
+    const mapByIdentificador = new Map<string, Matriz>();
+    // Mapa adicional: por identificador apenas (para busca mais ampla)
+    const mapByIdentificadorApenas = new Map<string, Matriz[]>();
+    
+    matrizesCadastradas.forEach((m) => {
+      if (m.id) {
+        mapById.set(m.id, m);
+      }
+      if (m.identificador && m.fazendaId) {
+        // Chave composta: identificador + fazendaId
+        mapByIdentificador.set(`${m.identificador}|${m.fazendaId}`, m);
+      }
+      if (m.identificador) {
+        // Mapa por identificador apenas (pode ter múltiplas matrizes com mesmo identificador em fazendas diferentes)
+        if (!mapByIdentificadorApenas.has(m.identificador)) {
+          mapByIdentificadorApenas.set(m.identificador, []);
+        }
+        mapByIdentificadorApenas.get(m.identificador)!.push(m);
+      }
+    });
+    
+    return { byId: mapById, byIdentificador: mapByIdentificador, byIdentificadorApenas: mapByIdentificadorApenas };
+  }, [matrizesCadastradas]);
 
   const parseDate = (value?: string) => {
     if (!value) return null;
@@ -69,10 +112,81 @@ export default function Matrizes() {
 
     for (const n of nascimentosRaw) {
       if (!n.matrizId) continue;
-      const chave = n.matrizId;
+      
+      // Buscar matriz cadastrada: primeiro por ID (UUID), depois por identificador
+      let matrizCadastrada = matrizMap.byId.get(n.matrizId);
+      if (!matrizCadastrada && n.fazendaId) {
+        // Tentar buscar por identificador + fazendaId (caso o matrizId seja o identificador)
+        matrizCadastrada = matrizMap.byIdentificador.get(`${n.matrizId}|${n.fazendaId}`);
+      }
+      
+      // Se não encontrou, tentar buscar todas as matrizes que podem corresponder
+      // (pode ser que o matrizId seja UUID mas a matriz ainda não esteja no mapa)
+      if (!matrizCadastrada) {
+        // Buscar por identificador igual ao matrizId (caso o matrizId seja o identificador)
+        const encontradas = matrizesCadastradas.filter(
+          (m) => m.identificador === n.matrizId && m.fazendaId === n.fazendaId
+        );
+        if (encontradas.length > 0) {
+          matrizCadastrada = encontradas[0];
+        }
+      }
+      
+      // Se ainda não encontrou e o matrizId parece ser um UUID, buscar todas as matrizes
+      // que podem ter esse UUID como ID (pode ser que o mapa não tenha sido atualizado ainda)
+      if (!matrizCadastrada) {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(n.matrizId);
+        if (isUUID) {
+          // Buscar diretamente no array por ID
+          const encontradaPorId = matrizesCadastradas.find((m) => m.id === n.matrizId);
+          if (encontradaPorId) {
+            matrizCadastrada = encontradaPorId;
+          }
+        } else {
+          // Se não é UUID, pode ser que seja o identificador
+          // Buscar no mapa por identificador apenas (sem fazenda)
+          const matrizesComIdentificador = matrizMap.byIdentificadorApenas.get(n.matrizId);
+          if (matrizesComIdentificador && matrizesComIdentificador.length > 0) {
+            // Se há múltiplas, usar a que corresponde à fazenda do nascimento
+            if (n.fazendaId) {
+              const encontradaPorFazenda = matrizesComIdentificador.find((m) => m.fazendaId === n.fazendaId);
+              if (encontradaPorFazenda) {
+                matrizCadastrada = encontradaPorFazenda;
+              } else if (matrizesComIdentificador.length === 1) {
+                // Se há apenas uma matriz com esse identificador, usar ela
+                matrizCadastrada = matrizesComIdentificador[0];
+              }
+            } else if (matrizesComIdentificador.length === 1) {
+              // Se há apenas uma matriz com esse identificador, usar ela
+              matrizCadastrada = matrizesComIdentificador[0];
+            }
+          }
+        }
+      }
+      
+      // Usar identificador da matriz cadastrada, ou o matrizId do nascimento como fallback
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(n.matrizId);
+      let identificadorMatriz: string;
+      
+      if (matrizCadastrada) {
+        // Matriz encontrada: usar o identificador dela
+        identificadorMatriz = matrizCadastrada.identificador || n.matrizId;
+      } else if (isUUID) {
+        // É UUID mas não encontramos a matriz cadastrada
+        // Usar o próprio UUID como identificador único para não agrupar incorretamente
+        // Isso permite que cada matriz tenha sua própria entrada até que seja encontrada
+        identificadorMatriz = n.matrizId;
+      } else {
+        // Não é UUID, usar diretamente como identificador
+        identificadorMatriz = n.matrizId;
+      }
+      
+      // Chave única: identificador + fazendaId (para diferenciar matrizes com mesmo identificador em fazendas diferentes)
+      // IMPORTANTE: Se o identificadorMatriz for um UUID, cada UUID será uma chave única
+      const chave = `${identificadorMatriz}|${n.fazendaId}`;
       const fazendaNome = fazendaMap.get(n.fazendaId) || 'Sem fazenda';
       const existente = porMatriz.get(chave) || {
-        matrizId: chave,
+        matrizId: identificadorMatriz,
         fazendaId: n.fazendaId,
         fazenda: fazendaNome,
         totalPartos: 0,
@@ -121,7 +235,7 @@ export default function Matrizes() {
       ultimoParto: m.ultimoParto,
       mediaPesoDesmama: m.countPeso > 0 ? m.somaPeso / m.countPeso : 0,
     }));
-  }, [nascimentosRaw, fazendaMap, desmamaMap]);
+  }, [nascimentosRaw, fazendaMap, desmamaMap, matrizMap]);
 
   const matrizesFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -203,6 +317,53 @@ export default function Matrizes() {
     });
   };
 
+  // Preparar opções de fazenda para o Combobox
+  const fazendaOptions: ComboboxOption[] = useMemo(() => {
+    return fazendas
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+      .map((f) => ({
+        label: f.nome || '',
+        value: f.id || ''
+      }));
+  }, [fazendas]);
+
+  // Funções para abrir o modal
+  const handleNovaMatriz = (identificador?: string, fazendaId?: string) => {
+    setDefaultIdentificador(identificador || '');
+    setDefaultFazendaId(fazendaId || '');
+    setMatrizEditando(null);
+    setModalMode('create');
+    setModalOpen(true);
+  };
+
+  const handleEditarMatriz = async (matrizId: string) => {
+    const matriz = matrizesCadastradas.find((m) => m.id === matrizId);
+    if (matriz) {
+      setMatrizEditando(matriz);
+      setDefaultIdentificador('');
+      setDefaultFazendaId('');
+      setModalMode('edit');
+      setModalOpen(true);
+    } else {
+      // Se não encontrou na lista de cadastradas, buscar no banco
+      const matrizFromDb = await db.matrizes.get(matrizId);
+      if (matrizFromDb) {
+        setMatrizEditando(matrizFromDb);
+        setDefaultIdentificador('');
+        setDefaultFazendaId('');
+        setModalMode('edit');
+        setModalOpen(true);
+      }
+    }
+  };
+
+  const handleFecharModal = () => {
+    setModalOpen(false);
+    setMatrizEditando(null);
+    setDefaultIdentificador('');
+    setDefaultFazendaId('');
+  };
+
   return (
     <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-6">
@@ -221,13 +382,14 @@ export default function Matrizes() {
             <span>Ir para planilha</span>
             <ChevronRight className="w-4 h-4" />
           </button>
-          <Link
-            to="/matrizes/nova"
+          <button
+            type="button"
+            onClick={() => handleNovaMatriz()}
             className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           >
-            <Plus className="w-4 h-4" />
+            <Icons.Plus className="w-4 h-4" />
             <span>Nova matriz</span>
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -265,7 +427,7 @@ export default function Matrizes() {
                         className="inline-flex items-center gap-1"
                       >
                         Matriz
-                        <ArrowUpDown className="w-3 h-3" />
+                        <Icons.ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
                     <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
@@ -275,7 +437,7 @@ export default function Matrizes() {
                         className="inline-flex items-center gap-1"
                       >
                         Fazenda
-                        <ArrowUpDown className="w-3 h-3" />
+                        <Icons.ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
                     <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
@@ -285,7 +447,7 @@ export default function Matrizes() {
                         className="inline-flex items-center gap-1"
                       >
                         Partos
-                        <ArrowUpDown className="w-3 h-3" />
+                        <Icons.ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
                     <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
@@ -295,7 +457,7 @@ export default function Matrizes() {
                         className="inline-flex items-center gap-1"
                       >
                         Vivos
-                        <ArrowUpDown className="w-3 h-3" />
+                        <Icons.ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
                     <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
@@ -305,7 +467,7 @@ export default function Matrizes() {
                         className="inline-flex items-center gap-1"
                       >
                         Mortos
-                        <ArrowUpDown className="w-3 h-3" />
+                        <Icons.ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
                     <th className="px-3 py-2 text-left font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
@@ -315,7 +477,7 @@ export default function Matrizes() {
                         className="inline-flex items-center gap-1"
                       >
                         Último parto
-                        <ArrowUpDown className="w-3 h-3" />
+                        <Icons.ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
@@ -325,7 +487,7 @@ export default function Matrizes() {
                         className="inline-flex items-center gap-1"
                       >
                         Média peso desmama (kg)
-                        <ArrowUpDown className="w-3 h-3" />
+                        <Icons.ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
@@ -370,17 +532,41 @@ export default function Matrizes() {
                           className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
                           title="Ver na planilha"
                         >
-                          <FileSpreadsheet className="w-4 h-4" />
+                          <Icons.FileSpreadsheet className="w-4 h-4" />
                         </button>
-                        <Link
-                          to={`/matrizes/nova?identificador=${encodeURIComponent(
-                            m.matrizId
-                          )}&fazenda=${encodeURIComponent(m.fazendaId)}`}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Buscar matriz cadastrada pelo identificador + fazendaId
+                            const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
+                            if (matrizCadastrada) {
+                              handleEditarMatriz(matrizCadastrada.id);
+                            } else {
+                              // Se não encontrou, abre modal de criação com dados pré-preenchidos
+                              handleNovaMatriz(m.matrizId, m.fazendaId);
+                            }
+                          }}
                           className="inline-flex items-center justify-center p-1.5 text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md"
                           title="Abrir cadastro da matriz"
                         >
-                          <FilePenLine className="w-4 h-4" />
-                        </Link>
+                          <Icons.FilePenLine className="w-4 h-4" />
+                        </button>
+                        {matrizMap.byIdentificador.has(`${m.matrizId}|${m.fazendaId}`) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
+                              if (matrizCadastrada) {
+                                setHistoricoEntityId(matrizCadastrada.id);
+                                setHistoricoOpen(true);
+                              }
+                            }}
+                            className="inline-flex items-center justify-center p-1.5 text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-md ml-1"
+                            title="Ver histórico de alterações"
+                          >
+                            <Icons.History className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -419,15 +605,23 @@ export default function Matrizes() {
                       >
                         <FileSpreadsheet className="w-4 h-4" />
                       </button>
-                      <Link
-                        to={`/matrizes/nova?identificador=${encodeURIComponent(
-                          m.matrizId
-                        )}&fazenda=${encodeURIComponent(m.fazendaId)}`}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Buscar matriz cadastrada pelo identificador + fazendaId
+                          const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
+                          if (matrizCadastrada) {
+                            handleEditarMatriz(matrizCadastrada.id);
+                          } else {
+                            // Se não encontrou, abre modal de criação com dados pré-preenchidos
+                            handleNovaMatriz(m.matrizId, m.fazendaId);
+                          }
+                        }}
                         className="inline-flex items-center justify-center p-1.5 text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md"
                         title="Abrir cadastro da matriz"
                       >
                         <FilePenLine className="w-4 h-4" />
-                      </Link>
+                      </button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-slate-300 mt-1">
@@ -477,7 +671,7 @@ export default function Matrizes() {
                     disabled={paginaAtual === 1}
                     className="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-200 rounded-l-md hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <Icons.ChevronLeft className="w-4 h-4" />
                   </button>
                   {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
                     let paginaNumero;
@@ -511,7 +705,7 @@ export default function Matrizes() {
                     disabled={paginaAtual === totalPaginas}
                     className="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-200 rounded-r-md hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <Icons.ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -519,6 +713,36 @@ export default function Matrizes() {
           </>
         )}
       </div>
+
+      <MatrizModal
+        open={modalOpen}
+        mode={modalMode}
+        fazendaOptions={fazendaOptions}
+        defaultIdentificador={defaultIdentificador}
+        defaultFazendaId={defaultFazendaId}
+        initialData={matrizEditando}
+        onClose={handleFecharModal}
+        onSaved={() => {
+          // Recarregar dados se necessário
+        }}
+      />
+
+      {/* Modal Histórico de Alterações */}
+      {historicoEntityId && (
+        <HistoricoAlteracoes
+          open={historicoOpen}
+          entity="matriz"
+          entityId={historicoEntityId}
+          entityNome={matrizesCadastradas.find(m => m.id === historicoEntityId)?.identificador}
+          onClose={() => {
+            setHistoricoOpen(false);
+            setHistoricoEntityId(null);
+          }}
+          onRestored={() => {
+            // Dados serão atualizados automaticamente pelo useLiveQuery
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useTransition } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,6 +9,7 @@ import { uuid } from '../utils/uuid';
 import { Nascimento } from '../db/models';
 import Modal from './Modal';
 import { showToast } from '../utils/toast';
+import { criarMatrizSeNaoExistir } from '../utils/criarMatrizAutomatica';
 
 type Mode = 'create' | 'edit';
 
@@ -18,7 +20,7 @@ const schemaNascimento = z.object({
   matrizId: z.string().min(1, 'Informe a matriz'),
   tipo: z.enum(['novilha', 'vaca'], { required_error: 'Selecione o tipo: Vaca ou Novilha' }),
   brincoNumero: z.string().optional(),
-  dataNascimento: z.string().optional(),
+  dataNascimento: z.string().min(1, 'Informe a data de nascimento'),
   sexo: z.enum(['M', 'F'], { required_error: 'Selecione o sexo' }),
   raca: z.string().optional(),
   obs: z.string().optional(),
@@ -31,7 +33,7 @@ interface NascimentoModalProps {
   open: boolean;
   mode: Mode;
   fazendaOptions: ComboboxOption[];
-  racasOptions: string[];
+  racasOptions: ComboboxOption[] | string[];
   defaultFazendaId?: string;
   defaultMes?: number;
   defaultAno?: number;
@@ -60,6 +62,18 @@ function NascimentoModalComponent({
 }: NascimentoModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Mapa de matrizes para converter UUID em identificador
+  const matrizes = useLiveQuery(() => db.matrizes.toArray(), []) || [];
+  const matrizMap = useMemo(() => {
+    const map = new Map<string, string>(); // ID -> identificador
+    matrizes.forEach((m) => {
+      if (m.id && m.identificador) {
+        map.set(m.id, m.identificador);
+      }
+    });
+    return map;
+  }, [matrizes]);
 
   const titulo = mode === 'create' ? 'Novo Nascimento/Desmama' : 'Editar Nascimento/Desmama';
 
@@ -94,11 +108,13 @@ function NascimentoModalComponent({
   useEffect(() => {
     if (mode === 'edit' && initialData) {
       const tipo = initialData.vaca ? 'vaca' : initialData.novilha ? 'novilha' : undefined;
+      // Converter UUID da matriz para identificador para exibição
+      const matrizIdentificador = matrizMap.get(initialData.matrizId) || initialData.matrizId;
       reset({
         fazendaId: initialData.fazendaId,
         mes: initialData.mes,
         ano: initialData.ano,
-        matrizId: initialData.matrizId,
+        matrizId: matrizIdentificador,
         brincoNumero: initialData.brincoNumero || '',
         dataNascimento: initialData.dataNascimento || '',
         sexo: initialData.sexo,
@@ -122,7 +138,7 @@ function NascimentoModalComponent({
         morto: false
       });
     }
-  }, [mode, initialData, reset, defaultFazendaId, defaultMes, defaultAno, open]);
+  }, [mode, initialData, reset, defaultFazendaId, defaultMes, defaultAno, open, matrizMap]);
 
   // Aplicar nova raça cadastrada externamente
   useEffect(() => {
@@ -171,6 +187,25 @@ function NascimentoModalComponent({
       }
 
       if (mode === 'create') {
+        // Criar matriz automaticamente se não existir
+        let matrizId = values.matrizId;
+        try {
+          matrizId = await criarMatrizSeNaoExistir(
+            values.matrizId,
+            values.fazendaId,
+            values.tipo,
+            values.raca
+          );
+        } catch (error) {
+          console.error('Erro ao criar matriz automaticamente:', error);
+          showToast({
+            type: 'warning',
+            title: 'Aviso',
+            message: 'Matriz não encontrada, mas o nascimento será salvo mesmo assim.'
+          });
+          // Continuar com o matrizId original mesmo se der erro
+        }
+
         const id = uuid();
         const now = new Date().toISOString();
         const novilha = values.tipo === 'novilha';
@@ -180,7 +215,7 @@ function NascimentoModalComponent({
           fazendaId: values.fazendaId,
           mes: Number(values.mes),
           ano: Number(values.ano),
-          matrizId: values.matrizId,
+          matrizId: matrizId,
           brincoNumero: values.brincoNumero || '',
           dataNascimento: values.dataNascimento || '',
           sexo: values.sexo,
@@ -302,12 +337,13 @@ function NascimentoModalComponent({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento *</label>
           <input
             type="date"
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             {...register('dataNascimento')}
           />
+          {errors.dataNascimento && <p className="text-red-600 text-sm mt-1">{String(errors.dataNascimento.message)}</p>}
         </div>
 
         <div>

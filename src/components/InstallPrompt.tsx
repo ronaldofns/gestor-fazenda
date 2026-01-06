@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Download } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -104,7 +104,7 @@ export default function InstallPrompt() {
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
-              <Download className="w-6 h-6 text-white" />
+              <Icons.Download className="w-6 h-6 text-white" />
             </div>
           </div>
           <div className="flex-1 min-w-0">
@@ -134,7 +134,7 @@ export default function InstallPrompt() {
             className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
             aria-label="Fechar"
           >
-            <X className="w-5 h-5" />
+            <Icons.X className="w-5 h-5" />
           </button>
         </div>
       </div>

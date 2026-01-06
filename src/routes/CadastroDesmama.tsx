@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,7 +7,7 @@ import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { showToast } from '../utils/toast';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { X } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 import { useAuth } from '../hooks/useAuth';
 import { registrarAudit } from '../utils/audit';
 
@@ -27,6 +27,17 @@ export default function CadastroDesmama() {
     () => (nascimentoId ? db.nascimentos.get(nascimentoId) : undefined),
     [nascimentoId]
   );
+
+  const matrizes = useLiveQuery(() => db.matrizes.toArray(), []) || [];
+  const matrizMap = useMemo(() => {
+    const map = new Map<string, string>(); // ID -> identificador
+    matrizes.forEach((m) => {
+      if (m.id && m.identificador) {
+        map.set(m.id, m.identificador);
+      }
+    });
+    return map;
+  }, [matrizes]);
 
   const { register, handleSubmit, formState: { errors } } = useForm({ 
     resolver: zodResolver(schema),
@@ -117,7 +128,7 @@ export default function CadastroDesmama() {
                 onClick={() => navigate(-1)}
                 className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
               >
-                <X className="w-5 h-5" />
+                <Icons.X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 text-sm text-yellow-800 bg-yellow-50 border-b border-yellow-200">
@@ -148,7 +159,7 @@ export default function CadastroDesmama() {
               onClick={() => navigate(-1)}
               className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
             >
-              <X className="w-6 h-6" />
+              <Icons.X className="w-6 h-6" />
             </button>
           </div>
 
@@ -158,7 +169,7 @@ export default function CadastroDesmama() {
               <div className="grid grid-cols-2 gap-2 sm:gap-2 text-xs sm:text-sm">
                 <div>
                   <span className="text-gray-500">Matriz:</span>
-                  <span className="ml-2 font-medium">{nascimento.matrizId}</span>
+                  <span className="ml-2 font-medium">{matrizMap.get(nascimento.matrizId) || nascimento.matrizId}</span>
                 </div>
                 <div>
                   <span className="text-gray-500">Sexo:</span>

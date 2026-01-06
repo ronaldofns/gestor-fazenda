@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { createUser } from '../utils/auth';
-import { UserPlus, LogIn, RefreshCw } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 import { db } from '../db/dexieDB';
 import { showToast } from '../utils/toast';
 
@@ -106,7 +106,7 @@ export default function SetupInicial() {
           </div>
           {sincronizando && (
             <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600">
-              <RefreshCw className="w-4 h-4 animate-spin" />
+              <Icons.RefreshCw className="w-4 h-4 animate-spin" />
               <span>Buscando usuários do servidor</span>
             </div>
           )}
@@ -120,7 +120,7 @@ export default function SetupInicial() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
         <div className="text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8 text-green-600" />
+            <Icons.LogIn className="w-8 h-8 text-green-600" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">Sistema já configurado</h2>
           <p className="text-gray-600 dark:text-slate-400 mb-4">Redirecionando para login...</p>
@@ -135,7 +135,7 @@ export default function SetupInicial() {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl shadow-lg mb-4">
-            <UserPlus className="w-10 h-10 text-white" />
+            <Icons.UserPlus className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Configuração Inicial</h1>
           <p className="text-gray-600 dark:text-slate-400">Crie o primeiro usuário administrador</p>
@@ -218,7 +218,7 @@ export default function SetupInicial() {
                 </>
               ) : (
                 <>
-                  <UserPlus className="w-5 h-5" />
+                  <Icons.UserPlus className="w-5 h-5" />
                   <span>Criar Administrador</span>
                 </>
               )}

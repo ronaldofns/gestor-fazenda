@@ -125,6 +125,26 @@ export async function updateUser(
  * Remove um usuário
  */
 export async function deleteUser(id: string): Promise<void> {
+  const usuario = await db.usuarios.get(id);
+  
+  // Excluir no servidor se tiver remoteId
+  if (usuario?.remoteId) {
+    try {
+      const { supabase } = await import('../api/supabaseClient');
+      const { error } = await supabase.from('usuarios_online').delete().eq('id', usuario.remoteId);
+      if (error) {
+        // Se o erro for de foreign key constraint, ainda podemos tentar excluir localmente
+        // pois com SET NULL, os audits vão manter o histórico sem referência ao usuário
+        if (error.code !== '23503' && !error.message?.includes('foreign key')) {
+          console.warn('Erro ao excluir usuário no servidor:', error);
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao excluir usuário no servidor:', err);
+    }
+  }
+  
+  // Excluir localmente
   await db.usuarios.delete(id);
 }
 

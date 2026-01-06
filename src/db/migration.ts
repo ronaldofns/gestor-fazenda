@@ -75,7 +75,6 @@ export async function migrateOldData() {
       });
     }
 
-    console.log('Migração de dados concluída');
   } catch (error) {
     console.error('Erro na migração de dados:', error);
   }

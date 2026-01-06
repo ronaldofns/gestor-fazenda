@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { WifiOff, Wifi } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 import useOnline from '../hooks/useOnline';
 
 // Toast curto que só aparece na transição (entrada/saída do offline)
@@ -42,12 +42,12 @@ export default function OfflineIndicator() {
       >
         {online ? (
           <>
-            <Wifi className="w-4 h-4" />
+            <Icons.Wifi className="w-4 h-4" />
             <span>Conexão restaurada</span>
           </>
         ) : (
           <>
-            <WifiOff className="w-4 h-4" />
+            <Icons.WifiOff className="w-4 h-4" />
             <span>Offline: dados locais</span>
           </>
         )}

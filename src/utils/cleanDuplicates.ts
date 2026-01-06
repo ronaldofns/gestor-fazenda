@@ -35,7 +35,6 @@ export async function cleanDuplicateNascimentos() {
         const manter = registros[0];
         for (let i = 1; i < registros.length; i++) {
           duplicadosParaRemover.push(registros[i].id);
-          console.log(`Removendo duplicado: ${registros[i].id} (mantendo: ${manter.id})`);
         }
       }
     }
@@ -66,7 +65,6 @@ export async function cleanDuplicateNascimentos() {
         for (let i = 1; i < registros.length; i++) {
           if (!duplicadosParaRemover.includes(registros[i].id)) {
             duplicadosParaRemover.push(registros[i].id);
-            console.log(`Removendo duplicado por remoteId ${remoteId}: ${registros[i].id} (mantendo: ${manter.id})`);
           }
         }
       }
@@ -79,10 +77,6 @@ export async function cleanDuplicateNascimentos() {
       } catch (err) {
         console.error(`Erro ao remover duplicado ${id}:`, err);
       }
-    }
-    
-    if (duplicadosParaRemover.length > 0) {
-      console.log(`✅ Removidos ${duplicadosParaRemover.length} registros duplicados`);
     }
     
     return duplicadosParaRemover.length;

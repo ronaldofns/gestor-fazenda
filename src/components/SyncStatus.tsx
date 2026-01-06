@@ -1,7 +1,11 @@
 import React from 'react';
 import useOnline from '../hooks/useOnline';
 
-export default function SyncStatus() {
+interface SyncStatusProps {
+  collapsed?: boolean;
+}
+
+export default function SyncStatus({ collapsed = false }: SyncStatusProps) {
   const online = useOnline();
   return (
     <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 whitespace-nowrap">
@@ -11,7 +15,7 @@ export default function SyncStatus() {
         }`}
         title={online ? 'Online' : 'Offline'}
       />
-      <span>{online ? 'Online' : 'Offline'}</span>
+      {!collapsed && <span>{online ? 'Online' : 'Offline'}</span>}
     </div>
   );
 }

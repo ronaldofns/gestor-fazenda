@@ -53,6 +53,47 @@ export async function pushPending() {
     console.error('Erro geral ao sincronizar exclusões:', err);
   }
 
+  // Sincronizar categorias primeiro (antes de raças, pois são mais simples)
+  try {
+    // Query mais segura: buscar todos e filtrar manualmente
+    const todasCategorias = await db.categorias.toArray();
+    const pendCategorias = todasCategorias.filter(c => c.synced === false);
+    for (const c of pendCategorias) {
+      try {
+        const { data, error } = await supabase
+          .from('categorias_online')
+          .upsert(
+            {
+              uuid: c.id,
+              nome: c.nome,
+              created_at: c.createdAt,
+              updated_at: c.updatedAt
+            },
+            { onConflict: 'uuid' }
+          )
+          .select('id, uuid');
+
+        if (!error && data && data.length) {
+          await db.categorias.update(c.id, { synced: true, remoteId: data[0].id });
+        } else if (error) {
+          console.error('Erro ao sincronizar categoria:', {
+            error: error,
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            categoriaId: c.id,
+            nome: c.nome
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao processar categoria:', err, c.id);
+      }
+    }
+  } catch (err) {
+    console.error('Erro geral ao fazer push de categorias:', err);
+  }
+
   // Sincronizar raças primeiro (antes de fazendas, pois são mais simples)
   try {
     // Query mais segura: buscar todos e filtrar manualmente
@@ -143,6 +184,48 @@ export async function pushPending() {
 
     for (const m of pendMatrizes) {
       try {
+        // Verificar se a fazenda existe no Supabase antes de sincronizar
+        if (!m.fazendaId) {
+          console.warn('Matriz sem fazendaId, pulando sincronização:', m.id, m.identificador);
+          continue;
+        }
+
+        // Verificar se a fazenda está sincronizada
+        const fazenda = await db.fazendas.get(m.fazendaId);
+        if (!fazenda) {
+          console.warn('Fazenda não encontrada para matriz, pulando sincronização:', m.id, m.identificador, m.fazendaId);
+          continue;
+        }
+
+        // Se a fazenda não está sincronizada, tentar sincronizar primeiro
+        if (!fazenda.synced) {
+          // Não sincronizamos aqui para evitar recursão
+          // A fazenda será sincronizada em outra chamada
+        }
+
+        // Obter categoriaId (pode ser categoriaId ou categoria antiga)
+        const categoriaId = (m as any).categoriaId || (m as any).categoria || '';
+        
+        // Se categoriaId está vazio, tentar buscar categoria padrão baseada no identificador
+        // ou usar null (será SET NULL pela foreign key)
+        let categoriaUuidFinal: string | null = null;
+        if (categoriaId) {
+          // Verificar se a categoria existe no banco local
+          const categoriaLocal = await db.categorias.get(categoriaId);
+          if (categoriaLocal) {
+            categoriaUuidFinal = categoriaId; // O ID já é o UUID
+          }
+        }
+        
+        // Buscar UUID da raça baseado no nome (se houver raça)
+        let racaUuid: string | null = null;
+        if (m.raca) {
+          const racaEncontrada = await db.racas.where('nome').equals(m.raca).first();
+          if (racaEncontrada) {
+            racaUuid = racaEncontrada.id;
+          }
+        }
+        
         const { data, error } = await supabase
           .from('matrizes_online')
           .upsert(
@@ -150,8 +233,9 @@ export async function pushPending() {
               uuid: m.id,
               identificador: m.identificador,
               fazenda_uuid: m.fazendaId,
-              categoria: m.categoria,
-              raca: m.raca || null,
+              categoria_uuid: categoriaUuidFinal, // Pode ser null se não encontrar
+              raca: m.raca || null, // Mantido para compatibilidade
+              raca_uuid: racaUuid, // UUID para foreign key
               data_nascimento: toIsoDate(m.dataNascimento),
               pai: m.pai || null,
               mae: m.mae || null,
@@ -173,7 +257,9 @@ export async function pushPending() {
             details: error.details,
             hint: error.hint,
             matrizId: m.id,
-            identificador: m.identificador
+            identificador: m.identificador,
+            fazendaId: m.fazendaId,
+            categoriaId: categoriaUuidFinal
           });
         }
       } catch (err) {
@@ -199,6 +285,15 @@ export async function pushPending() {
     
   for (const n of pendNasc) {
       try {
+        // Buscar UUID da raça baseado no nome (se houver raça)
+        let racaUuid: string | null = null;
+        if (n.raca) {
+          const racaEncontrada = await db.racas.where('nome').equals(n.raca).first();
+          if (racaEncontrada) {
+            racaUuid = racaEncontrada.id;
+          }
+        }
+        
     const { data, error } = await supabase
       .from('nascimentos_online')
       .upsert(
@@ -213,7 +308,8 @@ export async function pushPending() {
           brinco_numero: n.brincoNumero,
           data_nascimento: toIsoDate(n.dataNascimento),
           sexo: n.sexo,
-          raca: n.raca,
+          raca: n.raca, // Mantido para compatibilidade
+          raca_uuid: racaUuid, // UUID para foreign key
           obs: n.obs,
           morto: n.morto || false,
           created_at: n.createdAt,
@@ -375,9 +471,113 @@ export async function pushPending() {
   } catch (err) {
     console.error('Erro geral ao fazer push de auditoria:', err);
   }
+
+  // Sincronizar notificações lidas
+  try {
+    if (db.notificacoesLidas) {
+      const todasNotificacoes = await db.notificacoesLidas.toArray();
+      const pendNotificacoes = todasNotificacoes.filter(n => n.synced === false);
+
+      for (const n of pendNotificacoes) {
+        try {
+          const { data, error } = await supabase
+            .from('notificacoes_lidas_online')
+            .upsert(
+              {
+                uuid: n.id,
+                tipo: n.tipo,
+                marcada_em: n.marcadaEm,
+                created_at: n.marcadaEm,
+                updated_at: n.marcadaEm
+              },
+              { onConflict: 'uuid' }
+            )
+            .select('id, uuid');
+
+          if (!error && data && data.length) {
+            await db.notificacoesLidas.update(n.id, { synced: true, remoteId: data[0].id });
+          } else if (error) {
+            console.error('Erro ao sincronizar notificação lida:', {
+              error: error,
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+              notificacaoId: n.id,
+              tipo: n.tipo
+            });
+          }
+        } catch (err: any) {
+          console.error('Erro ao processar notificação lida:', {
+            error: err,
+            message: err?.message,
+            stack: err?.stack,
+            notificacaoId: n.id,
+            tipo: n.tipo
+          });
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('Erro geral ao fazer push de notificações lidas:', {
+      error: err,
+      message: err?.message,
+      stack: err?.stack
+    });
+  }
 }
 
 export async function pullUpdates() {
+  // Buscar categorias primeiro
+  try {
+    const { data: servCategorias, error: errorCategorias } = await supabase.from('categorias_online').select('*');
+    if (errorCategorias) {
+      console.error('Erro ao buscar categorias do servidor:', {
+        error: errorCategorias,
+        message: errorCategorias.message,
+        code: errorCategorias.code,
+        details: errorCategorias.details,
+        hint: errorCategorias.hint
+      });
+    } else if (servCategorias && servCategorias.length > 0) {
+      const servUuids = new Set(servCategorias.map(c => c.uuid));
+      
+      const todasCategoriasLocais = await db.categorias.toArray();
+      const categoriasSincronizadas = todasCategoriasLocais.filter(c => c.remoteId != null);
+      
+      for (const local of categoriasSincronizadas) {
+        if (!servUuids.has(local.id)) {
+          await db.categorias.delete(local.id);
+        }
+      }
+      
+      for (const s of servCategorias) {
+        const local = await db.categorias.get(s.uuid);
+        if (!local) {
+          await db.categorias.add({
+            id: s.uuid,
+            nome: s.nome,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+        } else {
+          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
+            await db.categorias.update(local.id, {
+              nome: s.nome,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de categorias:', err);
+  }
+
   // Buscar raças primeiro
   try {
     const { data: servRacas, error: errorRacas } = await supabase.from('racas_online').select('*');
@@ -464,7 +664,6 @@ export async function pullUpdates() {
       // Mas só se o servidor retornou dados (não está vazio)
       for (const local of fazendasSincronizadas) {
         if (!servUuids.has(local.id)) {
-          console.log('Fazenda excluída no servidor, excluindo localmente:', local.id, local.nome);
           await db.fazendas.delete(local.id);
         }
       }
@@ -526,7 +725,6 @@ export async function pullUpdates() {
       // Mas só se o servidor retornou dados (não está vazio)
       for (const local of matrizesSincronizadas) {
         if (!servUuids.has(local.id)) {
-          console.log('Matriz excluída no servidor, excluindo localmente:', local.id, local.identificador);
           await db.matrizes.delete(local.id);
         }
       }
@@ -548,30 +746,71 @@ export async function pullUpdates() {
           }
         }
 
+        // Usar categoria_uuid se disponível, senão usar categoria (compatibilidade com dados antigos)
+        const categoriaId = s.categoria_uuid || s.categoria || '';
+        
+        // Buscar nome da raça baseado no UUID (se houver raca_uuid)
+        let racaNome: string | undefined = undefined;
+        if (s.raca_uuid) {
+          const racaEncontrada = await db.racas.get(s.raca_uuid);
+          if (racaEncontrada) {
+            racaNome = racaEncontrada.nome;
+          }
+        } else if (s.raca) {
+          // Fallback: usar raca (texto) se raca_uuid não estiver disponível
+          racaNome = s.raca;
+        }
+        
         if (!local) {
-          await db.matrizes.add({
-            id: s.uuid,
-            identificador: s.identificador,
-            fazendaId: s.fazenda_uuid,
-            categoria: s.categoria,
-            raca: s.raca || undefined,
-            dataNascimento: dataNascimentoBR,
-            pai: s.pai || undefined,
-            mae: s.mae || undefined,
-            ativo: s.ativo,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Verificar se já existe uma matriz com esse UUID antes de adicionar
+          const existePorUuid = await db.matrizes.get(s.uuid);
+          if (!existePorUuid) {
+            try {
+              await db.matrizes.add({
+                id: s.uuid,
+                identificador: s.identificador,
+                fazendaId: s.fazenda_uuid,
+                categoriaId: categoriaId,
+                raca: racaNome,
+                dataNascimento: dataNascimentoBR,
+                pai: s.pai || undefined,
+                mae: s.mae || undefined,
+                ativo: s.ativo,
+                createdAt: s.created_at,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              } as any);
+            } catch (addError: any) {
+              // Se der erro de constraint, pode ser que a matriz já existe
+              // Tentar atualizar ao invés de adicionar
+              if (addError.name === 'ConstraintError' || addError.message?.includes('Key already exists')) {
+                await db.matrizes.update(s.uuid, {
+                  identificador: s.identificador,
+                  fazendaId: s.fazenda_uuid,
+                  categoriaId: categoriaId,
+                  raca: racaNome,
+                  dataNascimento: dataNascimentoBR,
+                  pai: s.pai || undefined,
+                  mae: s.mae || undefined,
+                  ativo: s.ativo,
+                  updatedAt: s.updated_at,
+                  synced: true,
+                  remoteId: s.id
+                } as any);
+              } else {
+                throw addError;
+              }
+            }
+          }
         } else {
           // Atualizar apenas se a versão do servidor for mais recente ou se não tiver remoteId
           if (!local.remoteId || new Date(local.updatedAt) < new Date(s.updated_at)) {
             await db.matrizes.update(local.id, {
               identificador: s.identificador,
               fazendaId: s.fazenda_uuid,
-              categoria: s.categoria,
-              raca: s.raca || undefined,
+              categoriaId: categoriaId,
+              raca: racaNome,
               dataNascimento: dataNascimentoBR,
               pai: s.pai || undefined,
               mae: s.mae || undefined,
@@ -579,7 +818,7 @@ export async function pullUpdates() {
               updatedAt: s.updated_at,
               synced: true,
               remoteId: s.id
-            });
+            } as any);
           }
         }
       }
@@ -681,11 +920,22 @@ export async function pullUpdates() {
           // pode ser um duplicado - deletar o antigo e criar o novo
           try {
             await db.nascimentos.delete(existingUuidByRemoteId);
-            console.log(`Removendo duplicado: ${existingUuidByRemoteId} (mesmo remoteId: ${s.id})`);
           } catch (err) {
             console.warn('Erro ao remover duplicado:', err);
           }
         }
+        // Buscar nome da raça baseado no UUID (se houver raca_uuid)
+        let racaNome: string | undefined = undefined;
+        if (s.raca_uuid) {
+          const racaEncontrada = await db.racas.get(s.raca_uuid);
+          if (racaEncontrada) {
+            racaNome = racaEncontrada.nome;
+          }
+        } else if (s.raca) {
+          // Fallback: usar raca (texto) se raca_uuid não estiver disponível
+          racaNome = s.raca;
+        }
+        
         try {
           await db.nascimentos.add({
             id: s.uuid,
@@ -698,7 +948,7 @@ export async function pullUpdates() {
             brincoNumero: s.brinco_numero,
             dataNascimento: s.data_nascimento,
             sexo: s.sexo,
-            raca: s.raca,
+            raca: racaNome,
             obs: s.obs,
             morto: s.morto || false,
             createdAt: s.created_at,
@@ -711,6 +961,18 @@ export async function pullUpdates() {
           if (addError.name === 'ConstraintError' || addError.message?.includes('already exists')) {
             const existing = await db.nascimentos.get(s.uuid);
             if (existing) {
+              // Buscar nome da raça baseado no UUID (se houver raca_uuid)
+              let racaNome: string | undefined = undefined;
+              if (s.raca_uuid) {
+                const racaEncontrada = await db.racas.get(s.raca_uuid);
+                if (racaEncontrada) {
+                  racaNome = racaEncontrada.nome;
+                }
+              } else if (s.raca) {
+                // Fallback: usar raca (texto) se raca_uuid não estiver disponível
+                racaNome = s.raca;
+              }
+              
               await db.nascimentos.update(s.uuid, {
                 fazendaId: s.fazenda_uuid,
                 matrizId: s.matriz_id,
@@ -721,7 +983,7 @@ export async function pullUpdates() {
                 brincoNumero: s.brinco_numero,
                 dataNascimento: s.data_nascimento,
                 sexo: s.sexo,
-                raca: s.raca,
+                raca: racaNome,
                 obs: s.obs,
                 morto: s.morto || false,
                 updatedAt: s.updated_at,
@@ -788,7 +1050,6 @@ export async function pullUpdates() {
       // Mas só se o servidor retornou dados (não está vazio)
       for (const local of desmamasSincronizadas) {
         if (!servUuids.has(local.id)) {
-          console.log('Desmama excluída no servidor, excluindo localmente:', local.id);
           await db.desmamas.delete(local.id);
         }
       }
@@ -846,7 +1107,6 @@ export async function pullUpdates() {
       // Mas só se o servidor retornou dados (não está vazio)
       for (const local of usuariosSincronizados) {
         if (!servUuids.has(local.id)) {
-          console.log('Usuário excluído no servidor, excluindo localmente:', local.id);
           await db.usuarios.delete(local.id);
         }
       }
@@ -960,6 +1220,110 @@ export async function pullUsuarios() {
     console.error('Erro ao processar pull de usuários:', err);
     // Não lançar erro para não bloquear o login
     // Apenas logar o erro e continuar com dados locais
+  }
+
+  // Buscar notificações lidas
+  try {
+    const { data: servNotificacoes, error: errorNotificacoes } = await supabase.from('notificacoes_lidas_online').select('*');
+    if (errorNotificacoes) {
+      console.error('Erro ao buscar notificações lidas do servidor:', {
+        error: errorNotificacoes,
+        message: errorNotificacoes.message,
+        code: errorNotificacoes.code,
+        details: errorNotificacoes.details,
+        hint: errorNotificacoes.hint
+      });
+      // Não excluir dados locais em caso de erro
+    } else if (servNotificacoes) {
+      // Processar mesmo se o array estiver vazio (para garantir que dados locais não sincronizados sejam preservados)
+      // Mas só fazer merge se houver dados no servidor
+      if (servNotificacoes.length > 0) {
+        // IMPORTANTE: Só processar se houver dados no servidor
+        // Se servNotificacoes for [] (vazio), preservar dados locais
+        
+        // Criar conjunto de UUIDs que existem no servidor
+        const servUuids = new Set(servNotificacoes.map(n => n.uuid));
+        
+        // Buscar todas as notificações locais que foram sincronizadas (têm remoteId)
+        if (db.notificacoesLidas) {
+          const todasNotificacoesLocais = await db.notificacoesLidas.toArray();
+          const notificacoesSincronizadas = todasNotificacoesLocais.filter(n => n.remoteId != null);
+          
+          // Excluir localmente as que não existem mais no servidor
+          // Mas só se o servidor retornou dados (não está vazio)
+          for (const local of notificacoesSincronizadas) {
+            if (!servUuids.has(local.id)) {
+              await db.notificacoesLidas.delete(local.id);
+            }
+          }
+          
+          // Adicionar/atualizar notificações do servidor
+          for (const s of servNotificacoes) {
+            const local = await db.notificacoesLidas.get(s.uuid);
+            if (!local) {
+              // Adicionar notificação do servidor que não existe localmente
+              try {
+                await db.notificacoesLidas.add({
+                  id: s.uuid,
+                  tipo: s.tipo,
+                  marcadaEm: s.marcada_em,
+                  synced: true,
+                  remoteId: s.id
+                });
+              } catch (addError: any) {
+                // Se der erro ao adicionar (ex: chave duplicada), tentar atualizar
+                if (addError.name === 'ConstraintError' || addError.message?.includes('already exists')) {
+                  const existing = await db.notificacoesLidas.get(s.uuid);
+                  if (existing) {
+                    await db.notificacoesLidas.update(s.uuid, {
+                      tipo: s.tipo,
+                      marcadaEm: s.marcada_em,
+                      synced: true,
+                      remoteId: s.id
+                    });
+                  }
+                } else {
+                  console.error('Erro ao adicionar notificação lida do servidor:', addError);
+                }
+              }
+            } else {
+              // Atualizar notificação existente
+              // Se não tem remoteId OU se a versão do servidor for mais recente
+              const servidorMaisRecente = !local.remoteId || new Date(local.marcadaEm) < new Date(s.marcada_em);
+              if (servidorMaisRecente) {
+                await db.notificacoesLidas.update(local.id, {
+                  tipo: s.tipo,
+                  marcadaEm: s.marcada_em,
+                  synced: true,
+                  remoteId: s.id
+                });
+              } else if (!local.remoteId) {
+                // Se não tem remoteId mas a versão local é mais recente, apenas adicionar remoteId
+                // Mas manter synced: false para que seja enviado ao servidor na próxima sincronização
+                await db.notificacoesLidas.update(local.id, {
+                  synced: false, // Manter como não sincronizado se a versão local é mais recente
+                  remoteId: s.id
+                });
+              } else if (local.remoteId && local.remoteId !== s.id) {
+                // Se tem remoteId diferente, pode ser um duplicado - atualizar para usar o do servidor
+                await db.notificacoesLidas.update(local.id, {
+                  synced: true,
+                  remoteId: s.id
+                });
+              }
+            }
+          }
+        }
+      }
+      // Se servNotificacoes.length === 0, não fazer nada (preservar dados locais)
+    }
+  } catch (err: any) {
+    console.error('Erro ao processar pull de notificações lidas:', {
+      error: err,
+      message: err?.message,
+      stack: err?.stack
+    });
+    // Não lançar erro para não bloquear o pull de outras tabelas
   }
 }
 

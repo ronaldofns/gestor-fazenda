@@ -49,7 +49,7 @@ function abrirPDF(doc: jsPDF, nomeArquivo: string) {
   }
 }
 
-export function gerarRelatorioPDF(dados: DadosRelatorio) {
+export function gerarRelatorioPDF(dados: DadosRelatorio, matrizMap?: Map<string, string>) {
   const doc = new jsPDF({
     orientation: 'portrait', // Retrato para melhor uso da área de impressão
     unit: 'mm',
@@ -90,8 +90,9 @@ export function gerarRelatorioPDF(dados: DadosRelatorio) {
     // Truncar observações muito longas para evitar quebra de layout
     const obs = (n.obs || '').substring(0, 50);
     
+    const matrizIdentificador = matrizMap?.get(n.matrizId) || n.matrizId || '';
     return [
-      n.matrizId || '',
+      matrizIdentificador,
       n.novilha ? 'X' : '',
       n.vaca ? 'X' : '',
       n.sexo || '',
@@ -265,10 +266,10 @@ export function gerarRelatorioPDF(dados: DadosRelatorio) {
     doc.setPage(pageNumber);
     const pw = doc.internal.pageSize.getWidth();
     const ph = doc.internal.pageSize.getHeight();
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(128, 128, 128);
+  
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(128, 128, 128);
 
     // Esquerda inferior: data
     doc.text(`Relatório gerado em: ${dataGeracao}`, margin, ph - 8);
@@ -497,7 +498,7 @@ export interface DadosRelatorioDesmama {
   }>;
 }
 
-export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
+export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama, matrizMap?: Map<string, string>) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -584,15 +585,18 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama) {
 
   // Tabela de desmamas
   if (dados.desmamas.length > 0) {
-    const tableData = dados.desmamas.map(d => [
-      d.matrizId || '',
-      d.brinco || '-',
-      d.fazenda,
-      d.raca || '-',
-      d.sexo || '-',
-      d.dataDesmama ? new Date(d.dataDesmama).toLocaleDateString('pt-BR') : '-',
-      d.pesoDesmama ? `${d.pesoDesmama.toFixed(2)} kg` : '-'
-    ]);
+    const tableData = dados.desmamas.map(d => {
+      const matrizIdentificador = matrizMap?.get(d.matrizId) || d.matrizId || '';
+      return [
+        matrizIdentificador,
+        d.brinco || '-',
+        d.fazenda,
+        d.raca || '-',
+        d.sexo || '-',
+        d.dataDesmama ? new Date(d.dataDesmama).toLocaleDateString('pt-BR') : '-',
+        d.pesoDesmama ? `${d.pesoDesmama.toFixed(2)} kg` : '-'
+      ];
+    });
 
     autoTable(doc, {
       head: [['Matriz', 'Brinco', 'Fazenda', 'Raça', 'Sexo', 'Data Desmama', 'Peso (kg)']],

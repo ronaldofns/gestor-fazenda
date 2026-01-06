@@ -8,6 +8,7 @@ interface DadosExportacao {
   fazendaNome?: string;
   mes?: number;
   ano?: number;
+  matrizMap?: Map<string, string>; // ID -> identificador
 }
 
 /**
@@ -18,8 +19,9 @@ export function exportarParaExcel(dados: DadosExportacao) {
     // Preparar dados da planilha
     const dadosPlanilha = dados.nascimentos.map((n) => {
       const desmama = dados.desmamas.get(n.id);
+      const matrizIdentificador = dados.matrizMap?.get(n.matrizId) || n.matrizId || '';
       return {
-        'Matriz': n.matrizId || '',
+        'Matriz': matrizIdentificador,
         'Novilha': n.novilha ? 'X' : '',
         'Vaca': n.vaca ? 'X' : '',
         'Sexo': n.sexo || '',
@@ -119,8 +121,9 @@ export function exportarParaCSV(dados: DadosExportacao) {
     // Preparar dados
     const linhas = dados.nascimentos.map((n) => {
       const desmama = dados.desmamas.get(n.id);
+      const matrizIdentificador = dados.matrizMap?.get(n.matrizId) || n.matrizId || '';
       return [
-        n.matrizId || '',
+        matrizIdentificador,
         n.novilha ? 'X' : '',
         n.vaca ? 'X' : '',
         n.sexo || '',

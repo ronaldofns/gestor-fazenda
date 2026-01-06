@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { lerPlanilha, detectarMapeamento, importarNascimentos, MapeamentoColunas, LinhaImportacao, InfoPlanilha } from '../utils/importPlanilha';
 import { showToast } from '../utils/toast';
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 import Combobox from '../components/Combobox';
 
 export default function ImportarPlanilha() {
@@ -138,7 +138,9 @@ export default function ImportarPlanilha() {
     { key: 'dataNascimento', label: 'Data de Nascimento' },
     { key: 'sexo', label: 'Sexo' },
     { key: 'raca', label: 'Raça' },
-    { key: 'obs', label: 'Observações' }
+    { key: 'obs', label: 'Observações' },
+    { key: 'dataDesmama', label: 'Data de Desmama' },
+    { key: 'pesoDesmama', label: 'Peso de Desmama (kg)' }
   ];
 
   return (
@@ -171,12 +173,12 @@ export default function ImportarPlanilha() {
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
             >
-              <Upload className="w-5 h-5" />
+              <Icons.Upload className="w-5 h-5" />
               Selecionar Arquivo
             </button>
             {arquivo && (
               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
-                <FileSpreadsheet className="w-5 h-5 text-green-600" />
+                <Icons.FileSpreadsheet className="w-5 h-5 text-green-600" />
                 <span>{arquivo.name}</span>
                 <span className="text-gray-500">({dados.length} linhas)</span>
               </div>
@@ -291,9 +293,9 @@ export default function ImportarPlanilha() {
           }`}>
             <div className="flex items-start gap-2">
               {resultado.erros.length === 0 ? (
-                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <Icons.CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
               ) : (
-                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <Icons.AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
               )}
               <div className="flex-1">
                 <p className={`font-medium ${

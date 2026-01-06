@@ -1,22 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FileSpreadsheet, 
-  Building2, 
-  Upload,
-  LogOut,
-  Menu,
-  X,
-  RefreshCw,
-  Users,
-  Download,
-  Settings,
-  Bell,
-  ListTree,
-  Moon,
-  Sun
-} from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 import SyncStatus from './SyncStatus';
 import useSync from '../hooks/useSync';
 import { useAuth } from '../hooks/useAuth';
@@ -25,6 +9,7 @@ import { AlertSettings, useAlertSettings } from '../hooks/useAlertSettings';
 import { useNotifications } from '../hooks/useNotifications';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import Modal from './Modal';
+import ConfirmDialog from './ConfirmDialog';
 import { applyTheme, getInitialTheme, Theme } from '../utils/theme';
 
 // Variável global para rastrear estado de sincronização
@@ -51,6 +36,37 @@ export default function Sidebar() {
   const { logout, isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  
+  // Estado para sidebar recolhida (inicia recolhida)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sidebarCollapsed');
+      return saved !== null ? saved === 'true' : true; // Inicia recolhida por padrão
+    }
+    return true;
+  });
+  
+  // Salvar estado no localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+      // Disparar evento para atualizar o layout do App
+      window.dispatchEvent(new CustomEvent('sidebarToggle', { detail: { collapsed: sidebarCollapsed } }));
+    }
+  }, [sidebarCollapsed]);
+  
+  // Estado do modal de confirmação
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    open: false,
+    message: '',
+    onConfirm: () => {}
+  });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const {
     draftSettings,
@@ -118,13 +134,13 @@ export default function Sidebar() {
   };
 
   const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/notificacoes', label: 'Notificações', icon: Bell, badge: notificacoes.total },
-    { path: '/planilha', label: 'Nascimento/Desmama', icon: FileSpreadsheet },
-    { path: '/matrizes', label: 'Matrizes', icon: ListTree },
-    { path: '/fazendas', label: 'Fazendas', icon: Building2 },
-    { path: '/importar-planilha', label: 'Importar Planilha', icon: Upload },
-    ...(isAdmin() ? [{ path: '/usuarios', label: 'Usuários', icon: Users }] : []),
+    { path: '/dashboard', label: 'Dashboard', icon: Icons.LayoutDashboard },
+    { path: '/notificacoes', label: 'Notificações', icon: Icons.Bell, badge: notificacoes.total > 0 ? notificacoes.total : undefined },
+    { path: '/planilha', label: 'Nascimento/Desmama', icon: Icons.FileSpreadsheet },
+    { path: '/matrizes', label: 'Matrizes', icon: Icons.ListTree },
+    { path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 },
+    { path: '/importar-planilha', label: 'Importar Planilha', icon: Icons.Upload },
+    ...(isAdmin() ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),
   ];
 
       const isActive = (path: string) => {
@@ -140,9 +156,9 @@ export default function Sidebar() {
         aria-label="Toggle sidebar"
       >
         {sidebarOpen ? (
-          <X className="w-6 h-6 text-gray-600" />
+          <Icons.X className="w-6 h-6 text-gray-600" />
         ) : (
-          <Menu className="w-6 h-6 text-gray-600" />
+          <Icons.Menu className="w-6 h-6 text-gray-600" />
         )}
       </button>
 
@@ -158,38 +174,64 @@ export default function Sidebar() {
       <aside
         className={`
           fixed top-0 left-0 h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm z-40
-          transform transition-transform duration-300 ease-in-out
+          transform transition-all duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
-          w-64
+          ${sidebarCollapsed ? 'w-16' : 'w-64'}
         `}
       >
         <div className="flex flex-col h-full">
           {/* Logo/Header */}
-          <div className="p-3 border-b border-gray-300 dark:border-slate-500">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Gerenciador de Fazendas</h1>
-                <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Sistema de Gestão</p>
+          <div className={`border-b border-gray-300 dark:border-slate-500 relative ${sidebarCollapsed ? 'p-2' : 'p-3'}`}>
+            {sidebarCollapsed ? (
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                  title="Expandir sidebar"
+                >
+                  <Icons.ChevronRight className="w-4 h-4 text-gray-600 dark:text-slate-300" />
+                </button>
               </div>
-              <button
-                onClick={toggleTheme}
-                className="inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1 text-[10px] text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                title={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
-              >
-                {theme === 'dark' ? (
-                  <>
-                    <Sun className="w-3 h-3 mr-1" />
-                    <span>Claro</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-3 h-3 mr-1" />
-                    <span>Escuro</span>
-                  </>
-                )}
-              </button>
-            </div>
+            ) : (
+              <>
+                {/* Botão de toggle flutuante */}
+                <button
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="absolute top-2 right-2 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors z-10 bg-white dark:bg-slate-800 shadow-sm"
+                  title="Recolher sidebar"
+                >
+                  <Icons.ChevronLeft className="w-4 h-4 text-gray-600 dark:text-slate-300" />
+                </button>
+                
+                {/* Conteúdo do header */}
+                <div className="pr-8">
+                  <h1 className="text-base font-bold text-gray-900 dark:text-slate-100 whitespace-nowrap leading-tight">Gerenciador de Fazendas</h1>
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5 whitespace-nowrap">Sistema de Gestão</p>
+                  
+                  {/* Botão de tema */}
+                  <div className="flex justify-start mt-2">
+                    <button
+                      onClick={toggleTheme}
+                      className="inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1 text-[10px] text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                      title={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
+                    >
+                    {theme === 'dark' ? (
+                      <>
+                        <Icons.Sun className="w-3 h-3 mr-1" />
+                        <span>Claro</span>
+                      </>
+                    ) : (
+                      <>
+                        <Icons.Moon className="w-3 h-3 mr-1" />
+                        <span>Escuro</span>
+                      </>
+                    )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Menu Items */}
@@ -204,25 +246,37 @@ export default function Sidebar() {
                       to={item.path}
                       onClick={() => setSidebarOpen(false)}
                       className={`
-                        flex items-center gap-1 px-2 py-3 rounded-lg transition-colors w-full
+                        flex items-center gap-1 px-2 py-3 rounded-lg transition-colors w-full relative
+                        ${sidebarCollapsed ? 'justify-center' : ''}
                         ${
                           active
                             ? 'bg-blue-200 text-blue-700 border-l-4 border-blue-600 dark:bg-blue-800 dark:text-blue-300 dark:border-blue-400'
                             : 'text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-slate-600 dark:hover:text-white'
                         }
                       `}
+                      title={sidebarCollapsed ? item.label : ''}
+                      aria-label={item.label}
                     >
                       <Icon
                         className={`w-5 h-5 shrink-0 ${
                           active ? 'text-blue-600 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'
                         }`}
                       />
-                      <span className="font-medium whitespace-nowrap flex-1">{item.label}</span>
-                      {item.badge ? (
-                        <span className="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1 text-[11px] font-semibold rounded-full bg-red-500 text-white">
+                      {!sidebarCollapsed && (
+                        <>
+                          <span className="font-medium whitespace-nowrap flex-1">{item.label}</span>
+                          {item.badge ? (
+                            <span className="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1 text-[11px] font-semibold rounded-full bg-red-500 text-white">
+                              {item.badge}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                      {sidebarCollapsed && item.badge && (
+                        <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-semibold rounded-full bg-red-500 text-white">
                           {item.badge}
                         </span>
-                      ) : null}
+                      )}
                     </Link>
                   </li>
                 );
@@ -232,23 +286,32 @@ export default function Sidebar() {
 
           {/* Sync Status e Botão Manual */}
           <div className="p-2 border-t border-gray-300 dark:border-slate-500 space-y-3 bg-gray-50 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-300">Sincronização</span>
-              <SyncStatus />
-            </div>
+            {!sidebarCollapsed ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-300">Sincronização</span>
+                <SyncStatus collapsed={false} />
+              </div>
+            ) : (
+              <div className="flex justify-center">
+                <SyncStatus collapsed={true} />
+              </div>
+            )}
             <button
               onClick={() => setSettingsOpen(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-200 dark:border-indigo-900/60"
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-200 dark:border-indigo-900/60`}
+              title={sidebarCollapsed ? 'Configurações de alertas' : ''}
             >
-              <Settings className="w-4 h-4" />
-              <span>Configurações de alertas</span>
+              <Icons.Settings className="w-4 h-4" />
+              {!sidebarCollapsed && <span>Configurações de alertas</span>}
             </button>
             <button
               onClick={handleManualSync}
               disabled={syncing}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm relative overflow-hidden"
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm relative overflow-hidden`}
+              title={sidebarCollapsed ? (syncing ? 'Sincronizando...' : 'Sincronizar Agora') : ''}
+              aria-label={syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
             >
-              <RefreshCw 
+              <Icons.RefreshCw 
                 className={`w-4 h-4 transition-transform duration-300 ${
                   syncing ? 'animate-spin' : ''
                 }`}
@@ -256,9 +319,11 @@ export default function Sidebar() {
                   animation: syncing ? 'spin 1s linear infinite' : 'none'
                 }}
               />
-              <span className="relative z-10">
-                {syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
-              </span>
+              {!sidebarCollapsed && (
+                <span className="relative z-10">
+                  {syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
+                </span>
+              )}
               {syncing && (
                 <span className="absolute inset-0 bg-blue-700 opacity-20 animate-pulse" />
               )}
@@ -282,16 +347,23 @@ export default function Sidebar() {
                       });
                     }
                   }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors shadow-sm text-sm"
-                  title="Exportar backup completo dos dados"
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors shadow-sm text-sm`}
+                  title={sidebarCollapsed ? 'Exportar backup completo dos dados' : 'Exportar backup completo dos dados'}
+                  aria-label="Exportar backup completo dos dados"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Backup Completo</span>
+                  <Icons.Download className="w-4 h-4" />
+                  {!sidebarCollapsed && <span>Backup Completo</span>}
                 </button>
                 <button
-                  onClick={async () => {
-                    if (confirm('Deseja limpar o cache do navegador? Isso irá:\n\n- Limpar IndexedDB\n- Limpar Local Storage\n- Limpar Session Storage\n- Limpar Cache do navegador\n\nA aplicação será recarregada após a limpeza.')) {
-                      try {
+                  onClick={() => {
+                    setConfirmDialog({
+                      open: true,
+                      title: 'Limpar cache',
+                      message: 'Deseja limpar o cache do navegador? Isso irá:\n\n- Limpar IndexedDB\n- Limpar Local Storage\n- Limpar Session Storage\n- Limpar Cache do navegador\n\nA aplicação será recarregada após a limpeza.',
+                      variant: 'warning',
+                      onConfirm: async () => {
+                        setConfirmDialog(prev => ({ ...prev, open: false }));
+                        try {
                         // Limpar IndexedDB
                         if ('indexedDB' in window) {
                           const databases = await indexedDB.databases();
@@ -331,11 +403,17 @@ export default function Sidebar() {
                         });
                       }
                     }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors shadow-sm text-sm"
-                  title="Limpar cache do navegador"
+                  });
+                }}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors shadow-sm text-sm`}
+                  title={sidebarCollapsed ? 'Limpar cache do navegador' : 'Limpar cache do navegador'}
+                  aria-label="Limpar cache do navegador"
                 >
-                  <span>🗑️ Limpar Cache</span>
+                  {sidebarCollapsed ? (
+                    <span>🗑️</span>
+                  ) : (
+                    <span>🗑️ Limpar Cache</span>
+                  )}
                 </button>
           </div>
 
@@ -343,121 +421,135 @@ export default function Sidebar() {
           <div className="p-2 border-t border-gray-300 dark:border-slate-500 bg-gray-50 dark:bg-slate-900">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white`}
+              title={sidebarCollapsed ? 'Sair' : ''}
+              aria-label="Sair"
             >
-              <LogOut className="w-5 h-5" />
-              <span className="font-medium">Sair</span>
+              <Icons.LogOut className="w-5 h-5" />
+              {!sidebarCollapsed && <span className="font-medium">Sair</span>}
             </button>
           </div>
         </div>
       </aside>
 
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-        <div className="space-y-4">
-          <div className="flex items-start justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl">
+          <div className="border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Configurações de alertas</h3>
-              <p className="text-sm text-gray-600">Ajuste limites de desmama e mortalidade.</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Configurações de alertas</h3>
+              <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Ajuste limites de desmama e mortalidade.</p>
             </div>
             <button
               onClick={() => setSettingsOpen(false)}
-              className="text-gray-500 hover:text-gray-700"
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
               aria-label="Fechar"
             >
-              <X className="w-5 h-5" />
+              <Icons.X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Meses sem desmama
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={36}
-                value={draftSettings.limiteMesesDesmama}
-                onChange={(e) =>
-                  setDraftSettings((prev: AlertSettings) => ({
-                    ...prev,
-                    limiteMesesDesmama: Number(e.target.value)
-                  }))
-                }
-                className="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm"
-              />
+          <div className="p-3 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 ml-4 mr-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Meses sem desmama
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={36}
+                  value={draftSettings.limiteMesesDesmama}
+                  onChange={(e) =>
+                    setDraftSettings((prev: AlertSettings) => ({
+                      ...prev,
+                      limiteMesesDesmama: Number(e.target.value)
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Janela mortalidade (meses)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={24}
+                  value={draftSettings.janelaMesesMortalidade}
+                  onChange={(e) =>
+                    setDraftSettings((prev: AlertSettings) => ({
+                      ...prev,
+                      janelaMesesMortalidade: Number(e.target.value)
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Limiar mortalidade (%)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={draftSettings.limiarMortalidade}
+                  onChange={(e) =>
+                    setDraftSettings((prev: AlertSettings) => ({
+                      ...prev,
+                      limiarMortalidade: Number(e.target.value)
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Janela mortalidade (meses)
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={24}
-                value={draftSettings.janelaMesesMortalidade}
-                onChange={(e) =>
-                  setDraftSettings((prev: AlertSettings) => ({
-                    ...prev,
-                    janelaMesesMortalidade: Number(e.target.value)
-                  }))
-                }
-                className="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Limiar mortalidade (%)
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                value={draftSettings.limiarMortalidade}
-                onChange={(e) =>
-                  setDraftSettings((prev: AlertSettings) => ({
-                    ...prev,
-                    limiarMortalidade: Number(e.target.value)
-                  }))
-                }
-                className="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm"
-              />
-            </div>
-          </div>
 
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                resetSettings();
-                showToast({
-                  type: 'info',
-                  title: 'Configuração padrão',
-                  message: 'Limites restaurados.'
-                });
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Restaurar padrão
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                saveSettings();
-                showToast({
-                  type: 'success',
-                  title: 'Configurações salvas',
-                  message: 'Alertas atualizados.'
-                });
-                setSettingsOpen(false);
-              }}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-            >
-              Salvar
-            </button>
+            <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => {
+                  resetSettings();
+                  showToast({
+                    type: 'info',
+                    title: 'Configuração padrão',
+                    message: 'Limites restaurados.'
+                  });
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Restaurar padrão
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  saveSettings();
+                  showToast({
+                    type: 'success',
+                    title: 'Configurações salvas',
+                    message: 'Alertas atualizados.'
+                  });
+                  setSettingsOpen(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              >
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
+
+      {/* Modal de Confirmação */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+      />
     </>
   );
 }

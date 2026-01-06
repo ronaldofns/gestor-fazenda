@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle, AlertTriangle, Info, XCircle } from 'lucide-react';
+import { Icons } from '../utils/iconMapping';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -14,19 +14,19 @@ interface ToastMessage {
 const typeStyles: Record<ToastType, { bg: string; icon: React.ReactNode }> = {
   success: {
     bg: 'bg-green-600',
-    icon: <CheckCircle className="w-5 h-5 text-white" />
+    icon: <Icons.CheckCircle className="w-5 h-5 text-white" />
   },
   error: {
     bg: 'bg-red-600',
-    icon: <XCircle className="w-5 h-5 text-white" />
+    icon: <Icons.XCircle className="w-5 h-5 text-white" />
   },
   warning: {
     bg: 'bg-amber-600',
-    icon: <AlertTriangle className="w-5 h-5 text-white" />
+    icon: <Icons.AlertTriangle className="w-5 h-5 text-white" />
   },
   info: {
     bg: 'bg-blue-600',
-    icon: <Info className="w-5 h-5 text-white" />
+    icon: <Icons.Info className="w-5 h-5 text-white" />
   }
 };
 
