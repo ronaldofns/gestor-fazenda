@@ -349,7 +349,7 @@ Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalh
 
 ## 👤 Autor
 
-**Ronaldo Fonseca**
+**Ronaldo Filho**
 - GitHub: [@ronaldofns](https://github.com/ronaldofns)
 
 ## 🙏 Agradecimentos
