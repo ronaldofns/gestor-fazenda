@@ -12,6 +12,8 @@ import ModalCategoria from './ModalCategoria';
 import ModalRaca from './ModalRaca';
 import { showToast } from '../utils/toast';
 import { Icons } from '../utils/iconMapping';
+import { registrarAudit } from '../utils/audit';
+import { useAuth } from '../hooks/useAuth';
 
 type Mode = 'create' | 'edit';
 
@@ -50,6 +52,7 @@ export default function MatrizModal({
   onClose,
   onSaved
 }: MatrizModalProps) {
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, startTransition] = useTransition();
   const [modalCategoriaOpen, setModalCategoriaOpen] = useState(false);
@@ -211,22 +214,52 @@ export default function MatrizModal({
       };
 
       if (mode === 'edit' && initialData) {
+        // Salvar estado anterior para auditoria
+        const antes = { ...initialData };
+        
         await db.matrizes.update(initialData.id, {
           ...payload,
           updatedAt: now,
           synced: false
         });
+        
+        // Buscar estado atualizado
+        const depois = await db.matrizes.get(initialData.id);
+        
+        // Registrar auditoria
+        await registrarAudit({
+          entity: 'matriz',
+          entityId: initialData.id,
+          action: 'update',
+          before: antes,
+          after: depois || null,
+          user: user ? { id: user.id, nome: user.nome } : undefined
+        });
+        
         showToast({ type: 'success', title: 'Matriz atualizada', message: payload.identificador });
       } else if (mode === 'create') {
         const newId = uuid();
-        await db.matrizes.add({
+        const novaMatriz = {
           id: newId,
           ...payload,
           createdAt: now,
           updatedAt: now,
           synced: false,
           remoteId: null
+        };
+        
+        await db.matrizes.add(novaMatriz);
+        
+        // Registrar auditoria
+        await registrarAudit({
+          entity: 'matriz',
+          entityId: newId,
+          action: 'create',
+          before: null,
+          after: novaMatriz,
+          user: user ? { id: user.id, nome: user.nome } : undefined
         });
+        
         showToast({ type: 'success', title: 'Matriz cadastrada', message: payload.identificador });
       }
 

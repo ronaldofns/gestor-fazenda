@@ -89,7 +89,7 @@ export interface Usuario {
   remoteId?: number | null; // ID remoto no Supabase
 }
 
-export type AuditEntity = 'fazenda' | 'raca' | 'nascimento' | 'desmama' | 'matriz' | 'usuario';
+export type AuditEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario';
 
 export type AuditAction = 'create' | 'update' | 'delete';
 

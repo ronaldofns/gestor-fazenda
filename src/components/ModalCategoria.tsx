@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { showToast } from '../utils/toast';
+import { registrarAudit } from '../utils/audit';
+import { useAuth } from '../hooks/useAuth';
 
 interface ModalCategoriaProps {
   open: boolean;
@@ -10,6 +12,7 @@ interface ModalCategoriaProps {
 }
 
 export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }: ModalCategoriaProps) {
+  const { user } = useAuth();
   const [nomeCategoria, setNomeCategoria] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -23,14 +26,27 @@ export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }:
     try {
       const id = uuid();
       const now = new Date().toISOString();
-      await db.categorias.add({
+      const novaCategoria = {
         id,
         nome: nomeCategoria.trim(),
         createdAt: now,
         updatedAt: now,
         synced: false,
         remoteId: null
+      };
+      
+      await db.categorias.add(novaCategoria);
+      
+      // Registrar auditoria
+      await registrarAudit({
+        entity: 'categoria',
+        entityId: id,
+        action: 'create',
+        before: null,
+        after: novaCategoria,
+        user: user ? { id: user.id, nome: user.nome } : undefined
       });
+      
       onCategoriaCadastrada(id, nomeCategoria.trim());
       setNomeCategoria('');
       onClose();

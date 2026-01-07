@@ -214,7 +214,7 @@ export default function ListaUsuarios() {
                               }`}
                               title={usuario.ativo ? 'Desativar usuário' : 'Ativar usuário'}
                             >
-                              {usuario.ativo ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                              {usuario.ativo ? <Icons.UserX className="w-4 h-4" /> : <Icons.UserCheck className="w-4 h-4" />}
                             </button>
                             {usuario.id !== currentUser?.id && (
                               <button
@@ -282,7 +282,7 @@ export default function ListaUsuarios() {
                         }`}
                         title={usuario.ativo ? 'Desativar usuário' : 'Ativar usuário'}
                       >
-                        {usuario.ativo ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                        {usuario.ativo ? <Icons.UserX className="w-4 h-4" /> : <Icons.UserCheck className="w-4 h-4" />}
                       </button>
                         <button
                           type="button"
@@ -290,7 +290,7 @@ export default function ListaUsuarios() {
                           className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full transition-colors"
                           title="Editar usuário"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Icons.Edit className="w-4 h-4" />
                         </button>
                         <button
                           type="button"
@@ -301,7 +301,7 @@ export default function ListaUsuarios() {
                           className="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-full transition-colors"
                           title="Ver histórico"
                         >
-                          <History className="w-4 h-4" />
+                          <Icons.History className="w-4 h-4" />
                         </button>
                         {usuario.id !== currentUser?.id && (
                           <button
@@ -309,7 +309,7 @@ export default function ListaUsuarios() {
                             className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"
                             title="Excluir usuário"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Icons.Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>

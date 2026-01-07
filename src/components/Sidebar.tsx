@@ -298,7 +298,7 @@ export default function Sidebar() {
             )}
             <button
               onClick={() => setSettingsOpen(true)}
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-200 dark:border-indigo-900/60`}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-indigo-200 hover:bg-indigo-400 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-200 dark:border-indigo-900/60`}
               title={sidebarCollapsed ? 'Configurações de alertas' : ''}
             >
               <Icons.Settings className="w-4 h-4" />
@@ -405,7 +405,7 @@ export default function Sidebar() {
                     }
                   });
                 }}
-                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors shadow-sm text-sm`}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg transition-colors shadow-sm text-sm`}
                   title={sidebarCollapsed ? 'Limpar cache do navegador' : 'Limpar cache do navegador'}
                   aria-label="Limpar cache do navegador"
                 >

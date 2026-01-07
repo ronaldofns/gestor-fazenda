@@ -419,7 +419,7 @@ function NascimentoModalComponent({
           {...register('morto')}
         />
         <label htmlFor="morto-modal" className="text-sm font-medium text-red-800 cursor-pointer">
-          Bezerro nasceu morto
+          Bezerro morto?
         </label>
       </div>
 

@@ -255,7 +255,7 @@ export default function ListaFazendas() {
                         className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-900 dark:hover:bg-blue-900/30 rounded-full transition-colors"
                         title="Editar fazenda"
                       >
-                        <Edit className="w-5 h-5" />
+                        <Icons.Edit className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => {
@@ -265,14 +265,14 @@ export default function ListaFazendas() {
                         className="p-1.5 text-purple-600 hover:bg-purple-50 hover:text-purple-900 dark:hover:bg-purple-900/30 rounded-full transition-colors"
                         title="Ver histórico"
                       >
-                        <History className="w-5 h-5" />
+                        <Icons.History className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(fazenda.id, fazenda.nome)}
                         className="p-1.5 text-red-600 hover:bg-red-50 hover:text-red-900 dark:hover:bg-red-900/30 rounded-full transition-colors"
                         title="Excluir fazenda"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Icons.Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
