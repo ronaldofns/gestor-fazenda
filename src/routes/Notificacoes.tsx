@@ -116,7 +116,7 @@ export default function Notificacoes() {
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-red-200 dark:border-red-500/40 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <Icons.AlertTriangle className="w-5 h-5 text-red-500" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade alta</h3>
             </div>
             <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ export default function Notificacoes() {
                     className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded transition-colors ml-2"
                     title="Marcar como lida"
                   >
-                    <Check className="w-4 h-4" />
+                    <Icons.Check className="w-4 h-4" />
                   </button>
                 </div>
               ))}

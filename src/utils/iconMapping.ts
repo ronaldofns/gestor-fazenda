@@ -42,7 +42,6 @@ import {
   FaEye,            // Eye
   FaCalendar,       // Calendar
   FaUser,           // User
-  FaPaw,            // Ícone de animal (novo)
   FaChevronDown,    // ChevronDown
   FaStar,           // Star
   FaEnvelope,       // Mail
@@ -60,54 +59,15 @@ import {
   FaCow            // Cow (se disponível)
 } from 'react-icons/fa6';
 
-import { CiLogout } from "react-icons/ci";
-
-// Ícones de animais do Material Design
-import {
-  MdPets            // Ícone de animais/pets
-} from 'react-icons/md';
+// Game Icons
+import { GiCow } from 'react-icons/gi';
 
 // Material Design Icons (para alguns ícones específicos)
 import {
-  MdDashboard,      // Alternativa para LayoutDashboard
-  MdUploadFile,     // Alternativa para Upload
-  MdDelete,         // Alternativa para Trash2
-  MdEdit,           // Alternativa para Edit
-  MdHistory,        // Alternativa para History
-  MdWarning,        // Alternativa para AlertTriangle
-  MdInfo,           // Alternativa para Info
-  MdClose,          // Alternativa para X
-  MdMenu,           // Alternativa para Menu
-  MdSync,           // Alternativa para RefreshCw
-  MdDownload,       // Alternativa para Download
-  MdSettings,       // Alternativa para Settings
-  MdNotifications,  // Alternativa para Bell
-  MdChevronLeft,    // Alternativa para ChevronLeft
-  MdChevronRight,   // Alternativa para ChevronRight
-  MdAdd,            // Alternativa para Plus
-  MdBarChart,       // Alternativa para BarChart3
-  MdTrendingUp,     // Alternativa para TrendingUp
-  MdPerson,         // Alternativa para User
-  MdPeople,         // Alternativa para Users
-  MdBusiness,       // Alternativa para Building2
-  MdDescription,    // Alternativa para FileSpreadsheet
-  MdDarkMode,       // Alternativa para Moon
-  MdLightMode,      // Alternativa para Sun
-  MdMale,           // Alternativa para Mars
-  MdFemale,         // Alternativa para Venus
-  MdFileDownload,   // Alternativa para FileText
-  MdTune,           // Alternativa para SlidersHorizontal
-  MdVisibility,     // Alternativa para Eye
-  MdEvent,          // Alternativa para Calendar
-  MdUndo,           // Alternativa para RotateCcw
-  MdCheck,          // Alternativa para Check
-  MdCheckCircle,    // Alternativa para CheckCheck
-  MdPersonOff,      // Alternativa para UserX
-  MdErrorOutline,   // Alternativa para FileWarning
-  MdAccountTree,     // Alternativa para ListTree
-  MdWifiOff,         // WifiOff
-  MdSwapVert         // ArrowUpDown (alternativa)
+  MdBarChart,       // BarChart3
+  MdWifiOff         // WifiOff
 } from 'react-icons/md';
+
 
 // Exportar mapeamento principal usando Font Awesome (mais completo)
 export const Icons = {
@@ -146,7 +106,6 @@ export const Icons = {
   
   // Documentos
   FileText: FaFileAlt,
-  FileSpreadsheetIcon: FaFileExcel,
   
   // Controles
   SlidersHorizontal: FaSlidersH,
@@ -164,13 +123,11 @@ export const Icons = {
   Eye: FaEye,
   Calendar: FaCalendar,
   User: FaUser,
-  Logout: CiLogout,
   
-  // Ícones de Animais (novos)
-  Paw: FaPaw,
-  Pets: MdPets,
-  Cow: FaCow,
-  
+  // Ícones de Animais
+  Cow: FaCow,        // Alias para compatibilidade
+  Vaca: FaCow,
+  Novilha: GiCow,
   // Ícones adicionais
   ChevronDown: FaChevronDown,
   Star: FaStar,

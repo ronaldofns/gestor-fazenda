@@ -447,7 +447,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Vacas</h3>
-              <Icons.Users className="w-6 h-6 text-purple-500" />
+              <Icons.Vaca className="w-6 h-6 text-purple-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.vacas}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
@@ -460,7 +460,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Novilhas</h3>
-              <Icons.User className="w-6 h-6 text-green-500" />
+              <Icons.Novilha className="w-6 h-6 text-green-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.novilhas}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">

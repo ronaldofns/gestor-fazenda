@@ -2113,7 +2113,7 @@ export default function Home() {
                         className="p-1.5 text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
                         title="Editar"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Icons.Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => {
@@ -2125,7 +2125,7 @@ export default function Home() {
                         className="p-1.5 text-purple-600 hover:text-purple-800 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
                         title="Ver histórico"
                       >
-                        <History className="w-4 h-4" />
+                        <Icons.History className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => {
@@ -2197,7 +2197,7 @@ export default function Home() {
                         className="p-1.5 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                         title="Excluir"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Icons.Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -2284,7 +2284,7 @@ export default function Home() {
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 rounded-lg p-4 border border-purple-200 dark:border-purple-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-medium text-purple-800 uppercase tracking-wide">Vacas</h4>
-                  <Icons.Users className="w-6 h-6 text-purple-600" />
+                  <Icons.Vaca className="w-6 h-6 text-purple-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-purple-900 dark:text-purple-200">{totais.vacas}</div>
               </div>
@@ -2293,7 +2293,7 @@ export default function Home() {
               <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/10 rounded-lg p-4 border border-green-200 dark:border-green-500/40">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs sm:text-sm font-medium text-green-800 uppercase tracking-wide">Novilhas</h4>
-                  <Icons.User className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                  <Icons.Novilha className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-green-900 dark:text-green-200">{totais.novilhas}</div>
               </div>

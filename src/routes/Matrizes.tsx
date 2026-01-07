@@ -5,6 +5,7 @@ import { db } from '../db/dexieDB';
 import { Icons } from '../utils/iconMapping';
 import MatrizModal from '../components/MatrizModal';
 import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
+import ArvoreGenealogica from '../components/ArvoreGenealogica';
 import { Matriz } from '../db/models';
 import { ComboboxOption } from '../components/Combobox';
 
@@ -45,6 +46,10 @@ export default function Matrizes() {
   // Estados do histórico
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [historicoEntityId, setHistoricoEntityId] = useState<string | null>(null);
+  
+  // Estados da árvore genealógica
+  const [arvoreOpen, setArvoreOpen] = useState(false);
+  const [arvoreMatrizId, setArvoreMatrizId] = useState<string | null>(null);
 
   const fazendaMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -380,7 +385,7 @@ export default function Matrizes() {
             className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           >
             <span>Ir para planilha</span>
-            <ChevronRight className="w-4 h-4" />
+            <Icons.ChevronRight className="w-4 h-4" />
           </button>
           <button
             type="button"
@@ -552,20 +557,36 @@ export default function Matrizes() {
                           <Icons.FilePenLine className="w-4 h-4" />
                         </button>
                         {matrizMap.byIdentificador.has(`${m.matrizId}|${m.fazendaId}`) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
-                              if (matrizCadastrada) {
-                                setHistoricoEntityId(matrizCadastrada.id);
-                                setHistoricoOpen(true);
-                              }
-                            }}
-                            className="inline-flex items-center justify-center p-1.5 text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-md ml-1"
-                            title="Ver histórico de alterações"
-                          >
-                            <Icons.History className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
+                                if (matrizCadastrada) {
+                                  setArvoreMatrizId(matrizCadastrada.id);
+                                  setArvoreOpen(true);
+                                }
+                              }}
+                              className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-md ml-1"
+                              title="Ver árvore genealógica"
+                            >
+                              <Icons.ListTree className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
+                                if (matrizCadastrada) {
+                                  setHistoricoEntityId(matrizCadastrada.id);
+                                  setHistoricoOpen(true);
+                                }
+                              }}
+                              className="inline-flex items-center justify-center p-1.5 text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-md ml-1"
+                              title="Ver histórico de alterações"
+                            >
+                              <Icons.History className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -603,7 +624,7 @@ export default function Matrizes() {
                         className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
                         title="Ver na planilha"
                       >
-                        <FileSpreadsheet className="w-4 h-4" />
+                        <Icons.FileSpreadsheet className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
@@ -620,8 +641,33 @@ export default function Matrizes() {
                         className="inline-flex items-center justify-center p-1.5 text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md"
                         title="Abrir cadastro da matriz"
                       >
-                        <FilePenLine className="w-4 h-4" />
+                        <Icons.FilePenLine className="w-4 h-4" />
                       </button>
+                      {matrizMap.byIdentificador.has(`${m.matrizId}|${m.fazendaId}`) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
+                            if (matrizCadastrada) {
+                              setArvoreMatrizId(matrizCadastrada.id);
+                              setArvoreOpen(true);
+                            }
+                          }}
+                          className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-md ml-1"
+                          title="Ver árvore genealógica"
+                        >
+                          <Icons.ListTree className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 opacity-50 cursor-not-allowed rounded-md ml-1"
+                          title="Cadastre a matriz primeiro para ver a árvore genealógica"
+                          disabled
+                        >
+                          <Icons.ListTree className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-slate-300 mt-1">
@@ -740,6 +786,22 @@ export default function Matrizes() {
           }}
           onRestored={() => {
             // Dados serão atualizados automaticamente pelo useLiveQuery
+          }}
+        />
+      )}
+
+      {/* Modal Árvore Genealógica */}
+      {arvoreMatrizId && (
+        <ArvoreGenealogica
+          open={arvoreOpen}
+          matrizId={arvoreMatrizId}
+          onClose={() => {
+            setArvoreOpen(false);
+            setArvoreMatrizId(null);
+          }}
+          onMatrizSelecionada={(novaMatrizId) => {
+            setArvoreMatrizId(novaMatrizId);
+            setArvoreOpen(true);
           }}
         />
       )}

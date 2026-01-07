@@ -324,8 +324,7 @@ export default function Sidebar() {
 
           {/* Footer Profissional */}
           <div className="border-t border-gray-200 dark:border-slate-700 bg-gradient-to-b from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
-            {/* Ações Rápidas */}
-            <div className={`px-3 py-2.5 space-y-1.5 ${sidebarCollapsed ? '' : ''}`}>
+            <div className="px-3 py-2.5 space-y-1.5">
               <button
                 onClick={() => setSettingsOpen(true)}
                 className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 rounded-md transition-all text-xs font-medium border border-indigo-200 dark:border-indigo-800/50 shadow-sm`}
@@ -356,10 +355,7 @@ export default function Sidebar() {
                   <span className="absolute inset-0 bg-blue-700 opacity-20 animate-pulse" />
                 )}
               </button>
-            </div>
 
-            {/* Ações Secundárias */}
-            <div className={`px-3 py-2 space-y-1 ${sidebarCollapsed ? '' : ''}`}>
               <button
                 onClick={async () => {
                   try {
@@ -379,10 +375,10 @@ export default function Sidebar() {
                     });
                   }
                 }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 rounded-md transition-all text-xs font-medium border border-purple-200 dark:border-purple-800/50 shadow-sm`}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 rounded-md transition-all text-xs font-medium border border-purple-200 dark:border-purple-800/50 shadow-sm`}
                 title={sidebarCollapsed ? 'Backup' : ''}
               >
-                <Icons.Download className="w-3.5 h-3.5" />
+                <Icons.Download className="w-4 h-4" />
                 {!sidebarCollapsed && <span>Backup</span>}
               </button>
               
@@ -437,25 +433,24 @@ export default function Sidebar() {
                     }
                   });
                 }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-md transition-all text-xs font-medium border border-gray-200 dark:border-slate-700 shadow-sm`}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-md transition-all text-xs font-medium border border-gray-200 dark:border-slate-700 shadow-sm`}
                 title={sidebarCollapsed ? 'Limpar Cache' : ''}
               >
-                <Icons.Trash2 className="w-3.5 h-3.5" />
+                <Icons.Trash2 className="w-4 h-4" />
                 {!sidebarCollapsed && <span>Limpar Cache</span>}
               </button>
-            </div>
 
-            {/* Logout */}
-            <div className="px-3 py-2.5 border-t border-gray-200 dark:border-slate-700">
-              <button
-                onClick={handleLogout}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 rounded-md transition-all text-xs font-medium border border-red-200 dark:border-red-900/30 shadow-sm`}
-                title={sidebarCollapsed ? 'Sair' : ''}
-                aria-label="Sair"
-              >
-                <Icons.LogOut className="w-4 h-4" />
-                {!sidebarCollapsed && <span>Sair</span>}
-              </button>
+              <div className="pt-1.5 border-t border-gray-200 dark:border-slate-700">
+                <button
+                  onClick={handleLogout}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 rounded-md transition-all text-xs font-medium border border-red-200 dark:border-red-900/30 shadow-sm`}
+                  title={sidebarCollapsed ? 'Sair' : ''}
+                  aria-label="Sair"
+                >
+                  <Icons.LogOut className="w-4 h-4" />
+                  {!sidebarCollapsed && <span>Sair</span>}
+                </button>
+              </div>
             </div>
           </div>
         </div>
