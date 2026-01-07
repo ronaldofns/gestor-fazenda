@@ -1426,6 +1426,99 @@ export async function pullUsuarios() {
     });
     // Não lançar erro para não bloquear o pull de outras tabelas
   }
+
+  // Pull de auditoria
+  try {
+    if (db.audits) {
+      const { data: servAudits, error: errorAudits } = await supabase
+        .from('audits_online')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(1000); // Limitar a 1000 registros mais recentes para evitar sobrecarga
+
+      if (errorAudits) {
+        console.error('Erro ao buscar auditoria do servidor:', {
+          error: errorAudits,
+          message: errorAudits.message,
+          code: errorAudits.code,
+          details: errorAudits.details,
+          hint: errorAudits.hint
+        });
+      } else if (servAudits && servAudits.length > 0) {
+        const servUuids = new Set(servAudits.map(a => a.uuid));
+        const todosAuditsLocais = await db.audits.toArray();
+        const auditsSincronizados = todosAuditsLocais.filter(a => a.remoteId != null);
+
+        for (const local of auditsSincronizados) {
+          if (!servUuids.has(local.id)) {
+            await db.audits.delete(local.id);
+          }
+        }
+
+        for (const s of servAudits) {
+          const local = await db.audits.get(s.uuid);
+          if (!local) {
+            try {
+              await db.audits.add({
+                id: s.uuid,
+                entity: s.entity,
+                entityId: s.entity_id,
+                action: s.action,
+                timestamp: s.timestamp,
+                userId: s.user_uuid || null,
+                userNome: s.user_nome || null,
+                before: s.before_json ? JSON.stringify(s.before_json) : null,
+                after: s.after_json ? JSON.stringify(s.after_json) : null,
+                description: s.description || null,
+                synced: true,
+                remoteId: s.id
+              });
+            } catch (addError: any) {
+              if (addError.name === 'ConstraintError' || addError.message?.includes('already exists')) {
+                const existing = await db.audits.get(s.uuid);
+                if (existing) {
+                  await db.audits.update(s.uuid, {
+                    entity: s.entity,
+                    entityId: s.entity_id,
+                    action: s.action,
+                    timestamp: s.timestamp,
+                    userId: s.user_uuid || null,
+                    userNome: s.user_nome || null,
+                    before: s.before_json ? JSON.stringify(s.before_json) : null,
+                    after: s.after_json ? JSON.stringify(s.after_json) : null,
+                    description: s.description || null,
+                    synced: true,
+                    remoteId: s.id
+                  });
+                }
+              } else {
+                console.error('Erro ao adicionar audit do servidor:', addError);
+              }
+            }
+          } else {
+            if (!local.remoteId || new Date(local.timestamp) < new Date(s.timestamp)) {
+              await db.audits.update(local.id, {
+                entity: s.entity,
+                entityId: s.entity_id,
+                action: s.action,
+                timestamp: s.timestamp,
+                userId: s.user_uuid || null,
+                userNome: s.user_nome || null,
+                before: s.before_json ? JSON.stringify(s.before_json) : null,
+                after: s.after_json ? JSON.stringify(s.after_json) : null,
+                description: s.description || null,
+                synced: true,
+                remoteId: s.id
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de auditoria:', err);
+    // Não lançar erro - auditoria não é crítica para funcionamento
+  }
 }
 
 export async function syncAll() {

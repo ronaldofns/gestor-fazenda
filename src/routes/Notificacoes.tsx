@@ -219,7 +219,7 @@ export default function Notificacoes() {
                     className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded transition-colors ml-2"
                     title="Marcar como lida"
                   >
-                    <Check className="w-4 h-4" />
+                    <Icons.Check className="w-4 h-4" />
                   </button>
                 </div>
               ))}

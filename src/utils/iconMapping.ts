@@ -25,14 +25,15 @@ import {
   FaChevronLeft,    // ChevronLeft
   FaChevronRight,   // ChevronRight
   FaPlus,           // Plus
-  FaRegEdit,        // Edit
-  FaRegTrashAlt,    // Trash2
+  FaEdit,           // Edit
+  FaTrash,          // Trash2
   FaChartLine,      // TrendingUp
   FaMars,           // Mars
   FaVenus,          // Venus
   FaFileAlt,        // FileText
   FaSlidersH,       // SlidersHorizontal
   FaHistory,        // History
+  FaExclamationTriangle, // AlertTriangle
   FaInfoCircle,     // Info
   FaUserTimes,      // UserX
   FaCheck,          // Check
@@ -55,17 +56,19 @@ import {
 
 // Font Awesome 6 (para ícones mais recentes)
 import { 
-  FaCow,           // Cow
-  FaSkullCrossbones, // SkullCrossbones
+  FaCow            // Cow (se disponível)
 } from 'react-icons/fa6';
 
+// Game Icons
+import { GiCow } from 'react-icons/gi';
+
 // Material Design Icons (para alguns ícones específicos)
-import {  
-  MdBarChart,       // Alternativa para BarChart3
-  MdWifiOff,         // WifiOff
+import {
+  MdBarChart,       // BarChart3
+  MdWifiOff         // WifiOff
 } from 'react-icons/md';
-import { GoAlert } from "react-icons/go";
-import { GiCow } from "react-icons/gi";
+
+
 // Exportar mapeamento principal usando Font Awesome (mais completo)
 export const Icons = {
   // Navegação e Layout
@@ -89,8 +92,8 @@ export const Icons = {
   
   // Ações
   Plus: FaPlus,
-  Edit: FaRegEdit,
-  Trash2: FaRegTrashAlt,
+  Edit: FaEdit,
+  Trash2: FaTrash,
   History: FaHistory,
   
   // Gráficos e Estatísticas
@@ -103,13 +106,12 @@ export const Icons = {
   
   // Documentos
   FileText: FaFileAlt,
-  FileSpreadsheetIcon: FaFileExcel,
   
   // Controles
   SlidersHorizontal: FaSlidersH,
   
   // Alertas e Status
-  AlertTriangle: GoAlert,
+  AlertTriangle: FaExclamationTriangle,
   Info: FaInfoCircle,
   FileWarning: FaExclamationCircle,
   UserX: FaUserTimes,
@@ -121,12 +123,11 @@ export const Icons = {
   Eye: FaEye,
   Calendar: FaCalendar,
   User: FaUser,
-  Skull: FaSkullCrossbones,
   
   // Ícones de Animais
-  Cow: FaCow,
-  GiCow: GiCow,
-  
+  Cow: FaCow,        // Alias para compatibilidade
+  Vaca: FaCow,
+  Novilha: GiCow,
   // Ícones adicionais
   ChevronDown: FaChevronDown,
   Star: FaStar,
@@ -141,7 +142,7 @@ export const Icons = {
   AlertCircle: FaExclamationCircle,
   XCircle: FaExclamationCircle,
   ArrowUpDown: FaSort,
-  FilePenLine: FaRegEdit, // Usando Edit como alternativa
+  FilePenLine: FaEdit, // Usando Edit como alternativa
 };
 
 // Tipo para garantir type-safety

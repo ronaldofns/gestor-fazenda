@@ -181,52 +181,88 @@ export default function Sidebar() {
         `}
       >
         <div className="flex flex-col h-full">
-          {/* Logo/Header */}
-          <div className={`border-b border-gray-300 dark:border-slate-500 relative ${sidebarCollapsed ? 'p-2' : 'p-3'}`}>
+          {/* Header Completo e Profissional */}
+          <div className={`border-b border-gray-200 dark:border-slate-700 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 relative ${sidebarCollapsed ? 'p-3' : 'p-4'}`}>
             {sidebarCollapsed ? (
-              <div className="flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
                 <button
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors"
                   title="Expandir sidebar"
                 >
                   <Icons.ChevronRight className="w-4 h-4 text-gray-600 dark:text-slate-300" />
                 </button>
+                <div className="w-10 h-10 rounded-lg bg-white dark:bg-slate-800 flex items-center justify-center shadow-md overflow-hidden">
+                  <img 
+                    src="/logo.png" 
+                    alt="Logo" 
+                    className="w-full h-full object-contain p-1"
+                    onError={(e) => {
+                      // Fallback para ícone se logo não carregar
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      if (target.parentElement) {
+                        target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600"><svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>';
+                      }
+                    }}
+                  />
+                </div>
               </div>
             ) : (
               <>
                 {/* Botão de toggle flutuante */}
                 <button
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="absolute top-2 right-2 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors z-10 bg-white dark:bg-slate-800 shadow-sm"
+                  className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-slate-700/60 transition-colors z-10 bg-white/40 dark:bg-slate-800/60 backdrop-blur-sm shadow-sm"
                   title="Recolher sidebar"
                 >
-                  <Icons.ChevronLeft className="w-4 h-4 text-gray-600 dark:text-slate-300" />
+                  <Icons.ChevronLeft className="w-4 h-4 text-gray-700 dark:text-slate-300" />
                 </button>
                 
                 {/* Conteúdo do header */}
-                <div className="pr-8">
-                  <h1 className="text-base font-bold text-gray-900 dark:text-slate-100 whitespace-nowrap leading-tight">Gerenciador de Fazendas</h1>
-                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5 whitespace-nowrap">Sistema de Gestão</p>
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0">
+                      <img 
+                        src="/logo.png" 
+                        alt="Logo" 
+                        className="w-full h-full object-contain p-1"
+                        onError={(e) => {
+                          // Fallback para ícone se logo não carregar
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          if (target.parentElement) {
+                            target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600"><svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>';
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h1 className="text-sm font-bold text-gray-900 dark:text-slate-100 leading-tight">Gerenciador de Fazendas</h1>
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5">Sistema de Gestão</p>
+                    </div>
+                  </div>
                   
-                  {/* Botão de tema */}
-                  <div className="flex justify-start mt-2">
+                  {/* Status e Tema */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200/50 dark:border-slate-700/50">
+                    <SyncStatus collapsed={false} />
+                    <div className="flex-1"></div>
                     <button
                       onClick={toggleTheme}
-                      className="inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2 py-1 text-[10px] text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                      className="inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm flex-shrink-0"
                       title={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
                     >
-                    {theme === 'dark' ? (
-                      <>
-                        <Icons.Sun className="w-3 h-3 mr-1" />
-                        <span>Claro</span>
-                      </>
-                    ) : (
-                      <>
-                        <Icons.Moon className="w-3 h-3 mr-1" />
-                        <span>Escuro</span>
-                      </>
-                    )}
+                      {theme === 'dark' ? (
+                        <>
+                          <Icons.Sun className="w-3.5 h-3.5 mr-1.5" />
+                          <span>Claro</span>
+                        </>
+                      ) : (
+                        <>
+                          <Icons.Moon className="w-3.5 h-3.5 mr-1.5" />
+                          <span>Escuro</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -235,8 +271,8 @@ export default function Sidebar() {
           </div>
 
           {/* Menu Items */}
-          <nav className="flex-1 overflow-y-auto p-2">
-            <ul className="space-y-2">
+          <nav className="flex-1 overflow-y-auto px-2 py-3">
+            <ul className="space-y-1">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
@@ -246,34 +282,36 @@ export default function Sidebar() {
                       to={item.path}
                       onClick={() => setSidebarOpen(false)}
                       className={`
-                        flex items-center gap-1 px-2 py-3 rounded-lg transition-colors w-full relative
+                        flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all w-full relative group
                         ${sidebarCollapsed ? 'justify-center' : ''}
                         ${
                           active
-                            ? 'bg-blue-200 text-blue-700 border-l-4 border-blue-600 dark:bg-blue-800 dark:text-blue-300 dark:border-blue-400'
-                            : 'text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-slate-600 dark:hover:text-white'
+                            ? 'bg-blue-50 text-blue-700 border-l-3 border-blue-600 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-400 shadow-sm'
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-slate-700/50 dark:hover:text-white'
                         }
                       `}
                       title={sidebarCollapsed ? item.label : ''}
                       aria-label={item.label}
                     >
                       <Icon
-                        className={`w-5 h-5 shrink-0 ${
-                          active ? 'text-blue-600 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'
+                        className={`w-5 h-5 shrink-0 transition-colors ${
+                          active 
+                            ? 'text-blue-600 dark:text-blue-400' 
+                            : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
                         }`}
                       />
                       {!sidebarCollapsed && (
                         <>
-                          <span className="font-medium whitespace-nowrap flex-1">{item.label}</span>
+                          <span className="font-medium text-sm whitespace-nowrap flex-1">{item.label}</span>
                           {item.badge ? (
-                            <span className="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1 text-[11px] font-semibold rounded-full bg-red-500 text-white">
+                            <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-bold rounded-full bg-red-500 text-white shadow-sm">
                               {item.badge}
                             </span>
                           ) : null}
                         </>
                       )}
                       {sidebarCollapsed && item.badge && (
-                        <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-semibold rounded-full bg-red-500 text-white">
+                        <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-red-500 text-white shadow-sm">
                           {item.badge}
                         </span>
                       )}
@@ -284,86 +322,76 @@ export default function Sidebar() {
             </ul>
           </nav>
 
-          {/* Sync Status e Botão Manual */}
-          <div className="p-2 border-t border-gray-300 dark:border-slate-500 space-y-3 bg-gray-50 dark:bg-slate-900">
-            {!sidebarCollapsed ? (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-300">Sincronização</span>
-                <SyncStatus collapsed={false} />
-              </div>
-            ) : (
-              <div className="flex justify-center">
-                <SyncStatus collapsed={true} />
-              </div>
-            )}
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-indigo-200 hover:bg-indigo-400 text-indigo-700 rounded-lg transition-colors text-sm border border-indigo-100 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 dark:text-indigo-200 dark:border-indigo-900/60`}
-              title={sidebarCollapsed ? 'Configurações de alertas' : ''}
-            >
-              <Icons.Settings className="w-4 h-4" />
-              {!sidebarCollapsed && <span>Configurações de alertas</span>}
-            </button>
-            <button
-              onClick={handleManualSync}
-              disabled={syncing}
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm relative overflow-hidden`}
-              title={sidebarCollapsed ? (syncing ? 'Sincronizando...' : 'Sincronizar Agora') : ''}
-              aria-label={syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
-            >
-              <Icons.RefreshCw 
-                className={`w-4 h-4 transition-transform duration-300 ${
-                  syncing ? 'animate-spin' : ''
-                }`}
-                style={{
-                  animation: syncing ? 'spin 1s linear infinite' : 'none'
+          {/* Footer Profissional */}
+          <div className="border-t border-gray-200 dark:border-slate-700 bg-gradient-to-b from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+            <div className="px-3 py-2.5 space-y-1.5">
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 rounded-md transition-all text-xs font-medium border border-indigo-200 dark:border-indigo-800/50 shadow-sm`}
+                title={sidebarCollapsed ? 'Configurações' : ''}
+              >
+                <Icons.Settings className="w-4 h-4" />
+                {!sidebarCollapsed && <span>Configurações</span>}
+              </button>
+              
+              <button
+                onClick={handleManualSync}
+                disabled={syncing}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs font-medium relative overflow-hidden`}
+                title={sidebarCollapsed ? (syncing ? 'Sincronizando...' : 'Sincronizar') : ''}
+                aria-label={syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
+              >
+                <Icons.RefreshCw 
+                  className={`w-4 h-4 transition-transform duration-300 ${
+                    syncing ? 'animate-spin' : ''
+                  }`}
+                />
+                {!sidebarCollapsed && (
+                  <span className="relative z-10">
+                    {syncing ? 'Sincronizando...' : 'Sincronizar'}
+                  </span>
+                )}
+                {syncing && (
+                  <span className="absolute inset-0 bg-blue-700 opacity-20 animate-pulse" />
+                )}
+              </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    const { exportarBackupCompleto } = await import('../utils/exportarDados');
+                    const resultado = await exportarBackupCompleto();
+                    showToast({
+                      type: 'success',
+                      title: 'Backup exportado',
+                      message: `Arquivo: ${resultado.nomeArquivo}\nFazendas: ${resultado.totalRegistros.totalFazendas}\nRaças: ${resultado.totalRegistros.totalRacas}\nNascimentos: ${resultado.totalRegistros.totalNascimentos}\nDesmamas: ${resultado.totalRegistros.totalDesmamas}\nUsuários: ${resultado.totalRegistros.totalUsuarios}`
+                    });
+                  } catch (error) {
+                    console.error('Erro ao exportar backup:', error);
+                    showToast({
+                      type: 'error',
+                      title: 'Erro ao exportar backup',
+                      message: 'Tente novamente.'
+                    });
+                  }
                 }}
-              />
-              {!sidebarCollapsed && (
-                <span className="relative z-10">
-                  {syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
-                </span>
-              )}
-              {syncing && (
-                <span className="absolute inset-0 bg-blue-700 opacity-20 animate-pulse" />
-              )}
-            </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const { exportarBackupCompleto } = await import('../utils/exportarDados');
-                      const resultado = await exportarBackupCompleto();
-                      showToast({
-                        type: 'success',
-                        title: 'Backup exportado',
-                        message: `Arquivo: ${resultado.nomeArquivo}\nFazendas: ${resultado.totalRegistros.totalFazendas}\nRaças: ${resultado.totalRegistros.totalRacas}\nNascimentos: ${resultado.totalRegistros.totalNascimentos}\nDesmamas: ${resultado.totalRegistros.totalDesmamas}\nUsuários: ${resultado.totalRegistros.totalUsuarios}`
-                      });
-                    } catch (error) {
-                      console.error('Erro ao exportar backup:', error);
-                      showToast({
-                        type: 'error',
-                        title: 'Erro ao exportar backup',
-                        message: 'Tente novamente.'
-                      });
-                    }
-                  }}
-                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors shadow-sm text-sm`}
-                  title={sidebarCollapsed ? 'Exportar backup completo dos dados' : 'Exportar backup completo dos dados'}
-                  aria-label="Exportar backup completo dos dados"
-                >
-                  <Icons.Download className="w-4 h-4" />
-                  {!sidebarCollapsed && <span>Backup Completo</span>}
-                </button>
-                <button
-                  onClick={() => {
-                    setConfirmDialog({
-                      open: true,
-                      title: 'Limpar cache',
-                      message: 'Deseja limpar o cache do navegador? Isso irá:\n\n- Limpar IndexedDB\n- Limpar Local Storage\n- Limpar Session Storage\n- Limpar Cache do navegador\n\nA aplicação será recarregada após a limpeza.',
-                      variant: 'warning',
-                      onConfirm: async () => {
-                        setConfirmDialog(prev => ({ ...prev, open: false }));
-                        try {
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 rounded-md transition-all text-xs font-medium border border-purple-200 dark:border-purple-800/50 shadow-sm`}
+                title={sidebarCollapsed ? 'Backup' : ''}
+              >
+                <Icons.Download className="w-4 h-4" />
+                {!sidebarCollapsed && <span>Backup</span>}
+              </button>
+              
+              <button
+                onClick={() => {
+                  setConfirmDialog({
+                    open: true,
+                    title: 'Limpar cache',
+                    message: 'Deseja limpar o cache do navegador? Isso irá:\n\n- Limpar IndexedDB\n- Limpar Local Storage\n- Limpar Session Storage\n- Limpar Cache do navegador\n\nA aplicação será recarregada após a limpeza.',
+                    variant: 'warning',
+                    onConfirm: async () => {
+                      setConfirmDialog(prev => ({ ...prev, open: false }));
+                      try {
                         // Limpar IndexedDB
                         if ('indexedDB' in window) {
                           const databases = await indexedDB.databases();
@@ -405,29 +433,25 @@ export default function Sidebar() {
                     }
                   });
                 }}
-                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-center gap-2'} px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg transition-colors shadow-sm text-sm`}
-                  title={sidebarCollapsed ? 'Limpar cache do navegador' : 'Limpar cache do navegador'}
-                  aria-label="Limpar cache do navegador"
-                >
-                  {sidebarCollapsed ? (
-                    <span>🗑️</span>
-                  ) : (
-                    <span>🗑️ Limpar Cache</span>
-                  )}
-                </button>
-          </div>
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-md transition-all text-xs font-medium border border-gray-200 dark:border-slate-700 shadow-sm`}
+                title={sidebarCollapsed ? 'Limpar Cache' : ''}
+              >
+                <Icons.Trash2 className="w-4 h-4" />
+                {!sidebarCollapsed && <span>Limpar Cache</span>}
+              </button>
 
-          {/* Logout */}
-          <div className="p-2 border-t border-gray-300 dark:border-slate-500 bg-gray-50 dark:bg-slate-900">
-            <button
-              onClick={handleLogout}
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white`}
-              title={sidebarCollapsed ? 'Sair' : ''}
-              aria-label="Sair"
-            >
-              <Icons.LogOut className="w-5 h-5" />
-              {!sidebarCollapsed && <span className="font-medium">Sair</span>}
-            </button>
+              <div className="pt-1.5 border-t border-gray-200 dark:border-slate-700">
+                <button
+                  onClick={handleLogout}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 rounded-md transition-all text-xs font-medium border border-red-200 dark:border-red-900/30 shadow-sm`}
+                  title={sidebarCollapsed ? 'Sair' : ''}
+                  aria-label="Sair"
+                >
+                  <Icons.LogOut className="w-4 h-4" />
+                  {!sidebarCollapsed && <span>Sair</span>}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </aside>

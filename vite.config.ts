@@ -42,6 +42,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB (aumentado para suportar chunks maiores)
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
@@ -84,6 +85,7 @@ export default defineConfig({
     }
   },
   build: {
+    chunkSizeWarningLimit: 1000, // Aumenta o limite de aviso para 1 MB
     rollupOptions: {
       output: {
         // Cache busting para assets - usando hash para garantir atualização
@@ -99,6 +101,25 @@ export default defineConfig({
             return `assets/fonts/[name]-[hash][extname]`;
           }
           return `assets/[name]-[hash][extname]`;
+        },
+        // Code splitting manual para reduzir tamanho dos chunks
+        manualChunks: (id) => {
+          // Separar node_modules em chunks menores
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('supabase')) {
+              return 'vendor-supabase';
+            }
+            if (id.includes('dexie')) {
+              return 'vendor-dexie';
+            }
+            if (id.includes('recharts')) {
+              return 'vendor-recharts';
+            }
+            return 'vendor-other';
+          }
         }
       }
     }

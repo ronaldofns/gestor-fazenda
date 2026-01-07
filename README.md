@@ -60,11 +60,27 @@ O **Gestor Fazenda** é uma aplicação web progressiva (PWA) desenvolvida para 
 - Cadastro e edição de fazendas
 - Listagem ordenada alfabeticamente
 - Validação de exclusão (impede excluir fazendas com nascimentos associados)
+- Histórico de alterações com restauração de versões anteriores
+
+### 🐮 Gestão de Matrizes
+- Cadastro completo de matrizes (vacas/novilhas)
+- Campos de identificação: identificador, fazenda, categoria, raça
+- Registro de linhagem (pai e mãe)
+- Data de nascimento e status ativo/inativo
+- **Árvore genealógica**: Visualização interativa da linhagem até 5 gerações
+- Busca de matrizes por identificador
+- Resumo de performance: total de partos, vivos, mortos, média de peso
+- Histórico de alterações com restauração
 
 ### 🐮 Gestão de Desmamas
 - Cadastro de peso e data de desmama
 - Vinculação automática com nascimentos
 - Cálculo automático de taxa de desmama
+
+### 📋 Gestão de Categorias
+- Cadastro rápido de categorias
+- Integração com cadastro de matrizes
+- Histórico de alterações
 
 ### 📥 Importação de Planilhas
 - Importação de dados via Excel (.xlsx, .xls) ou CSV
@@ -78,12 +94,21 @@ O **Gestor Fazenda** é uma aplicação web progressiva (PWA) desenvolvida para 
 - Indicador visual de status (Online/Offline)
 - Animação no botão durante sincronização
 - Tratamento de conflitos (última atualização vence)
+- Sincronização completa de todas as entidades (fazendas, raças, nascimentos, desmamas, matrizes, usuários, categorias, audit logs)
 
 ### 🔐 Autenticação
 - Login seguro com Supabase Auth
 - Proteção de rotas
 - Sessão persistente
 - Logout funcional
+
+### 📜 Auditoria e Histórico
+- Log completo de todas as alterações (create, update, delete)
+- Registro de usuário e timestamp para cada ação
+- Snapshot "antes" e "depois" de cada alteração
+- Visualização de histórico de alterações em todas as entidades
+- Restauração de versões anteriores
+- Sincronização de logs de auditoria entre dispositivos
 
 ## 🛠 Tecnologias
 
@@ -93,7 +118,7 @@ O **Gestor Fazenda** é uma aplicação web progressiva (PWA) desenvolvida para 
 - **Vite** - Build tool moderna e rápida
 - **React Router DOM** - Roteamento de páginas
 - **Tailwind CSS** - Framework CSS utility-first
-- **Lucide React** - Biblioteca de ícones
+- **React Icons** - Biblioteca de ícones (Font Awesome, Material Design, Game Icons)
 
 ### Estado e Formulários
 - **React Hook Form** - Gerenciamento de formulários performático
@@ -177,6 +202,7 @@ A aplicação estará disponível em `http://localhost:5173`
    - `005_add_delete_policies.sql` - Políticas de exclusão
    - `006_add_racas_online.sql` - Tabela de raças
    - `007_add_morto_field.sql` - Campo de mortandade
+   - `018_add_categoria_to_audits_and_fix_rls.sql` - Suporte a categorias e auditoria
 
 3. Configure as políticas RLS (Row Level Security) conforme necessário
 
@@ -212,6 +238,32 @@ A aplicação estará disponível em `http://localhost:5173`
    - Status Morto (se aplicável)
 4. Clique em **"Salvar"**
 
+### Cadastrando uma Matriz
+
+1. Clique em **"Matrizes"** no menu lateral
+2. Clique em **"Nova Matriz"** ou clique no ícone de edição em uma matriz existente
+3. Preencha os dados:
+   - Identificador (número/ID da matriz)
+   - Fazenda
+   - Categoria (opcional)
+   - Raça (opcional)
+   - Data de Nascimento (opcional)
+   - Pai (identificador do pai - opcional)
+   - Mãe (identificador da mãe - opcional)
+   - Status Ativo
+4. Clique em **"Salvar"**
+
+### Visualizando a Árvore Genealógica
+
+1. Vá para a página **"Matrizes"**
+2. Clique no ícone de árvore (🌳) ao lado da matriz desejada
+3. A árvore genealógica será exibida mostrando:
+   - A matriz selecionada no centro
+   - Ancestrais até 5 gerações (pais, avós, bisavós, etc.)
+   - Linhas paternas (azul) e maternas (rosa)
+   - Busca de outras matrizes para visualizar suas árvores
+   - Expansão/colapso de níveis
+
 ### Filtrando Dados
 
 Na página Planilha, você pode filtrar por:
@@ -225,6 +277,17 @@ Na página Planilha, você pode filtrar por:
 - A sincronização acontece automaticamente a cada 30 segundos quando você está online
 - Você também pode clicar no botão **"Sincronizar Agora"** na sidebar para forçar uma sincronização manual
 - O indicador mostra se você está **Online** ou **Offline**
+
+### Visualizando Histórico de Alterações
+
+1. Em qualquer tela de listagem (Fazendas, Matrizes, Usuários, Planilha)
+2. Clique no ícone de histórico (📜) ao lado do registro desejado
+3. Visualize todas as alterações feitas no registro:
+   - Data e hora de cada alteração
+   - Usuário que fez a alteração
+   - Tipo de ação (criação, atualização, exclusão)
+   - Diferenças entre versões (diff)
+4. Opcionalmente, restaure uma versão anterior clicando em **"Restaurar"**
 
 ### Limpando o Cache
 
@@ -249,6 +312,9 @@ gestor-fazenda/
 │   │   ├── Sidebar.tsx           # Menu lateral
 │   │   ├── SyncStatus.tsx       # Indicador de sincronização
 │   │   ├── ProtectedRoute.tsx   # Proteção de rotas
+│   │   ├── ArvoreGenealogica.tsx # Árvore genealógica de matrizes
+│   │   ├── HistoricoAlteracoes.tsx # Histórico de alterações
+│   │   ├── MatrizModal.tsx      # Modal de cadastro de matrizes
 │   │   └── ...
 │   ├── db/                # Banco de dados local
 │   │   ├── dexieDB.ts           # Configuração Dexie
@@ -260,12 +326,20 @@ gestor-fazenda/
 │   ├── routes/            # Páginas da aplicação
 │   │   ├── Dashboard.tsx        # Dashboard principal
 │   │   ├── Home.tsx             # Planilha de nascimentos
+│   │   ├── Matrizes.tsx         # Gestão de matrizes
+│   │   ├── ListaFazendas.tsx   # Gestão de fazendas
+│   │   ├── ListaUsuarios.tsx   # Gestão de usuários
+│   │   ├── Notificacoes.tsx    # Página de notificações
 │   │   ├── Login.tsx            # Tela de login
 │   │   └── ...
 │   ├── utils/            # Utilitários
 │   │   ├── importPlanilha.ts   # Importação de planilhas
 │   │   ├── cleanDuplicates.ts  # Limpeza de duplicados
-│   │   └── uuid.ts             # Geração de UUIDs
+│   │   ├── uuid.ts             # Geração de UUIDs
+│   │   ├── audit.ts            # Sistema de auditoria
+│   │   ├── exportarDados.ts   # Exportação de dados
+│   │   ├── gerarRelatorioPDF.ts # Geração de relatórios PDF
+│   │   └── iconMapping.ts     # Mapeamento de ícones
 │   ├── App.tsx            # Componente raiz
 │   ├── main.tsx           # Entry point
 │   └── index.css          # Estilos globais
@@ -349,7 +423,7 @@ Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalh
 
 ## 👤 Autor
 
-**Ronaldo Fonseca**
+**Ronaldo Filho**
 - GitHub: [@ronaldofns](https://github.com/ronaldofns)
 
 ## 🙏 Agradecimentos

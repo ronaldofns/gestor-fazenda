@@ -537,7 +537,7 @@ export default function Matrizes() {
                           className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
                           title="Ver na planilha"
                         >
-                          <Icons.FileSpreadsheetIcon className="w-4 h-4" />
+                          <Icons.FileSpreadsheet className="w-4 h-4" />
                         </button>
                         <button
                           type="button"
@@ -624,7 +624,7 @@ export default function Matrizes() {
                         className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
                         title="Ver na planilha"
                       >
-                        <Icons.FileSpreadsheetIcon className="w-4 h-4" />
+                        <Icons.FileSpreadsheet className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
@@ -643,6 +643,31 @@ export default function Matrizes() {
                       >
                         <Icons.FilePenLine className="w-4 h-4" />
                       </button>
+                      {matrizMap.byIdentificador.has(`${m.matrizId}|${m.fazendaId}`) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
+                            if (matrizCadastrada) {
+                              setArvoreMatrizId(matrizCadastrada.id);
+                              setArvoreOpen(true);
+                            }
+                          }}
+                          className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-md ml-1"
+                          title="Ver árvore genealógica"
+                        >
+                          <Icons.ListTree className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 opacity-50 cursor-not-allowed rounded-md ml-1"
+                          title="Cadastre a matriz primeiro para ver a árvore genealógica"
+                          disabled
+                        >
+                          <Icons.ListTree className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-slate-300 mt-1">
@@ -764,7 +789,7 @@ export default function Matrizes() {
           }}
         />
       )}
-      
+
       {/* Modal Árvore Genealógica */}
       {arvoreMatrizId && (
         <ArvoreGenealogica
