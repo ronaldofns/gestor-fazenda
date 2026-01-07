@@ -394,7 +394,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border border-red-200 dark:border-red-500/40">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <Icons.AlertTriangle className="w-5 h-5 text-red-500" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Alerta: Mortalidade alta</h3>
               </div>
               <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full">
@@ -473,7 +473,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-red-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Mortandade</h3>
-              <AlertTriangle className="w-6 h-6 text-red-500" />
+              <Icons.AlertTriangle className="w-6 h-6 text-red-500" />
             </div>
             <div className="text-3xl font-bold text-red-600">{metricas.totalMortos}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
