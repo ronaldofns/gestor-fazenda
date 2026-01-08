@@ -22,6 +22,14 @@ export default function Dashboard() {
   useSync();
   const { alertSettings } = useAlertSettings();
   
+  // Detectar tema atual para ajustar cores dos gráficos
+  const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+  const textColor = isDark ? '#cbd5e1' : '#4b5563';
+  const gridColor = isDark ? '#475569' : '#e5e7eb';
+  const tooltipBg = isDark ? '#1e293b' : '#ffffff';
+  const tooltipText = isDark ? '#f1f5f9' : '#111827';
+  const tooltipBorder = isDark ? '#475569' : '#e5e7eb';
+  
   const nascimentosTodosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
@@ -568,24 +576,30 @@ export default function Dashboard() {
               <div className="w-full h-40">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={metricas.nascimentosPorMes} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                     <XAxis
                       dataKey="mes"
-                      tick={{ fontSize: 10, fill: '#4b5563' }}
+                      tick={{ fontSize: 10, fill: textColor }}
                       tickLine={false}
-                      axisLine={{ stroke: '#e5e7eb' }}
+                      axisLine={{ stroke: gridColor }}
                       interval="preserveStartEnd"
                     />
                     <YAxis
                       allowDecimals={false}
-                      tick={{ fontSize: 10, fill: '#4b5563' }}
+                      tick={{ fontSize: 10, fill: textColor }}
                       tickLine={false}
-                      axisLine={{ stroke: '#e5e7eb' }}
+                      axisLine={{ stroke: gridColor }}
                     />
                     <Tooltip
-                      contentStyle={{ fontSize: 11 }}
+                      contentStyle={{ 
+                        fontSize: 11, 
+                        backgroundColor: tooltipBg, 
+                        color: tooltipText,
+                        border: `1px solid ${tooltipBorder}`,
+                        borderRadius: '6px'
+                      }}
                       formatter={(value: any) => [`${value} nascimentos`, 'Total']}
-                      labelStyle={{ fontSize: 11 }}
+                      labelStyle={{ fontSize: 11, color: tooltipText }}
                     />
                     <Line
                       type="monotone"
@@ -607,7 +621,7 @@ export default function Dashboard() {
               <span className="text-xs text-gray-500 dark:text-slate-400">Gráfico de barras</span>
             </div>
             {alertas.mortalidadeAlta.length === 0 ? (
-              <p className="text-sm text-gray-500">Nenhuma fazenda acima do limiar configurado.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Nenhuma fazenda acima do limiar configurado.</p>
             ) : (
               <div className="w-full h-48">
                 <ResponsiveContainer width="100%" height="100%">
@@ -616,30 +630,36 @@ export default function Dashboard() {
                     layout="vertical"
                     margin={{ top: 5, right: 10, left: 60, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridColor} />
                     <XAxis
                       type="number"
                       domain={[0, 100]}
                       tickFormatter={(v) => `${v}%`}
-                      tick={{ fontSize: 10, fill: '#4b5563' }}
+                      tick={{ fontSize: 10, fill: textColor }}
                     />
                     <YAxis
                       type="category"
                       dataKey="fazenda"
-                      tick={{ fontSize: 10, fill: '#4b5563' }}
+                      tick={{ fontSize: 10, fill: textColor }}
                       tickLine={false}
                       width={120}
                     />
                     <Tooltip
-                      contentStyle={{ fontSize: 11 }}
+                      contentStyle={{ 
+                        fontSize: 11, 
+                        backgroundColor: tooltipBg, 
+                        color: tooltipText,
+                        border: `1px solid ${tooltipBorder}`,
+                        borderRadius: '6px'
+                      }}
                       formatter={(value: any) => [`${value}%`, 'Taxa de mortalidade']}
-                      labelStyle={{ fontSize: 11 }}
+                      labelStyle={{ fontSize: 11, color: tooltipText }}
                     />
                     <Legend
                       verticalAlign="top"
                       align="right"
                       iconSize={8}
-                      wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
+                      wrapperStyle={{ fontSize: 10, paddingBottom: 8, color: textColor }}
                     />
                     <Bar
                       dataKey="taxa"
@@ -673,33 +693,39 @@ export default function Dashboard() {
                     layout="vertical"
                     margin={{ top: 5, right: 10, left: 70, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridColor} />
                     <XAxis
                       type="number"
                       allowDecimals={false}
-                      tick={{ fontSize: 10, fill: '#4b5563' }}
+                      tick={{ fontSize: 10, fill: textColor }}
                     />
                     <YAxis
                       type="category"
                       dataKey="nome"
-                      tick={{ fontSize: 10, fill: '#4b5563' }}
+                      tick={{ fontSize: 10, fill: textColor }}
                       tickLine={false}
                       width={110}
                     />
                     <Tooltip
-                      contentStyle={{ fontSize: 11 }}
+                      contentStyle={{ 
+                        fontSize: 11, 
+                        backgroundColor: tooltipBg, 
+                        color: tooltipText,
+                        border: `1px solid ${tooltipBorder}`,
+                        borderRadius: '6px'
+                      }}
                       formatter={(value: any, name: any) => {
                         if (name === 'Nascimentos') return [`${value} nascimentos`, name];
                         if (name === 'Desmamas') return [`${value} desmamas`, name];
                         return [value, name];
                       }}
-                      labelStyle={{ fontSize: 11 }}
+                      labelStyle={{ fontSize: 11, color: tooltipText }}
                     />
                     <Legend
                       verticalAlign="top"
                       align="right"
                       iconSize={8}
-                      wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
+                      wrapperStyle={{ fontSize: 10, paddingBottom: 8, color: textColor }}
                     />
                     <Bar
                       dataKey="total"
@@ -719,7 +745,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">Nenhuma fazenda cadastrada</p>
+              <p className="text-gray-500 dark:text-slate-400 text-sm">Nenhuma fazenda cadastrada</p>
             )}
           </div>
 
@@ -733,8 +759,8 @@ export default function Dashboard() {
                 {metricas.totaisPorRaca.map(({ raca, total }) => (
                   <div key={raca}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-700 font-medium">{raca}</span>
-                      <span className="font-semibold text-gray-900">{total}</span>
+                      <span className="text-gray-700 dark:text-slate-300 font-medium">{raca}</span>
+                      <span className="font-semibold text-gray-900 dark:text-slate-100">{total}</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
@@ -750,7 +776,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">Nenhuma raça cadastrada</p>
+              <p className="text-gray-500 dark:text-slate-400 text-sm">Nenhuma raça cadastrada</p>
             )}
           </div>
         </div>

@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida } from './models';
+import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -20,6 +20,7 @@ class AppDB extends Dexie {
   deletedRecords!: Dexie.Table<DeletedRecord, string>; // Tabela para rastrear exclusões
   audits!: Dexie.Table<AuditLog, string>; // Tabela de auditoria / histórico de alterações
   notificacoesLidas!: Dexie.Table<NotificacaoLida, string>; // Tabela para notificações marcadas como lidas
+  alertSettings!: Dexie.Table<AlertSettingsDB, string>; // Tabela para configurações de alerta
 
   constructor() {
     super('FazendaDB');
@@ -186,6 +187,44 @@ class AppDB extends Dexie {
           synced: false,
           remoteId: null
         } as any);
+      }
+    });
+
+    // Versão 14: Adicionar tabela de configurações de alerta
+    this.version(14).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId'
+    }).upgrade(async (tx) => {
+      // Migrar configurações do localStorage para IndexedDB
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = window.localStorage.getItem('alertSettings');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            const now = new Date().toISOString();
+            await tx.table('alertSettings').put({
+              id: 'alert-settings-global',
+              limiteMesesDesmama: parsed.limiteMesesDesmama || 8,
+              janelaMesesMortalidade: parsed.janelaMesesMortalidade || 6,
+              limiarMortalidade: parsed.limiarMortalidade || 10,
+              createdAt: now,
+              updatedAt: now,
+              synced: false,
+              remoteId: null
+            });
+          }
+        } catch (err) {
+          console.error('Erro ao migrar configurações de alerta:', err);
+        }
       }
     });
   }

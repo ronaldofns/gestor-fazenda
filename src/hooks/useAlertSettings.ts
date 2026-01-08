@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { db } from '../db/dexieDB';
 
 export interface AlertSettings {
   limiteMesesDesmama: number;
@@ -59,15 +60,39 @@ export function useAlertSettings() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const stored = window.localStorage.getItem('alertSettings');
-      if (stored) {
-        const parsed = JSON.parse(stored) as Partial<AlertSettings>;
-        applySettings(normalizeSettings(parsed));
+    
+    // Carregar do IndexedDB primeiro (mais recente)
+    const loadFromDB = async () => {
+      try {
+        const dbSettings = await db.alertSettings.get('alert-settings-global');
+        if (dbSettings) {
+          const settings = {
+            limiteMesesDesmama: dbSettings.limiteMesesDesmama,
+            janelaMesesMortalidade: dbSettings.janelaMesesMortalidade,
+            limiarMortalidade: dbSettings.limiarMortalidade
+          };
+          applySettings(normalizeSettings(settings));
+          // Atualizar localStorage também
+          window.localStorage.setItem('alertSettings', JSON.stringify(settings));
+          return;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar configurações do IndexedDB:', err);
       }
-    } catch (err) {
-      console.error('Não foi possível carregar configurações de alerta', err);
-    }
+      
+      // Fallback para localStorage
+      try {
+        const stored = window.localStorage.getItem('alertSettings');
+        if (stored) {
+          const parsed = JSON.parse(stored) as Partial<AlertSettings>;
+          applySettings(normalizeSettings(parsed));
+        }
+      } catch (err) {
+        console.error('Não foi possível carregar configurações de alerta', err);
+      }
+    };
+    
+    loadFromDB();
   }, [applySettings]);
 
   useEffect(() => {
@@ -82,21 +107,85 @@ export function useAlertSettings() {
     return () => window.removeEventListener(EVENT_NAME, handler);
   }, [applySettings]);
 
-  const saveSettings = useCallback(() => {
+  const saveSettings = useCallback(async () => {
     const normalized = normalizeSettings(draftSettings);
     applySettings(normalized);
+    
+    // Salvar no localStorage (compatibilidade)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('alertSettings', JSON.stringify(normalized));
     }
+    
+    // Salvar no IndexedDB para sincronização
+    try {
+      const now = new Date().toISOString();
+      const existing = await db.alertSettings.get('alert-settings-global');
+      
+      if (existing) {
+        await db.alertSettings.update('alert-settings-global', {
+          limiteMesesDesmama: normalized.limiteMesesDesmama,
+          janelaMesesMortalidade: normalized.janelaMesesMortalidade,
+          limiarMortalidade: normalized.limiarMortalidade,
+          updatedAt: now,
+          synced: false // Marcar como não sincronizado para fazer push
+        });
+      } else {
+        await db.alertSettings.add({
+          id: 'alert-settings-global',
+          limiteMesesDesmama: normalized.limiteMesesDesmama,
+          janelaMesesMortalidade: normalized.janelaMesesMortalidade,
+          limiarMortalidade: normalized.limiarMortalidade,
+          createdAt: now,
+          updatedAt: now,
+          synced: false,
+          remoteId: null
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao salvar configurações no IndexedDB:', err);
+    }
+    
     broadcastSettings(normalized);
     return normalized;
   }, [applySettings, broadcastSettings, draftSettings]);
 
-  const resetSettings = useCallback(() => {
+  const resetSettings = useCallback(async () => {
     applySettings(DEFAULT_ALERT_SETTINGS);
+    
+    // Remover do localStorage
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('alertSettings');
     }
+    
+    // Atualizar no IndexedDB para sincronização
+    try {
+      const now = new Date().toISOString();
+      const existing = await db.alertSettings.get('alert-settings-global');
+      
+      if (existing) {
+        await db.alertSettings.update('alert-settings-global', {
+          limiteMesesDesmama: DEFAULT_ALERT_SETTINGS.limiteMesesDesmama,
+          janelaMesesMortalidade: DEFAULT_ALERT_SETTINGS.janelaMesesMortalidade,
+          limiarMortalidade: DEFAULT_ALERT_SETTINGS.limiarMortalidade,
+          updatedAt: now,
+          synced: false // Marcar como não sincronizado para fazer push
+        });
+      } else {
+        await db.alertSettings.add({
+          id: 'alert-settings-global',
+          limiteMesesDesmama: DEFAULT_ALERT_SETTINGS.limiteMesesDesmama,
+          janelaMesesMortalidade: DEFAULT_ALERT_SETTINGS.janelaMesesMortalidade,
+          limiarMortalidade: DEFAULT_ALERT_SETTINGS.limiarMortalidade,
+          createdAt: now,
+          updatedAt: now,
+          synced: false,
+          remoteId: null
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao resetar configurações no IndexedDB:', err);
+    }
+    
     broadcastSettings(DEFAULT_ALERT_SETTINGS);
     return DEFAULT_ALERT_SETTINGS;
   }, [applySettings, broadcastSettings]);

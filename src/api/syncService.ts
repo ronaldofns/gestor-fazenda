@@ -525,6 +525,66 @@ export async function pushPending() {
       stack: err?.stack
     });
   }
+
+  // Sincronizar configurações de alerta
+  try {
+    if (db.alertSettings) {
+      const todasSettings = await db.alertSettings.toArray();
+      const pendSettings = todasSettings.filter(s => s.synced === false);
+      
+      for (const s of pendSettings) {
+        try {
+          // Sempre usar timestamp atual para garantir que seja mais recente
+          const now = new Date().toISOString();
+          const { data, error } = await supabase
+            .from('alert_settings_online')
+            .upsert(
+              {
+                uuid: s.id,
+                limite_meses_desmama: s.limiteMesesDesmama,
+                janela_meses_mortalidade: s.janelaMesesMortalidade,
+                limiar_mortalidade: s.limiarMortalidade,
+                created_at: s.createdAt || now,
+                updated_at: now // Sempre atualizar para garantir que seja mais recente
+              },
+              { onConflict: 'uuid' }
+            )
+            .select('id, uuid, updated_at');
+
+          if (!error && data && data.length) {
+            // Atualizar com o updated_at retornado pelo servidor
+            await db.alertSettings.update(s.id, { 
+              synced: true, 
+              remoteId: data[0].id,
+              updatedAt: data[0].updated_at || now
+            });
+          } else if (error) {
+            console.error('Erro ao sincronizar configurações de alerta:', {
+              error: error,
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+              settingsId: s.id
+            });
+          }
+        } catch (err: any) {
+          console.error('Erro ao processar configurações de alerta:', {
+            error: err,
+            message: err?.message,
+            stack: err?.stack,
+            settingsId: s.id
+          });
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('Erro geral ao fazer push de configurações de alerta:', {
+      error: err,
+      message: err?.message,
+      stack: err?.stack
+    });
+  }
 }
 
 export async function pullUpdates() {
@@ -1251,6 +1311,104 @@ export async function pullUpdates() {
     console.error('Erro ao processar pull de auditoria:', err);
     // Não lançar erro - auditoria não é crítica para funcionamento
   }
+
+  // Buscar configurações de alerta
+  try {
+    if (db.alertSettings) {
+      const { data: servSettings, error: errorSettings } = await supabase
+        .from('alert_settings_online')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (errorSettings) {
+        console.error('Erro ao buscar configurações de alerta do servidor:', {
+          error: errorSettings,
+          message: errorSettings.message,
+          code: errorSettings.code
+        });
+        // Se a tabela não existe, pode ser que a migration não foi executada
+        if (errorSettings.code === '42P01' || errorSettings.message?.includes('does not exist')) {
+          console.warn('Tabela alert_settings_online não existe. Execute a migration 019_add_alert_settings_online.sql no Supabase.');
+        }
+      } else if (servSettings && servSettings.length > 0) {
+        const s = servSettings[0];
+        const local = await db.alertSettings.get('alert-settings-global');
+        
+        if (!local) {
+          // Criar local se não existir
+          await db.alertSettings.add({
+            id: 'alert-settings-global',
+            limiteMesesDesmama: s.limite_meses_desmama,
+            janelaMesesMortalidade: s.janela_meses_mortalidade,
+            limiarMortalidade: s.limiar_mortalidade,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+          
+          // Atualizar localStorage e disparar evento
+          if (typeof window !== 'undefined') {
+            const settings = {
+              limiteMesesDesmama: s.limite_meses_desmama,
+              janelaMesesMortalidade: s.janela_meses_mortalidade,
+              limiarMortalidade: s.limiar_mortalidade
+            };
+            window.localStorage.setItem('alertSettings', JSON.stringify(settings));
+            window.dispatchEvent(new CustomEvent('alertSettingsUpdated', { detail: settings }));
+          }
+        } else {
+          // Verificar se os valores são diferentes (comparação mais confiável que timestamp)
+          // IMPORTANTE: Converter para número para evitar problemas de tipo (string vs number)
+          const limiteDiferente = Number(local.limiteMesesDesmama) !== Number(s.limite_meses_desmama);
+          const janelaDiferente = Number(local.janelaMesesMortalidade) !== Number(s.janela_meses_mortalidade);
+          const limiarDiferente = Number(local.limiarMortalidade) !== Number(s.limiar_mortalidade);
+          const valoresDiferentes = limiteDiferente || janelaDiferente || limiarDiferente;
+          
+          const servUpdated = new Date(s.updated_at).getTime();
+          const localUpdated = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+          
+          // SEMPRE atualizar se valores são diferentes (comparação mais confiável)
+          // Também atualizar se servidor é mais recente (com margem de 1 segundo para evitar problemas de precisão)
+          // OU se não está sincronizado OU se remoteId mudou
+          const margemTimestamp = 1000; // 1 segundo de margem
+          const deveAtualizar = valoresDiferentes || 
+                                (servUpdated > localUpdated + margemTimestamp) || 
+                                !local.synced || 
+                                local.remoteId !== s.id;
+          
+          if (deveAtualizar) {
+            await db.alertSettings.update('alert-settings-global', {
+              limiteMesesDesmama: s.limite_meses_desmama,
+              janelaMesesMortalidade: s.janela_meses_mortalidade,
+              limiarMortalidade: s.limiar_mortalidade,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+            
+            // Sempre atualizar localStorage e disparar evento quando puxar do servidor
+            if (typeof window !== 'undefined') {
+              const settings = {
+                limiteMesesDesmama: s.limite_meses_desmama,
+                janelaMesesMortalidade: s.janela_meses_mortalidade,
+                limiarMortalidade: s.limiar_mortalidade
+              };
+              window.localStorage.setItem('alertSettings', JSON.stringify(settings));
+              window.dispatchEvent(new CustomEvent('alertSettingsUpdated', { detail: settings }));
+            }
+          } else if (local.synced && local.remoteId !== s.id) {
+            // Atualizar apenas remoteId se mudou
+            await db.alertSettings.update('alert-settings-global', { remoteId: s.id });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de configurações de alerta:', err);
+    // Não lançar erro - configurações não são críticas para funcionamento
+  }
 }
 
 /**
@@ -1528,8 +1686,13 @@ export async function syncAll() {
   }
   
   try {
-    await pushPending();
+    // IMPORTANTE: Fazer pull ANTES do push para evitar conflitos de timestamp
+    // Isso garante que pegamos as mudanças do servidor antes de enviar as nossas
     await pullUpdates();
+    await pushPending();
+  } catch (error) {
+    console.error('❌ Erro durante sincronização:', error);
+    throw error;
   } finally {
     // Sempre atualizar estado para false ao finalizar
     if (typeof window !== 'undefined') {

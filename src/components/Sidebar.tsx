@@ -11,6 +11,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import { applyTheme, getInitialTheme, Theme } from '../utils/theme';
+import { APP_VERSION } from '../utils/version';
 
 // Variável global para rastrear estado de sincronização
 let globalSyncing = false;
@@ -446,7 +447,7 @@ export default function Sidebar() {
                 {(!sidebarCollapsed || sidebarOpen) && <span>Limpar Cache</span>}
               </button>
 
-              <div className="pt-1.5 border-t border-gray-200 dark:border-slate-700">
+              <div className="pt-1.5 border-t border-gray-200 dark:border-slate-700 space-y-1.5">
                 <button
                   onClick={handleLogout}
                   className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 rounded-md transition-all text-xs font-medium border border-red-200 dark:border-red-900/30 shadow-sm`}
@@ -456,6 +457,15 @@ export default function Sidebar() {
                   <Icons.LogOut className="w-4 h-4" />
                   {(!sidebarCollapsed || sidebarOpen) && <span>Sair</span>}
                 </button>
+                
+                {/* Versão da aplicação */}
+                <div className={`flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'justify-center'} px-2.5 py-1.5 text-[10px] text-gray-400 dark:text-slate-500 font-mono`}>
+                  {sidebarCollapsed && !sidebarOpen ? (
+                    <span title={`Versão ${APP_VERSION}`}>v{APP_VERSION}</span>
+                  ) : (
+                    <span>v{APP_VERSION}</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -539,13 +549,25 @@ export default function Sidebar() {
             <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
               <button
                 type="button"
-                onClick={() => {
-                  resetSettings();
-                  showToast({
-                    type: 'info',
-                    title: 'Configuração padrão',
-                    message: 'Limites restaurados.'
-                  });
+                onClick={async () => {
+                  await resetSettings();
+                  // Sincronizar após restaurar as configurações
+                  try {
+                    const { pushPending } = await import('../api/syncService');
+                    await pushPending();
+                    showToast({
+                      type: 'info',
+                      title: 'Configuração padrão',
+                      message: 'Limites restaurados e sincronizados.'
+                    });
+                  } catch (error) {
+                    console.error('Erro ao sincronizar configurações:', error);
+                    showToast({
+                      type: 'info',
+                      title: 'Configuração padrão',
+                      message: 'Limites restaurados. A sincronização será feita automaticamente.'
+                    });
+                  }
                 }}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
@@ -553,13 +575,25 @@ export default function Sidebar() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  saveSettings();
-                  showToast({
-                    type: 'success',
-                    title: 'Configurações salvas',
-                    message: 'Alertas atualizados.'
-                  });
+                onClick={async () => {
+                  await saveSettings();
+                  // Sincronizar após salvar as configurações
+                  try {
+                    const { pushPending } = await import('../api/syncService');
+                    await pushPending();
+                    showToast({
+                      type: 'success',
+                      title: 'Configurações salvas',
+                      message: 'Alertas atualizados e sincronizados.'
+                    });
+                  } catch (error) {
+                    console.error('Erro ao sincronizar configurações:', error);
+                    showToast({
+                      type: 'success',
+                      title: 'Configurações salvas',
+                      message: 'Alertas atualizados. A sincronização será feita automaticamente.'
+                    });
+                  }
                   setSettingsOpen(false);
                 }}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"

@@ -115,3 +115,14 @@ export interface NotificacaoLida {
   synced: boolean; // Se foi sincronizado com o servidor
   remoteId?: number | null; // ID remoto no Supabase
 }
+
+export interface AlertSettingsDB {
+  id: string; // Sempre 'alert-settings-global'
+  limiteMesesDesmama: number;
+  janelaMesesMortalidade: number;
+  limiarMortalidade: number;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean; // Se foi sincronizado com o servidor
+  remoteId?: number | null; // ID remoto no Supabase
+}
