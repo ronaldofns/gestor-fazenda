@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['logo192.png', 'logo512.png'],
       manifest: {
         name: 'Gerenciador de Fazendas',
@@ -43,6 +43,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB (aumentado para suportar chunks maiores)
+        skipWaiting: false, // Não ativar automaticamente - aguardar confirmação do usuário
+        clientsClaim: false, // Não assumir controle imediatamente
+        // Escutar mensagens do cliente para ativar service worker
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,

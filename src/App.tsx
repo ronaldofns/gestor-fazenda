@@ -13,6 +13,7 @@ import Sidebar from './components/Sidebar';
 import InstallPrompt from './components/InstallPrompt';
 import OfflineIndicator from './components/OfflineIndicator';
 import SplashScreen from './components/SplashScreen';
+import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import { ToastContainer } from './components/Toast';
 import Notificacoes from './routes/Notificacoes';
 import Matrizes from './routes/Matrizes';
@@ -42,6 +43,7 @@ export default function App() {
       <SplashScreen />
       <OfflineIndicator />
       <InstallPrompt />
+      <PWAUpdatePrompt />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<SetupInicial />} />
