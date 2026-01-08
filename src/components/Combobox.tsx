@@ -38,8 +38,11 @@ function ComboboxComponent({
 }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [isPending, startTransition] = useTransition();
 
   // Normalizar opções para formato unificado
@@ -52,7 +55,7 @@ function ComboboxComponent({
   const normalizedOptions = useMemo(() => normalizeOptions(options), [options]);
 
   // Função para encontrar o label baseado no value
-  const getLabelFromValue = (val: string, opts: string[] | ComboboxOption[]): string => {
+  const getLabelFromValue = (val: string): string => {
     if (!val) return '';
     // Normalizar comparação (trim e case-insensitive)
     const valNormalizado = val.trim().toLowerCase();
@@ -65,12 +68,12 @@ function ComboboxComponent({
 
   // Atualizar inputValue quando value prop mudar
   useEffect(() => {
-    const label = getLabelFromValue(value, options);
+    const label = getLabelFromValue(value);
     // Só atualizar se o label mudou para evitar resets desnecessários
     if (label !== inputValue) {
       setInputValue(label);
     }
-  }, [value, options, normalizedOptions]); // Só quando value prop mudar
+  }, [value, options, normalizedOptions, inputValue]); // Só quando value prop mudar
 
   const filteredOptions = useMemo(() => {
     let opts = normalizedOptions;
@@ -109,6 +112,7 @@ function ComboboxComponent({
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setHighlightedIndex(-1);
       }
     }
 
@@ -120,9 +124,17 @@ function ComboboxComponent({
     }
   }, [isOpen]);
 
+  // Resetar highlightedIndex quando filteredOptions mudar
+  useEffect(() => {
+    if (highlightedIndex >= filteredOptions.length) {
+      setHighlightedIndex(-1);
+    }
+  }, [filteredOptions.length, highlightedIndex]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
+    setHighlightedIndex(-1); // Resetar índice destacado ao digitar
     startTransition(() => onChange(newValue));
     setIsOpen(true);
   };
@@ -131,6 +143,7 @@ function ComboboxComponent({
     setInputValue(option.label);
     startTransition(() => onChange(option.value));
     setIsOpen(false);
+    setHighlightedIndex(-1);
     inputRef.current?.blur();
   };
 
@@ -150,6 +163,7 @@ function ComboboxComponent({
       }
       
       setIsOpen(true);
+      setHighlightedIndex(-1);
       // Selecionar todo o texto para facilitar digitação
       e.target.select();
     }
@@ -158,16 +172,47 @@ function ComboboxComponent({
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       setIsOpen(false);
+      setHighlightedIndex(-1);
       inputRef.current?.blur();
-    } else if (e.key === 'ArrowDown' && !isOpen) {
-      setIsOpen(true);
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-    } else if (e.key === 'Enter' && !allowCustomValue && filteredOptions.length === 1) {
-      // Se não permite valor customizado e há apenas uma opção filtrada, selecionar
-      if (filteredOptions.length === 1) {
-        handleSelect(filteredOptions[0]);
-        e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        setHighlightedIndex(0);
+      } else {
+        setHighlightedIndex((prev) => {
+          const next = prev < filteredOptions.length - 1 ? prev + 1 : 0;
+          // Scroll para a opção destacada
+          setTimeout(() => {
+            optionRefs.current[next]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 0);
+          return next;
+        });
       }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (isOpen) {
+        setHighlightedIndex((prev) => {
+          const next = prev > 0 ? prev - 1 : filteredOptions.length - 1;
+          // Scroll para a opção destacada
+          setTimeout(() => {
+            optionRefs.current[next]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 0);
+          return next;
+        });
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isOpen && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+        handleSelect(filteredOptions[highlightedIndex]);
+      } else if (!allowCustomValue && filteredOptions.length === 1) {
+        // Se não permite valor customizado e há apenas uma opção filtrada, selecionar
+        handleSelect(filteredOptions[0]);
+      }
+    } else if (e.key === 'Tab') {
+      // Fechar ao pressionar Tab
+      setIsOpen(false);
+      setHighlightedIndex(-1);
     }
   };
 
@@ -209,23 +254,68 @@ function ComboboxComponent({
           className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
           placeholder={placeholder}
         />
-        {/* Seta indicadora de dropdown */}
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+        {/* Seta indicadora de dropdown - clicável */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!disabled) {
+              const willOpen = !isOpen;
+              setIsOpen(willOpen);
+              setHighlightedIndex(-1);
+              // Focar no input quando abrir (comportamento nativo)
+              if (willOpen) {
+                // Pequeno delay para garantir que o estado foi atualizado
+                setTimeout(() => {
+                  inputRef.current?.focus();
+                }, 10);
+              } else {
+                // Quando fechar, manter foco no input
+                inputRef.current?.focus();
+              }
+            }
+          }}
+          onMouseDown={(e) => {
+            // Prevenir que o input perca o foco ao clicar na seta
+            // Isso permite que o onClick funcione corretamente
+            e.preventDefault();
+          }}
+          disabled={disabled}
+          className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer rounded-r-md transition-colors disabled:cursor-not-allowed disabled:hover:bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+          aria-label={isOpen ? 'Fechar lista' : 'Abrir lista'}
+          aria-expanded={isOpen}
+          tabIndex={-1}
+        >
           <Icons.ChevronDown className={`w-5 h-5 text-gray-400 dark:text-slate-400 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
-        </div>
+        </button>
         {showDropdown && (
-          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md shadow-lg max-h-60 overflow-auto">
+          <div 
+            ref={dropdownRef}
+            className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md shadow-lg max-h-60 overflow-auto"
+          >
             {filteredOptions.map((option, index) => {
               const isFav = isFavorito ? isFavorito(option.value) : false;
+              const isHighlighted = index === highlightedIndex;
               return (
                 <div
                   key={`${option.value}-${index}`}
-                  className="flex items-center group hover:bg-blue-50 dark:hover:bg-blue-900/40 focus-within:bg-blue-50 dark:focus-within:bg-blue-900/40"
+                  className={`flex items-center group ${
+                    isHighlighted 
+                      ? 'bg-blue-50 dark:bg-blue-900/40' 
+                      : 'hover:bg-blue-50 dark:hover:bg-blue-900/40'
+                  }`}
                 >
                   <button
+                    ref={(el) => {
+                      optionRefs.current[index] = el;
+                    }}
                     type="button"
                     onClick={() => handleSelect(option)}
-                    className="flex-1 text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none transition-colors"
+                    className={`flex-1 text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none transition-colors ${
+                      isHighlighted ? 'bg-blue-50 dark:bg-blue-900/40' : ''
+                    }`}
+                    onMouseEnter={() => setHighlightedIndex(index)}
                   >
                     {option.label}
                   </button>

@@ -1092,7 +1092,7 @@ export default function Home() {
     const racasMap = new Map<string, number>();
     nascimentosFiltrados.forEach(n => {
       if (n.raca) {
-        const raca = n.raca.toUpperCase();
+        const raca = n.raca;
         racasMap.set(raca, (racasMap.get(raca) || 0) + 1);
       }
     });
@@ -1244,7 +1244,7 @@ export default function Home() {
       <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <div className="flex-1 min-w-0">
-            <h2 className="text-xl sm:text-2xl font-semibold">PLANILHA NASCIMENTO/DESMAMA</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold">Nascimento/Desmama</h2>
             <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
               {filtroMes !== '' && filtroAno !== '' && (
                 <>MÊS {filtroMes} ({nomeMes(filtroMes)}) ANO {filtroAno}</>
@@ -1397,7 +1397,7 @@ export default function Home() {
                   <span className="sm:hidden">Cols</span>
                 </button>
                 {menuColunasAberto && (
-                  <div className="absolute right-0 mt-1 w-52 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 z-50 max-h-64 overflow-y-auto">
+                  <div className="absolute right-0 md:right-0 left-0 md:left-auto mt-1 w-52 md:w-52 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 z-50 max-h-64 overflow-y-auto">
                     <div className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">
                       Selecione as colunas que deseja visualizar na tabela.
                     </div>
@@ -1683,62 +1683,62 @@ export default function Home() {
               <thead className="bg-gray-100 dark:bg-slate-600">
                 <tr>
                   {colunasVisiveis.matriz && (
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-24">
-                      MATRIZ
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-24">
+                      Matriz
                     </th>
                   )}
                   {colunasVisiveis.novilha && (
-                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-14">
-                      NOVILHA
+                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-14">
+                      Novilha
                     </th>
                   )}
                   {colunasVisiveis.vaca && (
-                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-14">
-                      VACA
+                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-14">
+                      Vaca
                     </th>
                   )}
                   {colunasVisiveis.sexo && (
-                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-16">
-                      SEXO
+                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-16">
+                      Sexo
                     </th>
                   )}
                   {colunasVisiveis.raca && (
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-28">
-                      RAÇA
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-28">
+                      Raça
                     </th>
                   )}
                   {colunasVisiveis.brinco && (
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-20">
-                      NÚMERO
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-20">
+                      Número
                       <br />
-                      BRINCO
+                      Brinco
                     </th>
                   )}
                   {colunasVisiveis.morto && (
-                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-16">
-                      MORTO
+                    <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-16">
+                      Morto
                     </th>
                   )}
                   {colunasVisiveis.pesoDesmama && (
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-32">
-                      PESO
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-32">
+                      Peso
                       <br />
-                      DESMAMA
+                      Desmama
                     </th>
                   )}
                   {colunasVisiveis.dataDesmama && (
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-28">
-                      DATA
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-28">
+                      Data
                       <br />
-                      DESMAMA
+                      Desmama
                     </th>
                   )}
                   {colunasVisiveis.obs && (
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 max-w-[300px]">
-                      OBS
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 max-w-[300px]">
+                      Observação
                     </th>
                   )}
-                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider border-r border-gray-300 dark:border-slate-600 w-24 sticky right-0 z-10">AÇÕES</th>
+                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-slate-300  tracking-wider border-r border-gray-300 dark:border-slate-600 w-24 sticky right-0 z-10">Ações</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-600">
@@ -2271,7 +2271,7 @@ export default function Home() {
         {/* Rodapé com Totalizadores */}
         <div className="mt-6 bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
           <div className="px-3 py-3 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-800">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Resumo</h3>
+            <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Resumo</h3>
           </div>
           <div className="p-3">
             {/* Cards principais */}
@@ -2279,7 +2279,7 @@ export default function Home() {
               {/* Card Vacas */}
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 rounded-lg p-4 border border-purple-200 dark:border-purple-500/40">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-medium text-purple-800 uppercase tracking-wide">Vacas</h4>
+                  <h4 className="text-xs sm:text-sm font-medium text-purple-800  tracking-wide">Vacas</h4>
                   <Icons.Vaca className="w-6 h-6 text-purple-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-purple-900 dark:text-purple-200">{totais.vacas}</div>
@@ -2288,8 +2288,8 @@ export default function Home() {
               {/* Card Novilhas */}
               <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/10 rounded-lg p-4 border border-green-200 dark:border-green-500/40">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs sm:text-sm font-medium text-green-800 uppercase tracking-wide">Novilhas</h4>
-                  <Icons.Novilha className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                  <h4 className="text-xs sm:text-sm font-medium text-green-800  tracking-wide">Novilhas</h4>
+                  <Icons.Novilha className="w-5 h-5 sm:w-7 sm:h-7 text-green-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-green-900 dark:text-green-200">{totais.novilhas}</div>
               </div>
@@ -2297,7 +2297,7 @@ export default function Home() {
               {/* Card Fêmeas */}
               <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-900/10 rounded-lg p-4 border border-pink-200 dark:border-pink-500/40">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs sm:text-sm font-medium text-pink-800 uppercase tracking-wide">Fêmeas</h4>
+                  <h4 className="text-xs sm:text-sm font-medium text-pink-800  tracking-wide">Fêmeas</h4>
                   <Icons.Venus className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-pink-900 dark:text-pink-200">{totais.femeas}</div>
@@ -2306,7 +2306,7 @@ export default function Home() {
               {/* Card Machos */}
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 rounded-lg p-4 border border-blue-200 dark:border-blue-500/40">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wide">Machos</h4>
+                  <h4 className="text-xs sm:text-sm font-medium text-blue-800  tracking-wide">Machos</h4>
                   <Icons.Mars className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-200">{totais.machos}</div>
@@ -2331,7 +2331,7 @@ export default function Home() {
             {/* Card Total Geral */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-800 dark:to-slate-900 rounded-lg p-4 sm:p-6 border-2 border-gray-300 dark:border-slate-600">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs sm:text-sm font-medium text-gray-800 dark:text-slate-200 uppercase tracking-wide">Total Geral</h4>
+                <h4 className="text-xs sm:text-sm font-medium text-gray-800 dark:text-slate-200  tracking-wide">Total Geral</h4>
                 <Icons.TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-gray-600" />
               </div>
               <div className="flex items-baseline flex-wrap">
@@ -2412,7 +2412,7 @@ export default function Home() {
                       options={Array.from({ length: 12 }, (_, i) => {
                         const mes = i + 1;
                         return {
-                          label: new Date(2000, mes - 1).toLocaleDateString('pt-BR', { month: 'long' }),
+                          label: new Date(2000, mes - 1).toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase(),
                           value: mes.toString()
                         };
                       })}
@@ -2437,7 +2437,7 @@ export default function Home() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Matriz *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1"> *</label>
                     <input 
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                       {...registerNascimento('matrizId', {
@@ -2681,7 +2681,7 @@ export default function Home() {
                       options={Array.from({ length: 12 }, (_, i) => {
                         const mes = i + 1;
                         return {
-                          label: new Date(2000, mes - 1).toLocaleDateString('pt-BR', { month: 'long' }),
+                          label: new Date(2000, mes - 1).toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase(),
                           value: mes.toString()
                         };
                       })}
@@ -2958,31 +2958,31 @@ export default function Home() {
                     <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
                             Período
                           </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
                             Fazenda
                           </th>
-                          <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-center font-medium text-gray-500  tracking-wider">
                             Sexo
                           </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
                             Raça
                           </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
                             Brinco
                           </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
                             Data nasc.
                           </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
                             Data desmama
                           </th>
-                          <th className="px-2 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-right font-medium text-gray-500  tracking-wider">
                             Peso desmama
                           </th>
-                          <th className="px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-2 py-2 text-center font-medium text-gray-500  tracking-wider">
                             Morto
                           </th>
                         </tr>

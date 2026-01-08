@@ -62,7 +62,7 @@ export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }:
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-4 sm:p-6">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
             Cadastro Rápido de Categoria
           </h3>
           <form onSubmit={handleSubmit}>

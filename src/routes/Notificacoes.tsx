@@ -52,7 +52,7 @@ export default function Notificacoes() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Icons.AlertTriangle className="w-5 h-5 text-amber-500" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Desmama atrasada</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Desmama atrasada</h3>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full">
@@ -109,7 +109,7 @@ export default function Notificacoes() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Icons.AlertTriangle className="w-5 h-5 text-red-500" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade alta</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade alta</h3>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full">
@@ -164,7 +164,7 @@ export default function Notificacoes() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Icons.FileWarning className="w-5 h-5 text-blue-500" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Dados incompletos</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Dados incompletos</h3>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200 rounded-full">
@@ -228,7 +228,7 @@ export default function Notificacoes() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Icons.Cow className="w-5 h-5 text-purple-500" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Matrizes sem cadastro</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Matrizes sem cadastro</h3>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-200 rounded-full">

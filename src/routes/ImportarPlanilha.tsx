@@ -201,7 +201,7 @@ export default function ImportarPlanilha() {
         {/* Mapeamento de Colunas */}
         {colunas.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
+            <h3 className="text-sm sm:text-lg font-medium text-gray-700 dark:text-slate-300 mb-3">
               Mapear Colunas da Planilha
             </h3>
             <div className="space-y-3">
@@ -235,7 +235,7 @@ export default function ImportarPlanilha() {
         {/* Preview */}
         {preview.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
+            <h3 className="text-sm sm:text-lg font-medium text-gray-700 dark:text-slate-300 mb-3">
               Preview (primeiras 5 linhas)
             </h3>
             <div className="overflow-x-auto border border-gray-200 dark:border-slate-800 rounded-md">

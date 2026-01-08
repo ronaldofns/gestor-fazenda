@@ -476,7 +476,7 @@ export default function Sidebar() {
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl">
           <div className="border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Configurações de alertas</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Configurações de alertas</h3>
               <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Ajuste limites de desmama e mortalidade.</p>
             </div>
             <button

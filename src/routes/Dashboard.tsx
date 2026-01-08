@@ -202,7 +202,7 @@ export default function Dashboard() {
     const racasMap = new Map<string, number>();
     nascimentosTodos.forEach(n => {
       if (n.raca) {
-        const raca = n.raca.toUpperCase();
+        const raca = n.raca;
         racasMap.set(raca, (racasMap.get(raca) || 0) + 1);
       }
     });
@@ -354,7 +354,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3 gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Icons.AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Desmama atrasada</h3>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Desmama atrasada</h3>
               </div>
               <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full whitespace-nowrap flex-shrink-0">
                 {alertSettings.limiteMesesDesmama}+ meses
@@ -398,7 +398,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3 gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Icons.AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Mortalidade alta</h3>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Mortalidade alta</h3>
               </div>
               <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full whitespace-nowrap flex-shrink-0">
                 Últimos {alertSettings.janelaMesesMortalidade} meses
@@ -438,7 +438,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-6">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Total Nascimentos</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Total Nascimentos</h3>
               <Icons.TrendingUp className="w-6 h-6 text-blue-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.totalNascimentos}</div>
@@ -449,7 +449,7 @@ export default function Dashboard() {
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Vacas</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Vacas</h3>
               <Icons.Vaca className="w-6 h-6 text-purple-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.vacas}</div>
@@ -462,7 +462,7 @@ export default function Dashboard() {
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Novilhas</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Novilhas</h3>
               <Icons.Novilha className="w-6 h-6 text-green-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.novilhas}</div>
@@ -475,7 +475,7 @@ export default function Dashboard() {
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-red-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Mortandade</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Mortandade</h3>
               <Icons.AlertTriangle className="w-6 h-6 text-red-500" />
             </div>
             <div className="text-3xl font-bold text-red-600">{metricas.totalMortos}</div>
@@ -488,7 +488,7 @@ export default function Dashboard() {
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-pink-500 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 uppercase tracking-wide">Taxa Desmama</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Taxa Desmama</h3>
               <Icons.BarChart3 className="w-6 h-6 text-pink-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.taxaDesmama}%</div>
@@ -502,7 +502,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Distribuição por Sexo</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Distribuição por Sexo</h3>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2">
                   <Icons.Venus className="w-5 h-5 text-pink-500" />
@@ -543,7 +543,7 @@ export default function Dashboard() {
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Nascimentos por Mês (Últimos 12 meses)</h3>
+            <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Nascimentos por Mês (Últimos 12 meses)</h3>
             <div className="space-y-3">
               {metricas.nascimentosPorMes.map((item, index) => (
                 <div key={index}>
@@ -567,14 +567,14 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Nascimentos (últimos 12 meses)</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Nascimentos (últimos 12 meses)</h3>
               <span className="text-xs text-gray-500 dark:text-slate-400">Gráfico de linha</span>
             </div>
             {metricas.nascimentosPorMes.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-slate-400">Sem dados suficientes.</p>
             ) : (
-              <div className="w-full h-40">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="w-full" style={{ height: '160px' }}>
+                <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={metricas.nascimentosPorMes} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                     <XAxis
@@ -617,18 +617,18 @@ export default function Dashboard() {
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade por fazenda (janela)</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade por fazenda (janela)</h3>
               <span className="text-xs text-gray-500 dark:text-slate-400">Gráfico de barras</span>
             </div>
             {alertas.mortalidadeAlta.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-slate-400">Nenhuma fazenda acima do limiar configurado.</p>
             ) : (
-              <div className="w-full h-48">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="w-full" style={{ height: '200px' }}>
+                <ResponsiveContainer width="100%" height={200}>
                   <BarChart
                     data={alertas.mortalidadeAlta.slice(0, 8)}
                     layout="vertical"
-                    margin={{ top: 5, right: 10, left: 60, bottom: 5 }}
+                    margin={{ top: 30, right: 10, left: 140, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridColor} />
                     <XAxis
@@ -642,7 +642,8 @@ export default function Dashboard() {
                       dataKey="fazenda"
                       tick={{ fontSize: 10, fill: textColor }}
                       tickLine={false}
-                      width={120}
+                      width={140}
+                      interval={0}
                     />
                     <Tooltip
                       contentStyle={{ 
@@ -657,16 +658,22 @@ export default function Dashboard() {
                     />
                     <Legend
                       verticalAlign="top"
-                      align="right"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: 10, paddingBottom: 8, color: textColor }}
+                      align="left"
+                      iconSize={10}
+                      wrapperStyle={{ 
+                        fontSize: 11, 
+                        paddingBottom: 10, 
+                        paddingLeft: 10, 
+                        paddingTop: 5,
+                        color: textColor 
+                      }}
                     />
                     <Bar
                       dataKey="taxa"
                       name="Taxa de mortalidade"
                       fill="#ef4444"
                       radius={[0, 4, 4, 0]}
-                      maxBarSize={18}
+                      maxBarSize={20}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -681,17 +688,17 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Icons.Building2 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Comparativo por Fazenda</h3>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Comparativo por Fazenda</h3>
               </div>
               <span className="text-xs text-gray-500 dark:text-slate-400">Nasc. x Desm.</span>
             </div>
             {comparativoFazendas.length > 0 ? (
-              <div className="w-full h-56">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="w-full" style={{ height: '300px' }}>
+                <ResponsiveContainer width="100%" height={300}>
                   <BarChart
                     data={comparativoFazendas.slice(0, 8)}
                     layout="vertical"
-                    margin={{ top: 5, right: 10, left: 70, bottom: 5 }}
+                    margin={{ top: 5, right: 0, left: -10, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridColor} />
                     <XAxis
@@ -704,7 +711,8 @@ export default function Dashboard() {
                       dataKey="nome"
                       tick={{ fontSize: 10, fill: textColor }}
                       tickLine={false}
-                      width={110}
+                      width={140}
+                      interval={0}
                     />
                     <Tooltip
                       contentStyle={{ 
@@ -723,23 +731,29 @@ export default function Dashboard() {
                     />
                     <Legend
                       verticalAlign="top"
-                      align="right"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: 10, paddingBottom: 8, color: textColor }}
+                      align="left"
+                      iconSize={10}
+                      wrapperStyle={{ 
+                        fontSize: 11, 
+                        paddingBottom: 10, 
+                        paddingLeft: 10, 
+                        paddingTop: 5,
+                        color: textColor 
+                      }}
                     />
                     <Bar
                       dataKey="total"
                       name="Nascimentos"
                       fill="#3b82f6"
                       radius={[0, 4, 4, 0]}
-                      maxBarSize={18}
+                      maxBarSize={20}
                     />
                     <Bar
                       dataKey="desmamas"
                       name="Desmamas"
                       fill="#22c55e"
                       radius={[0, 4, 4, 0]}
-                      maxBarSize={18}
+                      maxBarSize={20}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -752,7 +766,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center gap-2 mb-4">
               <Icons.BarChart3 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Top Raças</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Top Raças</h3>
             </div>
             {metricas.totaisPorRaca.length > 0 ? (
               <div className="space-y-3">

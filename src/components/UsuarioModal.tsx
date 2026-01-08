@@ -246,16 +246,12 @@ export default function UsuarioModal({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Role *</label>
-          <select
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            {...register('role')}
-          >
-            {Object.entries(ROLE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Combobox
+            value={watch('role') || ''}
+            onChange={(value) => startTransition(() => setValue('role', value as UserRole))}
+            options={Object.entries(ROLE_LABELS).map(([value, label]) => ({ label, value }))}
+            allowCustomValue={false}
+          />
           {errors.role && (
             <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.role.message}</p>
           )}
