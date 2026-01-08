@@ -158,9 +158,15 @@ export default function Home() {
   const paginaFromUrl = searchParams.get('pagina');
   const itensPorPaginaFromUrl = searchParams.get('itens');
   
-  const [filtroMes, setFiltroMes] = useState<number | ''>(
-    filtroMesFromUrl ? Number(filtroMesFromUrl) : ''
-  );
+  // Converter filtroMes para array de números
+  const [filtroMes, setFiltroMes] = useState<number[]>(() => {
+    if (filtroMesFromUrl) {
+      // Se vier da URL, pode ser um único valor ou múltiplos separados por vírgula
+      const meses = filtroMesFromUrl.split(',').map(m => Number(m.trim())).filter(m => !isNaN(m) && m >= 1 && m <= 12);
+      return meses.length > 0 ? meses : [];
+    }
+    return [];
+  });
   const [filtroAno, setFiltroAno] = useState<number | ''>(
     filtroAnoFromUrl ? Number(filtroAnoFromUrl) : ''
   );
@@ -254,12 +260,30 @@ export default function Home() {
   useEffect(() => {
     setPaginaAtual(1);
   }, [filtroMes, filtroAno, filtroFazenda, filtroMatrizBrinco, filtroSexo, filtroStatus, buscaGlobal]);
+  
+  // Estado para controlar o dropdown de meses
+  const [menuMesesAberto, setMenuMesesAberto] = useState(false);
+  const menuMesesRef = useRef<HTMLDivElement>(null);
+  
+  // Fechar menu de meses ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuMesesRef.current && !menuMesesRef.current.contains(event.target as Node)) {
+        setMenuMesesAberto(false);
+      }
+    };
+
+    if (menuMesesAberto) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [menuMesesAberto]);
 
   // Atualizar URL quando filtros, página ou itens por página mudarem
   useEffect(() => {
     const params = new URLSearchParams();
-    if (filtroMes !== '') {
-      params.set('mes', String(filtroMes));
+    if (filtroMes.length > 0) {
+      params.set('mes', filtroMes.join(','));
     }
     if (filtroAno !== '') {
       params.set('ano', String(filtroAno));
@@ -941,9 +965,9 @@ export default function Home() {
     
     let filtrados = nascimentosTodos;
     
-    // Filtrar por mês
-    if (filtroMes !== '' && filtroMes !== null && filtroMes !== undefined) {
-      filtrados = filtrados.filter(n => n.mes === filtroMes);
+    // Filtrar por mês (múltiplos meses)
+    if (filtroMes.length > 0) {
+      filtrados = filtrados.filter(n => filtroMes.includes(n.mes));
     }
     
     // Filtrar por ano
@@ -1140,9 +1164,9 @@ export default function Home() {
     return new Date(2000, mes - 1).toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
   };
 
-  // Verificar se pode gerar relatório (Fazenda, Mês e Ano devem estar preenchidos)
+  // Verificar se pode gerar relatório (Fazenda, pelo menos um Mês e Ano devem estar preenchidos)
   const podeGerarRelatorio = useMemo(() => {
-    return filtroFazenda !== '' && filtroMes !== '' && filtroAno !== '';
+    return filtroFazenda !== '' && filtroMes.length > 0 && filtroAno !== '';
   }, [filtroFazenda, filtroMes, filtroAno]);
 
   // Função para gerar relatório PDF
@@ -1182,7 +1206,7 @@ export default function Home() {
         nascimentos: nascimentosFiltrados,
         desmamas: desmamasMap,
         fazendaNome: fazendaSelecionada?.nome,
-        mes: filtroMes !== '' ? filtroMes as number : undefined,
+        mes: filtroMes.length > 0 ? filtroMes[0] : undefined,
         ano: filtroAno !== '' ? filtroAno as number : undefined,
         matrizMap
       });
@@ -1200,7 +1224,7 @@ export default function Home() {
         nascimentos: nascimentosFiltrados,
         desmamas: desmamasMap,
         fazendaNome: fazendaSelecionada?.nome,
-        mes: filtroMes !== '' ? filtroMes as number : undefined,
+        mes: filtroMes.length > 0 ? filtroMes[0] : undefined,
         ano: filtroAno !== '' ? filtroAno as number : undefined,
         matrizMap
       });
@@ -1246,8 +1270,10 @@ export default function Home() {
           <div className="flex-1 min-w-0">
             <h2 className="text-xl sm:text-2xl font-semibold">Nascimento/Desmama</h2>
             <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-              {filtroMes !== '' && filtroAno !== '' && (
-                <>MÊS {filtroMes} ({nomeMes(filtroMes)}) ANO {filtroAno}</>
+              {filtroMes.length > 0 && filtroAno !== '' && (
+                <>
+                  MÊS{filtroMes.length > 1 ? 'ES' : ''}: {filtroMes.map(m => nomeMes(m)).join(', ')} - ANO {filtroAno}
+                </>
               )}
               {fazendaSelecionada && ` - ${fazendaSelecionada.nome}`}
             </p>
@@ -1285,20 +1311,66 @@ export default function Home() {
             </div>
 
             <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Mês</label>
-              <Combobox
-                value={filtroMes === '' ? '' : filtroMes.toString()}
-                onChange={(value) => setFiltroMes(value === '' ? '' : Number(value))}
-                options={[
-                  { label: 'Todos', value: '' },
-                  ...Array.from({ length: 12 }, (_, i) => {
-                    const mes = i + 1;
-                    return { label: nomeMes(mes), value: mes.toString() };
-                  })
-                ]}
-                placeholder="Todos os meses"
-                allowCustomValue={false}
-              />
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Mês</label>
+              <div className="relative" ref={menuMesesRef}>
+                <button
+                  type="button"
+                  onClick={() => setMenuMesesAberto(!menuMesesAberto)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between"
+                >
+                  <span className="truncate">
+                    {filtroMes.length === 0 
+                      ? 'Todos os meses' 
+                      : filtroMes.length === 1 
+                        ? nomeMes(filtroMes[0])
+                        : `${filtroMes.length} meses selecionados`
+                    }
+                  </span>
+                  <Icons.ChevronDown className={`w-4 h-4 text-gray-400 dark:text-slate-400 transition-transform ${menuMesesAberto ? 'transform rotate-180' : ''}`} />
+                </button>
+                {menuMesesAberto && (
+                  <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 max-h-64 overflow-y-auto">
+                    <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltroMes([]);
+                          setMenuMesesAberto(false);
+                        }}
+                        className="w-full text-left text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
+                      >
+                        Limpar seleção (Todos)
+                      </button>
+                    </div>
+                    <div className="py-1">
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const mes = i + 1;
+                        const isSelected = filtroMes.includes(mes);
+                        return (
+                          <label
+                            key={mes}
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFiltroMes([...filtroMes, mes].sort((a, b) => a - b));
+                                } else {
+                                  setFiltroMes(filtroMes.filter(m => m !== mes));
+                                }
+                              }}
+                            />
+                            <span>{nomeMes(mes)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
@@ -1493,8 +1565,10 @@ export default function Home() {
                                 };
                               });
 
-                            const periodoLabel = filtroMes && filtroAno
-                              ? `${filtroMes.toString().padStart(2, '0')}/${filtroAno}`
+                            const periodoLabel = filtroMes.length > 0 && filtroAno
+                              ? filtroMes.length === 1
+                                ? `${filtroMes[0].toString().padStart(2, '0')}/${filtroAno}`
+                                : `Meses ${filtroMes.map(m => m.toString().padStart(2, '0')).join(', ')}/${filtroAno}`
                               : filtroAno
                               ? `Ano ${filtroAno}`
                               : 'Todos os períodos';
@@ -1531,15 +1605,29 @@ export default function Home() {
 
                           // Formatar período: se mês específico selecionado, mostrar mês; se "Todos os meses", mostrar "Todos os períodos"
                           let periodoLabel: string;
-                          if (filtroMes !== '') {
-                            // Mês específico selecionado - mostrar informação do mês
-                            const mesNum = typeof filtroMes === 'number' ? filtroMes : Number(filtroMes);
-                            const nomeMes = new Date(2000, mesNum - 1).toLocaleDateString('pt-BR', { month: 'long' });
-                            if (filtroAno !== '') {
-                              const anoNum = typeof filtroAno === 'number' ? filtroAno : Number(filtroAno);
-                              periodoLabel = `Mês ${mesNum.toString().padStart(2, '0')} (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)}) - Ano ${anoNum}`;
+                          if (filtroMes.length > 0) {
+                            // Mês(es) específico(s) selecionado(s) - mostrar informação do(s) mês(es)
+                            if (filtroMes.length === 1) {
+                              const mesNum = filtroMes[0];
+                              const nomeMes = new Date(2000, mesNum - 1).toLocaleDateString('pt-BR', { month: 'long' });
+                              if (filtroAno !== '') {
+                                const anoNum = typeof filtroAno === 'number' ? filtroAno : Number(filtroAno);
+                                periodoLabel = `Mês ${mesNum.toString().padStart(2, '0')} (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)}) - Ano ${anoNum}`;
+                              } else {
+                                periodoLabel = `Mês ${mesNum.toString().padStart(2, '0')} (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)}) - Todos os anos`;
+                              }
                             } else {
-                              periodoLabel = `Mês ${mesNum.toString().padStart(2, '0')} (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)}) - Todos os anos`;
+                              // Múltiplos meses
+                              const mesesNomes = filtroMes.map(m => {
+                                const nomeMes = new Date(2000, m - 1).toLocaleDateString('pt-BR', { month: 'long' });
+                                return `${m.toString().padStart(2, '0')} (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)})`;
+                              }).join(', ');
+                              if (filtroAno !== '') {
+                                const anoNum = typeof filtroAno === 'number' ? filtroAno : Number(filtroAno);
+                                periodoLabel = `Meses ${mesesNomes} - Ano ${anoNum}`;
+                              } else {
+                                periodoLabel = `Meses ${mesesNomes} - Todos os anos`;
+                              }
                             }
                           } else {
                             // "Todos os meses" selecionado - mostrar "Todos os períodos"
@@ -1626,7 +1714,7 @@ export default function Home() {
               </div>
               <button
                 onClick={() => {
-                  setFiltroMes('');
+                  setFiltroMes([]);
                   setFiltroAno('');
                   setFiltroFazenda('');
                   setFiltroMatrizBrinco('');
