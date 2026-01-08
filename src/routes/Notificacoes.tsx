@@ -42,17 +42,9 @@ export default function Notificacoes() {
 
   return (
     <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-semibold">Notificações</h2>
-          <p className="text-sm text-gray-600 dark:text-slate-400">Pendências detectadas pelo sistema.</p>
-        </div>
-        <Link
-          to="/dashboard"
-          className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-        >
-          Voltar
-        </Link>
+      <div className="mb-6">
+        <h2 className="text-xl sm:text-2xl font-semibold">Notificações</h2>
+        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Pendências detectadas pelo sistema.</p>
       </div>
 
       <div className="space-y-4">

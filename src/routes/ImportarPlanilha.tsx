@@ -145,14 +145,8 @@ export default function ImportarPlanilha() {
 
   return (
     <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <h2 className="text-xl sm:text-2xl font-semibold">Importar Planilha</h2>
-        <button
-          onClick={() => navigate('/')}
-          className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-        >
-          Voltar
-        </button>
       </div>
 
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg p-4 sm:p-6 space-y-6">

@@ -51,7 +51,7 @@ export default function App() {
             <ProtectedRoute>
               <div className="flex min-h-screen">
                 <Sidebar />
-                <main className={`flex-1 min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+                <main className={`flex-1 min-h-screen transition-all duration-300 pt-10 lg:pt-0 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
                 <Routes>
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />

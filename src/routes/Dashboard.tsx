@@ -333,27 +333,22 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
-      <header className="bg-white dark:bg-slate-900 shadow-sm border-b border-gray-200 dark:border-slate-800">
-        <div className="px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
-              <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Visão geral do seu rebanho</p>
-            </div>
-          </div>
+      <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
+        <div className="mb-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">Dashboard</h2>
+          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Visão geral do seu rebanho</p>
         </div>
-      </header>
 
-      <main className="px-4 sm:px-6 lg:px-8 py-6 text-gray-900 dark:text-slate-100">
         {/* Alertas */}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-6">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border border-amber-200 dark:border-amber-500/40">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Icons.AlertTriangle className="w-5 h-5 text-amber-500" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Alerta: Desmama atrasada</h3>
+            <div className="flex items-center justify-between mb-3 gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Icons.AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Desmama atrasada</h3>
               </div>
-              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full">
+              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full whitespace-nowrap flex-shrink-0">
                 {alertSettings.limiteMesesDesmama}+ meses
               </span>
             </div>
@@ -392,12 +387,12 @@ export default function Dashboard() {
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border border-red-200 dark:border-red-500/40">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Icons.AlertTriangle className="w-5 h-5 text-red-500" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Alerta: Mortalidade alta</h3>
+            <div className="flex items-center justify-between mb-3 gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Icons.AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Mortalidade alta</h3>
               </div>
-              <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full">
+              <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full whitespace-nowrap flex-shrink-0">
                 Últimos {alertSettings.janelaMesesMortalidade} meses
               </span>
             </div>
@@ -759,8 +754,7 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-
-      </main>
+      </div>
     </div>
   );
 }

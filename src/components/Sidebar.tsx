@@ -151,14 +151,20 @@ export default function Sidebar() {
     <>
       {/* Botão Mobile - Toggle Sidebar */}
       <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-md lg:hidden"
+        onClick={() => {
+          setSidebarOpen(!sidebarOpen);
+          // No mobile, sempre abrir expandida
+          if (!sidebarOpen) {
+            setSidebarCollapsed(false);
+          }
+        }}
+        className="fixed top-3 left-3 z-50 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden"
         aria-label="Toggle sidebar"
       >
         {sidebarOpen ? (
-          <Icons.X className="w-6 h-6 text-gray-600" />
+          <Icons.X className="w-6 h-6 text-gray-600 dark:text-slate-300" />
         ) : (
-          <Icons.Menu className="w-6 h-6 text-gray-600" />
+          <Icons.Menu className="w-6 h-6 text-gray-600 dark:text-slate-300" />
         )}
       </button>
 
@@ -175,19 +181,19 @@ export default function Sidebar() {
         className={`
           fixed top-0 left-0 h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm z-40
           transform transition-all duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full'}
           lg:translate-x-0
-          ${sidebarCollapsed ? 'w-16' : 'w-64'}
+          ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
         `}
       >
         <div className="flex flex-col h-full">
           {/* Header Completo e Profissional */}
-          <div className={`border-b border-gray-200 dark:border-slate-700 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 relative ${sidebarCollapsed ? 'p-3' : 'p-4'}`}>
-            {sidebarCollapsed ? (
+          <div className={`border-b border-gray-200 dark:border-slate-700 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 relative ${sidebarCollapsed && !sidebarOpen ? 'p-3' : 'p-4'}`}>
+            {sidebarCollapsed && !sidebarOpen ? (
               <div className="flex flex-col items-center gap-3">
                 <button
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="p-1.5 rounded-lg hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors z-20 relative"
                   title="Expandir sidebar"
                 >
                   <Icons.ChevronRight className="w-4 h-4 text-gray-600 dark:text-slate-300" />
@@ -210,10 +216,10 @@ export default function Sidebar() {
               </div>
             ) : (
               <>
-                {/* Botão de toggle flutuante */}
+                {/* Botão de toggle flutuante - apenas em desktop */}
                 <button
                   onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-slate-700/60 transition-colors z-10 bg-white/40 dark:bg-slate-800/60 backdrop-blur-sm shadow-sm"
+                  className="hidden lg:block absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-slate-700/60 transition-colors z-20 bg-white/40 dark:bg-slate-800/60 backdrop-blur-sm shadow-sm"
                   title="Recolher sidebar"
                 >
                   <Icons.ChevronLeft className="w-4 h-4 text-gray-700 dark:text-slate-300" />
@@ -283,14 +289,14 @@ export default function Sidebar() {
                       onClick={() => setSidebarOpen(false)}
                       className={`
                         flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all w-full relative group
-                        ${sidebarCollapsed ? 'justify-center' : ''}
+                        ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : ''}
                         ${
                           active
                             ? 'bg-blue-50 text-blue-700 border-l-3 border-blue-600 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-400 shadow-sm'
                             : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-slate-700/50 dark:hover:text-white'
                         }
                       `}
-                      title={sidebarCollapsed ? item.label : ''}
+                      title={sidebarCollapsed && !sidebarOpen ? item.label : ''}
                       aria-label={item.label}
                     >
                       <Icon
@@ -300,7 +306,7 @@ export default function Sidebar() {
                             : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
                         }`}
                       />
-                      {!sidebarCollapsed && (
+                      {(!sidebarCollapsed || sidebarOpen) && (
                         <>
                           <span className="font-medium text-sm whitespace-nowrap flex-1">{item.label}</span>
                           {item.badge ? (
@@ -310,7 +316,7 @@ export default function Sidebar() {
                           ) : null}
                         </>
                       )}
-                      {sidebarCollapsed && item.badge && (
+                      {sidebarCollapsed && !sidebarOpen && item.badge && (
                         <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-red-500 text-white shadow-sm">
                           {item.badge}
                         </span>
@@ -327,18 +333,18 @@ export default function Sidebar() {
             <div className="px-3 py-2.5 space-y-1.5">
               <button
                 onClick={() => setSettingsOpen(true)}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 rounded-md transition-all text-xs font-medium border border-indigo-200 dark:border-indigo-800/50 shadow-sm`}
-                title={sidebarCollapsed ? 'Configurações' : ''}
+                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 rounded-md transition-all text-xs font-medium border border-indigo-200 dark:border-indigo-800/50 shadow-sm`}
+                title={sidebarCollapsed && !sidebarOpen ? 'Configurações' : ''}
               >
                 <Icons.Settings className="w-4 h-4" />
-                {!sidebarCollapsed && <span>Configurações</span>}
+                {(!sidebarCollapsed || sidebarOpen) && <span>Configurações</span>}
               </button>
               
               <button
                 onClick={handleManualSync}
                 disabled={syncing}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs font-medium relative overflow-hidden`}
-                title={sidebarCollapsed ? (syncing ? 'Sincronizando...' : 'Sincronizar') : ''}
+                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs font-medium relative overflow-hidden`}
+                title={sidebarCollapsed && !sidebarOpen ? (syncing ? 'Sincronizando...' : 'Sincronizar') : ''}
                 aria-label={syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
               >
                 <Icons.RefreshCw 
@@ -346,7 +352,7 @@ export default function Sidebar() {
                     syncing ? 'animate-spin' : ''
                   }`}
                 />
-                {!sidebarCollapsed && (
+                {(!sidebarCollapsed || sidebarOpen) && (
                   <span className="relative z-10">
                     {syncing ? 'Sincronizando...' : 'Sincronizar'}
                   </span>
@@ -375,11 +381,11 @@ export default function Sidebar() {
                     });
                   }
                 }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 rounded-md transition-all text-xs font-medium border border-purple-200 dark:border-purple-800/50 shadow-sm`}
-                title={sidebarCollapsed ? 'Backup' : ''}
+                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 rounded-md transition-all text-xs font-medium border border-purple-200 dark:border-purple-800/50 shadow-sm`}
+                title={sidebarCollapsed && !sidebarOpen ? 'Backup' : ''}
               >
                 <Icons.Download className="w-4 h-4" />
-                {!sidebarCollapsed && <span>Backup</span>}
+                {(!sidebarCollapsed || sidebarOpen) && <span>Backup</span>}
               </button>
               
               <button
@@ -433,22 +439,22 @@ export default function Sidebar() {
                     }
                   });
                 }}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-md transition-all text-xs font-medium border border-gray-200 dark:border-slate-700 shadow-sm`}
-                title={sidebarCollapsed ? 'Limpar Cache' : ''}
+                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-md transition-all text-xs font-medium border border-gray-200 dark:border-slate-700 shadow-sm`}
+                title={sidebarCollapsed && !sidebarOpen ? 'Limpar Cache' : ''}
               >
                 <Icons.Trash2 className="w-4 h-4" />
-                {!sidebarCollapsed && <span>Limpar Cache</span>}
+                {(!sidebarCollapsed || sidebarOpen) && <span>Limpar Cache</span>}
               </button>
 
               <div className="pt-1.5 border-t border-gray-200 dark:border-slate-700">
                 <button
                   onClick={handleLogout}
-                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 rounded-md transition-all text-xs font-medium border border-red-200 dark:border-red-900/30 shadow-sm`}
-                  title={sidebarCollapsed ? 'Sair' : ''}
+                  className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 rounded-md transition-all text-xs font-medium border border-red-200 dark:border-red-900/30 shadow-sm`}
+                  title={sidebarCollapsed && !sidebarOpen ? 'Sair' : ''}
                   aria-label="Sair"
                 >
                   <Icons.LogOut className="w-4 h-4" />
-                  {!sidebarCollapsed && <span>Sair</span>}
+                  {(!sidebarCollapsed || sidebarOpen) && <span>Sair</span>}
                 </button>
               </div>
             </div>

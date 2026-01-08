@@ -371,7 +371,7 @@ export default function Matrizes() {
 
   return (
     <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
         <div>
           <h2 className="text-xl sm:text-2xl font-semibold">Matrizes</h2>
           <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">

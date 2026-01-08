@@ -1241,18 +1241,17 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100">
-      <header className="bg-white dark:bg-slate-900 shadow-sm border-b border-gray-200 dark:border-slate-800">
-        <div className="px-3 sm:px-3 lg:px-3 py-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-slate-100 break-words">PLANILHA NASCIMENTO/DESMAMA</h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1 break-words">
-                {filtroMes !== '' && filtroAno !== '' && (
-                  <>MÊS {filtroMes} ({nomeMes(filtroMes)}) ANO {filtroAno}</>
-                )}
-                {fazendaSelecionada && ` - ${fazendaSelecionada.nome}`}
-              </p>
-            </div>
+      <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl sm:text-2xl font-semibold">PLANILHA NASCIMENTO/DESMAMA</h2>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+              {filtroMes !== '' && filtroAno !== '' && (
+                <>MÊS {filtroMes} ({nomeMes(filtroMes)}) ANO {filtroAno}</>
+              )}
+              {fazendaSelecionada && ` - ${fazendaSelecionada.nome}`}
+            </p>
+          </div>
             <button
               onClick={() => {
                 if (fazendas.length === 0) {
@@ -1677,9 +1676,6 @@ export default function Home() {
             )}
           </div>
         </div>
-      </header>
-
-      <main className="px-3 sm:px-3 lg:px-3 py-3 sm:py-3">
         {/* Versão Desktop - Tabela */}
         <div className="hidden md:block bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
@@ -2365,7 +2361,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </main>
 
       {/* Modal Novo Nascimento */}
       {modalNovoNascimentoOpen && (

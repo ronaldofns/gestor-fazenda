@@ -142,7 +142,7 @@ export default function ListaUsuarios() {
           ) : (
             <>
               {/* Tabela Desktop */}
-              <div className="hidden md:block overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto p-1">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800">
                   <thead className="bg-gray-100 dark:bg-slate-800">
                     <tr>
@@ -234,11 +234,11 @@ export default function ListaUsuarios() {
               </div>
 
               {/* Lista em cards para mobile */}
-              <div className="md:hidden space-y-3 p-3">
+              <div className="md:hidden space-y-4 p-4">
                 {usuarios.map((usuario) => (
                   <div
                     key={usuario.id}
-                    className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm p  -4 border border-gray-200 dark:border-slate-800 ${
+                    className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-slate-800 ${
                       !usuario.ativo ? 'opacity-60' : ''
                     }`}
                   >
