@@ -140,7 +140,7 @@ export default function Sidebar() {
     { path: '/planilha', label: 'Nascimento/Desmama', icon: Icons.FileSpreadsheet },
     { path: '/matrizes', label: 'Matrizes', icon: Icons.ListTree },
     { path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 },
-    { path: '/importar-planilha', label: 'Importar Planilha', icon: Icons.Upload },
+    ...(isAdmin() ? [{ path: '/importar-planilha', label: 'Importar Planilha', icon: Icons.Upload }] : []),
     ...(isAdmin() ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),
   ];
 
