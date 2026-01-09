@@ -4,6 +4,9 @@ import { db } from '../db/dexieDB';
 import { AuditLog, AuditEntity } from '../db/models';
 import Modal from './Modal';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
 import { showToast } from '../utils/toast';
 import { useAuth } from '../hooks/useAuth';
 import { registrarAudit } from '../utils/audit';
@@ -27,6 +30,8 @@ export default function HistoricoAlteracoes({
   onRestored
 }: HistoricoAlteracoesProps) {
   const { user } = useAuth();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [restaurandoId, setRestaurandoId] = useState<string | null>(null);
   const [mostrarDiff, setMostrarDiff] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -342,7 +347,7 @@ export default function HistoricoAlteracoes({
                         <button
                           onClick={() => handleRestaurar(audit.id)}
                           disabled={restaurandoId === audit.id}
-                          className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className={`flex items-center gap-1 px-3 py-1.5 text-sm ${getPrimaryButtonClass(primaryColor)} text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
                           title="Restaurar esta versão"
                         >
                           <Icons.RotateCcw className="w-4 h-4" />

@@ -51,7 +51,8 @@ import {
   FaWifi,           // Wifi
   FaCheckCircle,    // CheckCircle
   FaExclamationCircle, // AlertCircle / XCircle
-  FaSort            // ArrowUpDown (alternativa)
+  FaSort,           // ArrowUpDown (alternativa)
+  FaShieldAlt       // Shield
 } from 'react-icons/fa';
 
 // Font Awesome 6 (para ícones mais recentes)
@@ -143,6 +144,7 @@ export const Icons = {
   XCircle: FaExclamationCircle,
   ArrowUpDown: FaSort,
   FilePenLine: FaEdit, // Usando Edit como alternativa
+  Shield: FaShieldAlt,
 };
 
 // Tipo para garantir type-safety

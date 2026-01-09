@@ -17,6 +17,10 @@ import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import { ToastContainer } from './components/Toast';
 import Notificacoes from './routes/Notificacoes';
 import Matrizes from './routes/Matrizes';
+import Permissoes from './routes/Permissoes';
+import Perfil from './routes/Perfil';
+import { useInactivityTimeout } from './hooks/useInactivityTimeout';
+import TopBar from './components/TopBar';
 
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -26,6 +30,9 @@ export default function App() {
     }
     return true;
   });
+
+  // Hook para detectar inatividade e fazer logout automático
+  useInactivityTimeout();
 
   useEffect(() => {
     const handleSidebarToggle = (e: Event) => {
@@ -53,8 +60,10 @@ export default function App() {
             <ProtectedRoute>
               <div className="flex min-h-screen">
                 <Sidebar />
-                <main className={`flex-1 min-h-screen transition-all duration-300 pt-10 lg:pt-0 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
-                <Routes>
+                <div className={`flex-1 min-h-screen transition-all duration-300 flex flex-col ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+                  <TopBar />
+                  <main className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-950">
+                    <Routes>
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/planilha" element={<Home />} />
@@ -62,10 +71,13 @@ export default function App() {
                     <Route path="/notificacoes" element={<Notificacoes />} />
                   <Route path="/desmama/:nascimentoId" element={<CadastroDesmama />} />
                   <Route path="/fazendas" element={<ListaFazendas />} />
-                  <Route path="/importar-planilha" element={<ImportarPlanilha />} />
+                    <Route path="/importar-planilha" element={<ImportarPlanilha />} />
                     <Route path="/usuarios" element={<ProtectedRoute requiredRole="admin"><ListaUsuarios /></ProtectedRoute>} />
-                </Routes>
-              </main>
+                    <Route path="/permissoes" element={<ProtectedRoute requiredRole="admin"><Permissoes /></ProtectedRoute>} />
+                    <Route path="/perfil" element={<Perfil />} />
+                    </Routes>
+                  </main>
+                </div>
               </div>
             </ProtectedRoute>
           }

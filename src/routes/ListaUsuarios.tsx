@@ -6,6 +6,9 @@ import { deleteUser, updateUser } from '../utils/auth';
 import { showToast } from '../utils/toast';
 import { Icons } from '../utils/iconMapping';
 import { useAuth } from '../hooks/useAuth';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
 import UsuarioModal from '../components/UsuarioModal';
 import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -19,13 +22,15 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 const ROLE_COLORS: Record<UserRole, string> = {
   admin: 'bg-red-100 text-red-800',
-  gerente: 'bg-blue-100 text-blue-800',
+  gerente: 'bg-green-100 text-green-800',
   peao: 'bg-green-100 text-green-800',
   visitante: 'bg-gray-100 text-gray-800'
 };
 
 export default function ListaUsuarios() {
   const { user: currentUser } = useAuth();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), []) || [];
   const fazendas = useLiveQuery(() => db.fazendas.toArray(), []) || [];
 
@@ -118,22 +123,6 @@ export default function ListaUsuarios() {
 
   return (
     <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-6">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-semibold">Usuários</h2>
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">
-            Gerenciar usuários do sistema
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleNovoUsuario}
-          className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
-        >
-          <Icons.Plus className="w-4 h-4" />
-          Novo Usuário
-        </button>
-      </div>
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
           {usuarios.length === 0 ? (
             <div className="p-8 text-center text-gray-500 dark:text-slate-400 text-sm">
@@ -189,7 +178,7 @@ export default function ListaUsuarios() {
                             <button
                               type="button"
                               onClick={() => handleEditarUsuario(usuario)}
-                              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                              className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors"
                               title="Editar usuário"
                             >
                               <Icons.Edit className="w-4 h-4" />
@@ -287,7 +276,7 @@ export default function ListaUsuarios() {
                         <button
                           type="button"
                           onClick={() => handleEditarUsuario(usuario)}
-                          className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full transition-colors"
+                          className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-full transition-colors"
                           title="Editar usuário"
                         >
                           <Icons.Edit className="w-4 h-4" />
@@ -357,6 +346,17 @@ export default function ListaUsuarios() {
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
       />
+
+      <button
+        type="button"
+        onClick={handleNovoUsuario}
+        className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3 py-3 ${getPrimaryButtonClass(primaryColor)} text-white rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg hover:shadow-xl hover:scale-105`}
+        title="Novo Usuário"
+        aria-label="Novo Usuário"
+      >
+        <Icons.Plus className="w-5 h-5" />
+        <span className="text-sm font-medium hidden sm:inline">Novo Usuário</span>
+      </button>
     </div>
   );
 }

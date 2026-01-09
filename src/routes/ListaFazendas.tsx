@@ -7,8 +7,13 @@ import FazendaModal from '../components/FazendaModal';
 import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { Fazenda } from '../db/models';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
 
 export default function ListaFazendas() {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
   const fazendas = useMemo(() => {
     return fazendasRaw.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
@@ -125,19 +130,7 @@ export default function ListaFazendas() {
   };
 
   return (
-    <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold">Fazendas</h2>
-        <button
-          type="button"
-          onClick={handleNovaFazenda}
-          className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
-        >
-          <Icons.Plus className="w-4 h-4" />
-          Nova Fazenda
-        </button>
-      </div>
-
+    <div className="p-4 sm:p-4 text-gray-900 dark:text-slate-100">
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
         {fazendas.length === 0 ? (
           <div className="p-8 text-center text-gray-500 dark:text-slate-400 text-sm">
@@ -145,7 +138,7 @@ export default function ListaFazendas() {
             <button
               type="button"
               onClick={handleNovaFazenda}
-              className="ml-2 text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 underline"
+              className="ml-2 text-green-600 hover:text-green-800 dark:hover:text-green-400 underline"
             >
               Cadastrar primeira fazenda
             </button>
@@ -194,7 +187,7 @@ export default function ListaFazendas() {
                     <div className="flex items-center gap-2">
                       <button
                             onClick={() => handleEditarFazenda(fazenda)}
-                            className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-900 transition-colors"
+                            className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-900 transition-colors"
                             title="Editar fazenda"
                           >
                             <Icons.Edit className="w-5 h-5" />
@@ -252,7 +245,7 @@ export default function ListaFazendas() {
                     <div className="flex flex-shrink-0 gap-2">
                       <button
                         onClick={() => handleEditarFazenda(fazenda)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-900 dark:hover:bg-blue-900/30 rounded-full transition-colors"
+                        className="p-1.5 text-green-600 hover:bg-green-50 hover:text-green-900 dark:hover:bg-green-900/30 rounded-full transition-colors"
                         title="Editar fazenda"
                       >
                         <Icons.Edit className="w-5 h-5" />
@@ -319,6 +312,16 @@ export default function ListaFazendas() {
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
       />
+      <button
+          type="button"
+          onClick={handleNovaFazenda}
+        className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3 py-3 ${getPrimaryButtonClass(primaryColor)} text-white rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg hover:shadow-xl hover:scale-105`}
+        title="Nova Fazenda"
+        aria-label="Nova Fazenda"
+      >
+        <Icons.Plus className="w-5 h-5" />
+        <span className="text-sm font-medium hidden sm:inline">Nova Fazenda</span>
+      </button>
     </div>
   );
 }

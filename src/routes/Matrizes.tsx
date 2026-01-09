@@ -8,6 +8,9 @@ import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
 import ArvoreGenealogica from '../components/ArvoreGenealogica';
 import { Matriz } from '../db/models';
 import { ComboboxOption } from '../components/Combobox';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses, getTitleTextClass, getPrimaryActionButtonClass, getPrimaryActionButtonLightClass, getPrimaryBgClass } from '../utils/themeHelpers';
 
 type SortField = 'matriz' | 'fazenda' | 'partos' | 'vivos' | 'mortos' | 'ultimoParto' | 'mediaPeso';
 
@@ -26,6 +29,8 @@ interface MatrizResumo {
 
 export default function Matrizes() {
   const navigate = useNavigate();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const nascimentosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
   const fazendas = useLiveQuery(() => db.fazendas.toArray(), []) || [];
@@ -370,35 +375,9 @@ export default function Matrizes() {
   };
 
   return (
-    <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-semibold">Matrizes</h2>
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">
-            Visão geral de performance por matriz (partos, mortalidade e peso de desmama).
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/planilha')}
-            className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-          >
-            <span>Ir para planilha</span>
-            <Icons.ChevronRight className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleNovaMatriz()}
-            className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-          >
-            <Icons.Plus className="w-4 h-4" />
-            <span>Nova matriz</span>
-          </button>
-        </div>
-      </div>
+    <div className="p-4 sm:p-4 text-gray-900 dark:text-slate-100">
 
-      <div className="mb-4">
+      <div className="mb-4 mt-1.5 flex justify-between items-center">
         <div className="max-w-sm">
           <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
             Buscar por matriz ou fazenda
@@ -408,9 +387,23 @@ export default function Matrizes() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Ex: 123, Fazenda Boa Vista..."
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-md shadow-sm text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-md shadow-sm text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
           />
         </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => handleNovaMatriz()}
+            className={`fixed top-20 right-4 z-40 flex items-center gap-2 px-3 py-3 ${getPrimaryButtonClass(primaryColor)} text-white rounded-full focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-offset-2 transition-all shadow-lg hover:shadow-xl hover:scale-105`}
+            title="Nova matriz"
+            aria-label="Nova matriz"
+          >
+            <Icons.Plus className="w-5 h-5" />
+            <span className="text-sm font-medium hidden sm:inline">Nova matriz</span>
+          </button>
+        </div>
+
       </div>
 
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
@@ -512,7 +505,7 @@ export default function Matrizes() {
                       <td className="px-2 py-2 text-center">
                         {m.totalPartos}
                       </td>
-                      <td className="px-2 py-2 text-center text-green-700">
+                      <td className={`px-2 py-2 text-center ${getTitleTextClass(primaryColor)}`}>
                         {m.vivos}
                       </td>
                       <td className="px-2 py-2 text-center text-red-700">
@@ -534,7 +527,7 @@ export default function Matrizes() {
                               )}&matrizBrinco=${encodeURIComponent(m.matrizId)}`
                             )
                           }
-                          className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
+                          className={`inline-flex items-center justify-center p-1.5 ${getPrimaryActionButtonClass(primaryColor)} rounded-md`}
                           title="Ver na planilha"
                         >
                           <Icons.FileSpreadsheet className="w-4 h-4" />
@@ -567,7 +560,7 @@ export default function Matrizes() {
                                   setArvoreOpen(true);
                                 }
                               }}
-                              className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-md ml-1"
+                              className={`inline-flex items-center justify-center p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded-md ml-1`}
                               title="Ver árvore genealógica"
                             >
                               <Icons.ListTree className="w-4 h-4" />
@@ -621,7 +614,7 @@ export default function Matrizes() {
                             )}&matrizBrinco=${encodeURIComponent(m.matrizId)}`
                           )
                         }
-                        className="inline-flex items-center justify-center p-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md"
+                        className={`inline-flex items-center justify-center p-1.5 ${getPrimaryActionButtonClass(primaryColor)} rounded-md`}
                         title="Ver na planilha"
                       >
                         <Icons.FileSpreadsheet className="w-4 h-4" />
@@ -653,7 +646,7 @@ export default function Matrizes() {
                               setArvoreOpen(true);
                             }
                           }}
-                          className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-md ml-1"
+                          className={`inline-flex items-center justify-center p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded-md ml-1`}
                           title="Ver árvore genealógica"
                         >
                           <Icons.ListTree className="w-4 h-4" />
@@ -661,7 +654,7 @@ export default function Matrizes() {
                       ) : (
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center p-1.5 text-green-600 dark:text-green-400 opacity-50 cursor-not-allowed rounded-md ml-1"
+                          className={`inline-flex items-center justify-center p-1.5 ${getThemeClasses(primaryColor, 'text')} opacity-50 cursor-not-allowed rounded-md ml-1`}
                           title="Cadastre a matriz primeiro para ver a árvore genealógica"
                           disabled
                         >
@@ -676,7 +669,7 @@ export default function Matrizes() {
                       {m.totalPartos}
                     </div>
                     <div>
-                      <span className="font-semibold text-green-700 dark:text-green-400">Vivos: </span>
+                      <span className={`font-semibold ${getTitleTextClass(primaryColor)}`}>Vivos: </span>
                       {m.vivos}
                     </div>
                     <div>
@@ -737,7 +730,7 @@ export default function Matrizes() {
                         onClick={() => setPaginaAtual(paginaNumero)}
                         className={`inline-flex items-center px-2.5 py-1 border text-xs sm:text-sm ${
                           paginaAtual === paginaNumero
-                            ? 'bg-blue-600 text-white border-blue-600'
+                            ? `${getPrimaryBgClass(primaryColor)} text-white ${getThemeClasses(primaryColor, 'border')}`
                             : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-200 border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800'
                         }`}
                       >

@@ -10,6 +10,9 @@ import { UserRole } from '../db/models';
 import Modal from './Modal';
 import Combobox, { ComboboxOption } from './Combobox';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses, getCheckboxClass } from '../utils/themeHelpers';
 
 type Mode = 'create' | 'edit';
 
@@ -55,6 +58,8 @@ export default function UsuarioModal({
   onClose,
   onSaved
 }: UsuarioModalProps) {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
@@ -194,7 +199,7 @@ export default function UsuarioModal({
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Nome *</label>
           <input
             type="text"
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('nome')}
             autoFocus
           />
@@ -207,7 +212,7 @@ export default function UsuarioModal({
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Email *</label>
           <input
             type="email"
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('email')}
           />
           {errors.email && (
@@ -222,7 +227,7 @@ export default function UsuarioModal({
           </label>
           <input
             type="password"
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('senha')}
           />
           {errors.senha && (
@@ -235,7 +240,7 @@ export default function UsuarioModal({
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Confirmar Senha *</label>
             <input
               type="password"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
               {...register('confirmarSenha')}
             />
             {errors.confirmarSenha && (
@@ -275,7 +280,7 @@ export default function UsuarioModal({
           <input
             type="checkbox"
             id="ativo"
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-slate-700 rounded"
+            className={`h-4 w-4 ${getCheckboxClass(primaryColor)}`}
             {...register('ativo')}
           />
           <label htmlFor="ativo" className="ml-2 block text-sm text-gray-700 dark:text-slate-300">
@@ -304,7 +309,7 @@ export default function UsuarioModal({
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+          className={`px-4 py-2 text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50`}
         >
           {loading ? 'Salvando...' : 'Salvar'}
         </button>

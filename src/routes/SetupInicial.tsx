@@ -7,6 +7,9 @@ import { createUser } from '../utils/auth';
 import { Icons } from '../utils/iconMapping';
 import { db } from '../db/dexieDB';
 import { showToast } from '../utils/toast';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getThemeClasses, getPrimaryButtonClass, getPrimaryBgClass } from '../utils/themeHelpers';
 
 const schema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
@@ -22,6 +25,8 @@ type FormData = z.infer<typeof schema>;
 
 export default function SetupInicial() {
   const navigate = useNavigate();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [loading, setLoading] = useState(false);
   const [verificando, setVerificando] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
@@ -33,29 +38,63 @@ export default function SetupInicial() {
         // Primeiro, verificar se há usuários locais
         let usuarios = await db.usuarios.toArray();
         
-        // Se não houver usuários locais, tentar sincronizar do Supabase
-        if (usuarios.length === 0) {
-          setSincronizando(true);
-          try {
-            // Fazer pull apenas de usuários do Supabase (mais rápido)
-            const { pullUsuarios } = await import('../api/syncService');
-            await pullUsuarios();
-            // Verificar novamente após sincronização
-            usuarios = await db.usuarios.toArray();
-          } catch (syncError) {
-            console.error('Erro ao sincronizar usuários:', syncError);
-            // Continuar mesmo se a sincronização falhar (pode estar offline)
-          } finally {
-            setSincronizando(false);
-          }
+        // Sempre sincronizar usuários do Supabase primeiro para garantir dados atualizados
+        setSincronizando(true);
+        try {
+          // Fazer pull apenas de usuários do Supabase (mais rápido)
+          const { pullUsuarios } = await import('../api/syncService');
+          await pullUsuarios();
+          // Verificar novamente após sincronização
+          usuarios = await db.usuarios.toArray();
+        } catch (syncError) {
+          console.error('Erro ao sincronizar usuários:', syncError);
+          // Continuar mesmo se a sincronização falhar (pode estar offline)
+        } finally {
+          setSincronizando(false);
         }
         
+        // Verificar se há pelo menos um usuário ADMIN
+        // Log para debug
+        console.log('[SetupInicial] Total de usuários encontrados:', usuarios.length);
         if (usuarios.length > 0) {
+          console.log('[SetupInicial] Detalhes dos usuários:', usuarios.map(u => ({ 
+            id: u.id, 
+            nome: u.nome, 
+            email: u.email, 
+            role: u.role, 
+            roleType: typeof u.role,
+            ativo: u.ativo,
+            ativoType: typeof u.ativo
+          })));
+        }
+        
+        // Verificar se há admin (ativo pode ser undefined/null, então verificar explicitamente)
+        // Normalizar role para lowercase para comparação
+        const temAdmin = usuarios.some(u => {
+          const roleNormalizado = String(u.role || '').toLowerCase().trim();
+          const isAdmin = roleNormalizado === 'admin';
+          // Se ativo não está definido ou é null, assume que está ativo (comportamento padrão)
+          const isAtivo = u.ativo !== false; // true, undefined, null = ativo
+          
+          const resultado = isAdmin && isAtivo;
+          if (isAdmin) {
+            console.log(`[SetupInicial] Usuário admin encontrado: ${u.nome} (${u.email}), role: "${u.role}", ativo: ${u.ativo}, resultado: ${resultado}`);
+          }
+          return resultado;
+        });
+        
+        console.log('[SetupInicial] Tem admin?', temAdmin);
+        
+        if (temAdmin) {
+          console.log('[SetupInicial] Admin encontrado! Redirecionando para login...');
           setTemUsuarios(true);
-          // Se já tem usuários, redirecionar para login
-          setTimeout(() => {
-            navigate('/login');
-          }, 2000);
+          // Se já tem admin, redirecionar para login imediatamente (sem setTimeout)
+          // Usar replace para não deixar histórico
+          navigate('/login', { replace: true });
+          return; // Sair da função para evitar processamento adicional
+        } else {
+          console.log('[SetupInicial] Nenhum admin encontrado. Mostrando tela de setup.');
+          setTemUsuarios(false);
         }
       } catch (error) {
         console.error('Erro ao verificar usuários:', error);
@@ -98,14 +137,14 @@ export default function SetupInicial() {
 
   if (verificando) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+      <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} via-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-900`}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className={`w-12 h-12 border-4 ${getThemeClasses(primaryColor, 'border')} border-t-transparent rounded-full animate-spin mx-auto mb-4`}></div>
           <div className="text-gray-500 dark:text-slate-400">
             {sincronizando ? 'Sincronizando usuários...' : 'Verificando...'}
           </div>
           {sincronizando && (
-            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600">
+            <div className={`mt-4 flex items-center justify-center gap-2 text-sm ${getThemeClasses(primaryColor, 'text')}`}>
               <Icons.RefreshCw className="w-4 h-4 animate-spin" />
               <span>Buscando usuários do servidor</span>
             </div>
@@ -117,10 +156,10 @@ export default function SetupInicial() {
 
   if (temUsuarios) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+      <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} via-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-900`}>
         <div className="text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icons.LogIn className="w-8 h-8 text-green-600" />
+          <div className={`w-16 h-16 ${getThemeClasses(primaryColor, 'bg-light')} rounded-full flex items-center justify-center mx-auto mb-4`}>
+            <Icons.LogIn className={`w-8 h-8 ${getThemeClasses(primaryColor, 'text')}`} />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">Sistema já configurado</h2>
           <p className="text-gray-600 dark:text-slate-400 mb-4">Redirecionando para login...</p>
@@ -149,7 +188,7 @@ export default function SetupInicial() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Nome *</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`}
                 placeholder="Seu nome completo"
                 {...register('nome')}
               />
@@ -162,7 +201,7 @@ export default function SetupInicial() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Email *</label>
               <input
                 type="email"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`}
                 placeholder="seu@email.com"
                 {...register('email')}
               />
@@ -175,7 +214,7 @@ export default function SetupInicial() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Senha *</label>
               <input
                 type="password"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`}
                 placeholder="Mínimo 6 caracteres"
                 {...register('senha')}
               />
@@ -188,7 +227,7 @@ export default function SetupInicial() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Confirmar Senha *</label>
               <input
                 type="password"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`}
                 placeholder="Digite a senha novamente"
                 {...register('confirmarSenha')}
               />
@@ -197,8 +236,8 @@ export default function SetupInicial() {
               )}
             </div>
 
-            <div className="p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
-              <p className="text-blue-800 text-sm">
+            <div className={`p-3 ${getThemeClasses(primaryColor, 'bg-light')} border-l-4 ${getThemeClasses(primaryColor, 'border')} rounded-md`}>
+              <p className={`${getThemeClasses(primaryColor, 'text')} text-sm`}>
                 <strong>Nota:</strong> Este será o primeiro usuário do sistema e terá permissões de administrador.
               </p>
             </div>
@@ -206,7 +245,7 @@ export default function SetupInicial() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className={`w-full px-4 py-3 ${getPrimaryButtonClass(primaryColor)} text-white font-semibold rounded-lg focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-offset-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
             >
               {loading ? (
                 <>

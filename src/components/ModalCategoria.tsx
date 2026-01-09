@@ -4,6 +4,9 @@ import { uuid } from '../utils/uuid';
 import { showToast } from '../utils/toast';
 import { registrarAudit } from '../utils/audit';
 import { useAuth } from '../hooks/useAuth';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
 
 interface ModalCategoriaProps {
   open: boolean;
@@ -13,6 +16,8 @@ interface ModalCategoriaProps {
 
 export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }: ModalCategoriaProps) {
   const { user } = useAuth();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [nomeCategoria, setNomeCategoria] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -59,7 +64,7 @@ export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-4 sm:p-6">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
@@ -74,7 +79,7 @@ export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }:
                 type="text"
                 value={nomeCategoria}
                 onChange={(e) => setNomeCategoria(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                 placeholder="Ex: Novilha, Vaca, Touro..."
                 autoFocus
                 disabled={salvando}
@@ -84,7 +89,7 @@ export default function ModalCategoria({ open, onClose, onCategoriaCadastrada }:
               <button
                 type="submit"
                 disabled={salvando || !nomeCategoria.trim()}
-                className="flex-1 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`flex-1 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {salvando ? 'Salvando...' : 'Salvar'}
               </button>

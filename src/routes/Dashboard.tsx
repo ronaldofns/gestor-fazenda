@@ -5,6 +5,9 @@ import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
 import { useAlertSettings } from '../hooks/useAlertSettings';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getThemeClasses, getPrimaryBgClass } from '../utils/themeHelpers';
 import {
   LineChart,
   Line,
@@ -21,6 +24,8 @@ import {
 export default function Dashboard() {
   useSync();
   const { alertSettings } = useAlertSettings();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   
   // Detectar tema atual para ajustar cores dos gráficos
   const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
@@ -342,10 +347,6 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
       <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-        <div className="mb-6">
-          <h2 className="text-xl sm:text-2xl font-semibold">Dashboard</h2>
-          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Visão geral do seu rebanho</p>
-        </div>
 
         {/* Alertas */}
 
@@ -436,10 +437,10 @@ export default function Dashboard() {
 
         {/* Cards de Métricas Principais */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
+          <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 ${getThemeClasses(primaryColor, 'border')} hover:shadow-lg transition-shadow`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Total Nascimentos</h3>
-              <Icons.TrendingUp className="w-6 h-6 text-blue-500" />
+              <Icons.TrendingUp className={`w-6 h-6 ${getThemeClasses(primaryColor, 'text')}`} />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.totalNascimentos}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
@@ -460,10 +461,10 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
+          <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 ${getThemeClasses(primaryColor, 'border')} hover:shadow-lg transition-shadow`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Novilhas</h3>
-              <Icons.Novilha className="w-6 h-6 text-green-500" />
+              <Icons.Novilha className={`w-6 h-6 ${getThemeClasses(primaryColor, 'text')}`} />
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.novilhas}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
@@ -509,7 +510,7 @@ export default function Dashboard() {
                   <span className="text-sm text-gray-600 dark:text-slate-300">Fêmeas</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Icons.Mars className="w-5 h-5 text-blue-500" />
+                  <Icons.Mars className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')}`} />
                   <span className="text-sm text-gray-600 dark:text-slate-300">Machos</span>
                 </div>
               </div>
@@ -534,7 +535,7 @@ export default function Dashboard() {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div 
-                    className="bg-blue-500 h-3 rounded-full transition-all duration-500"
+                    className="bg-green-500 h-3 rounded-full transition-all duration-500"
                     style={{ width: `${metricas.totalNascimentos > 0 ? (metricas.machos / metricas.totalNascimentos) * 100 : 0}%` }}
                   />
                 </div>
@@ -553,7 +554,7 @@ export default function Dashboard() {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
+                      className={`bg-gradient-to-r ${getThemeClasses(primaryColor, 'gradient-to')} h-2 rounded-full transition-all duration-500`}
                       style={{ width: `${(item.total / maxNascimentosMes) * 100}%` }}
                     />
                   </div>

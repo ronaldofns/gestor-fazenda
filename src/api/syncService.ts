@@ -585,6 +585,107 @@ export async function pushPending() {
       stack: err?.stack
     });
   }
+
+  // Sincronizar configurações do app
+  try {
+    if (db.appSettings) {
+      const todasSettings = await db.appSettings.toArray();
+      const pendSettings = todasSettings.filter(s => s.synced === false);
+      
+      for (const s of pendSettings) {
+        try {
+          // Sempre usar timestamp atual para garantir que seja mais recente
+          const now = new Date().toISOString();
+          const { data, error } = await supabase
+            .from('app_settings_online')
+            .upsert(
+              {
+                uuid: s.id,
+                timeout_inatividade: s.timeoutInatividade,
+                created_at: s.createdAt || now,
+                updated_at: now // Sempre atualizar para garantir que seja mais recente
+              },
+              { onConflict: 'uuid' }
+            )
+            .select('id, uuid, updated_at');
+
+          if (!error && data && data.length) {
+            // Atualizar com o updated_at retornado pelo servidor
+            await db.appSettings.update(s.id, { 
+              synced: true, 
+              remoteId: data[0].id,
+              updatedAt: data[0].updated_at || now
+            });
+          } else if (error) {
+            console.error('Erro ao sincronizar configurações do app:', {
+              error: error,
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+              settingsId: s.id
+            });
+          }
+        } catch (err: any) {
+          console.error('Erro ao processar configurações do app:', {
+            error: err,
+            message: err?.message,
+            stack: err?.stack
+          });
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('Erro geral ao fazer push de configurações do app:', {
+      error: err,
+      message: err?.message,
+      stack: err?.stack
+    });
+  }
+
+  // Sincronizar permissões por role
+  try {
+    if (db.rolePermissions) {
+      const todasPermissoes = await db.rolePermissions.toArray();
+      const pendPermissoes = todasPermissoes.filter((p) => p.synced === false);
+
+      for (const p of pendPermissoes) {
+        try {
+          const { data, error } = await supabase
+            .from('role_permissions_online')
+            .upsert(
+              {
+                uuid: p.id,
+                role: p.role,
+                permission: p.permission,
+                granted: p.granted,
+                created_at: p.createdAt,
+                updated_at: p.updatedAt
+              },
+              { onConflict: 'role,permission' }
+            )
+            .select('id, uuid');
+
+          if (!error && data && data.length) {
+            await db.rolePermissions.update(p.id, { synced: true, remoteId: data[0].id });
+          } else if (error) {
+            console.error('Erro ao sincronizar permissão:', {
+              error,
+              message: error.message,
+              code: error.code,
+              permissionId: p.id,
+              role: p.role,
+              permission: p.permission
+            });
+          }
+        } catch (err) {
+          console.error('Erro ao processar permissão:', err, p.id);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro geral ao fazer push de permissões:', err);
+  }
 }
 
 export async function pullUpdates() {
@@ -1408,6 +1509,149 @@ export async function pullUpdates() {
   } catch (err) {
     console.error('Erro ao processar pull de configurações de alerta:', err);
     // Não lançar erro - configurações não são críticas para funcionamento
+  }
+
+  // Buscar configurações do app
+  try {
+    if (db.appSettings) {
+      const { data: servSettings, error: errorSettings } = await supabase
+        .from('app_settings_online')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (errorSettings) {
+        console.error('Erro ao buscar configurações do app do servidor:', {
+          error: errorSettings,
+          message: errorSettings.message,
+          code: errorSettings.code,
+          details: errorSettings.details,
+          hint: errorSettings.hint
+        });
+      } else if (servSettings && servSettings.length > 0) {
+        const s = servSettings[0];
+        const local = await db.appSettings.get('app-settings-global');
+        
+        if (!local) {
+          // Criar local se não existir
+          await db.appSettings.add({
+            id: 'app-settings-global',
+            timeoutInatividade: s.timeout_inatividade,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+          
+          // Disparar evento para atualizar o hook
+          if (typeof window !== 'undefined') {
+            const settings = {
+              timeoutInatividade: s.timeout_inatividade
+            };
+            window.dispatchEvent(new CustomEvent('appSettingsUpdated', { detail: settings }));
+          }
+        } else {
+          // Verificar se os valores são diferentes
+          const timeoutDiferente = Number(local.timeoutInatividade) !== Number(s.timeout_inatividade);
+          
+          const servUpdated = new Date(s.updated_at).getTime();
+          const localUpdated = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+          
+          // SEMPRE atualizar se valores são diferentes
+          // Também atualizar se servidor é mais recente (com margem de 1 segundo)
+          // OU se não está sincronizado OU se remoteId mudou
+          const margemTimestamp = 1000; // 1 segundo de margem
+          const deveAtualizar = timeoutDiferente || 
+                                (servUpdated > localUpdated + margemTimestamp) || 
+                                !local.synced || 
+                                local.remoteId !== s.id;
+          
+          if (deveAtualizar) {
+            await db.appSettings.update('app-settings-global', {
+              timeoutInatividade: s.timeout_inatividade,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+            
+            // Disparar evento para atualizar o hook
+            if (typeof window !== 'undefined') {
+              const settings = {
+                timeoutInatividade: s.timeout_inatividade
+              };
+              window.dispatchEvent(new CustomEvent('appSettingsUpdated', { detail: settings }));
+            }
+          } else if (local.synced && local.remoteId !== s.id) {
+            // Atualizar apenas remoteId se mudou
+            await db.appSettings.update('app-settings-global', { remoteId: s.id });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de configurações do app:', err);
+    // Não lançar erro - configurações não são críticas para funcionamento
+  }
+
+  // Buscar permissões por role
+  try {
+    const { data: servPermissoes, error: errorPermissoes } = await supabase
+      .from('role_permissions_online')
+      .select('*')
+      .order('role, permission');
+
+    if (errorPermissoes) {
+      console.error('Erro ao buscar permissões do servidor:', {
+        error: errorPermissoes,
+        message: errorPermissoes.message,
+        code: errorPermissoes.code
+      });
+    } else if (servPermissoes && servPermissoes.length > 0) {
+      const servUuids = new Set(servPermissoes.map(p => p.uuid));
+
+      // Excluir localmente as que não existem mais no servidor (apenas as sincronizadas)
+      const todasPermissoesLocais = await db.rolePermissions.toArray();
+      const permissoesSincronizadas = todasPermissoesLocais.filter(p => p.remoteId != null);
+
+      for (const local of permissoesSincronizadas) {
+        if (!servUuids.has(local.id)) {
+          await db.rolePermissions.delete(local.id);
+        }
+      }
+
+      // Adicionar/atualizar permissões do servidor
+      for (const s of servPermissoes) {
+        const local = await db.rolePermissions.get(s.uuid);
+        if (!local) {
+          await db.rolePermissions.add({
+            id: s.uuid,
+            role: s.role,
+            permission: s.permission,
+            granted: s.granted,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+        } else {
+          // Atualizar se a versão do servidor é mais recente
+          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
+            await db.rolePermissions.update(local.id, {
+              granted: s.granted,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } else if (local.synced && local.remoteId !== s.id) {
+            // Atualizar apenas remoteId se mudou
+            await db.rolePermissions.update(local.id, { remoteId: s.id });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de permissões:', err);
+    // Não lançar erro - permissões não são críticas para funcionamento básico
   }
 }
 

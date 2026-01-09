@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo, useTransition } from 'react';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses, getComboboxOptionHoverClass, getComboboxOptionHoverStateClass } from '../utils/themeHelpers';
 
 export interface ComboboxOption {
   label: string;
@@ -37,6 +40,8 @@ function ComboboxComponent({
   onToggleFavorito
 }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [inputValue, setInputValue] = useState(value);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -251,7 +256,7 @@ function ComboboxComponent({
           onBlur={handleBlur}
           disabled={disabled}
           aria-busy={isPending}
-          className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
+          className={`w-full px-3 py-2 pr-10 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed`}
           placeholder={placeholder}
         />
         {/* Seta indicadora de dropdown - clicável */}
@@ -282,7 +287,7 @@ function ComboboxComponent({
             e.preventDefault();
           }}
           disabled={disabled}
-          className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer rounded-r-md transition-colors disabled:cursor-not-allowed disabled:hover:bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+          className={`absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer rounded-r-md transition-colors disabled:cursor-not-allowed disabled:hover:bg-transparent focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-inset`}
           aria-label={isOpen ? 'Fechar lista' : 'Abrir lista'}
           aria-expanded={isOpen}
           tabIndex={-1}
@@ -302,8 +307,8 @@ function ComboboxComponent({
                   key={`${option.value}-${index}`}
                   className={`flex items-center group ${
                     isHighlighted 
-                      ? 'bg-blue-50 dark:bg-blue-900/40' 
-                      : 'hover:bg-blue-50 dark:hover:bg-blue-900/40'
+                      ? getComboboxOptionHoverClass(primaryColor)
+                      : getComboboxOptionHoverStateClass(primaryColor)
                   }`}
                 >
                   <button
@@ -313,7 +318,7 @@ function ComboboxComponent({
                     type="button"
                     onClick={() => handleSelect(option)}
                     className={`flex-1 text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none transition-colors ${
-                      isHighlighted ? 'bg-blue-50 dark:bg-blue-900/40' : ''
+                      isHighlighted ? getComboboxOptionHoverClass(primaryColor) : ''
                     }`}
                     onMouseEnter={() => setHighlightedIndex(index)}
                   >
@@ -343,7 +348,7 @@ function ComboboxComponent({
           type="button"
           onClick={onAddNew}
           disabled={disabled}
-          className="px-3 py-2 text-sm bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`px-3 py-2 text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed`}
           title={addNewLabel}
         >
           <Icons.Plus className="w-5 h-5" />

@@ -4,8 +4,12 @@ import { Icons } from '../utils/iconMapping';
 import SyncStatus from './SyncStatus';
 import useSync from '../hooks/useSync';
 import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 import { showToast } from '../utils/toast';
 import { AlertSettings, useAlertSettings } from '../hooks/useAlertSettings';
+import { AppSettings, useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getThemeClasses, getTitleTextClass, getPrimaryButtonClass, getThemeToggleButtonClass, getSeparatorBorderClass } from '../utils/themeHelpers';
 import { useNotifications } from '../hooks/useNotifications';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import Modal from './Modal';
@@ -35,6 +39,7 @@ export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, isAdmin } = useAuth();
+  const { hasPermission } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   
@@ -75,6 +80,12 @@ export default function Sidebar() {
     saveSettings,
     resetSettings
   } = useAlertSettings();
+  const {
+    draftSettings: draftAppSettings,
+    setDraftSettings: setDraftAppSettings,
+    saveSettings: saveAppSettings,
+    resetSettings: resetAppSettings
+  } = useAppSettings();
   const notificacoes = useNotifications();
   const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
   useKeyboardShortcuts();
@@ -140,13 +151,125 @@ export default function Sidebar() {
     { path: '/planilha', label: 'Nascimento/Desmama', icon: Icons.FileSpreadsheet },
     { path: '/matrizes', label: 'Matrizes', icon: Icons.ListTree },
     { path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 },
-    ...(isAdmin() ? [{ path: '/importar-planilha', label: 'Importar Planilha', icon: Icons.Upload }] : []),
-    ...(isAdmin() ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),
+    ...(hasPermission('importar_planilha') ? [{ path: '/importar-planilha', label: 'Importar Planilha', icon: Icons.Upload }] : []),
+    ...(hasPermission('gerenciar_usuarios') ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),
+    ...(isAdmin() ? [{ path: '/permissoes', label: 'Permissões', icon: Icons.Shield }] : []),
   ];
 
       const isActive = (path: string) => {
         return location.pathname === path || location.pathname.startsWith(path + '/');
       };
+
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+
+  // Helper para obter classes de gradiente do header
+  const getHeaderGradient = () => {
+    const gradients: Record<ColorPaletteKey, string> = {
+      green: 'from-green-50 to-emerald-50 dark:from-slate-800 dark:to-slate-900',
+      blue: 'from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900',
+      emerald: 'from-emerald-50 to-teal-50 dark:from-slate-800 dark:to-slate-900',
+      teal: 'from-teal-50 to-cyan-50 dark:from-slate-800 dark:to-slate-900',
+      indigo: 'from-indigo-50 to-blue-50 dark:from-slate-800 dark:to-slate-900',
+      purple: 'from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-900',
+      gray: 'from-gray-50 to-gray-100 dark:from-slate-800 dark:to-slate-900',
+    };
+    return gradients[primaryColor] || gradients.green;
+  };
+
+  // Helper para obter classes de item ativo do menu
+  const getActiveMenuClasses = () => {
+    const classes: Record<ColorPaletteKey, { bg: string; text: string; border: string; icon: string }> = {
+      green: {
+        bg: 'bg-green-100 dark:bg-green-500/50',
+        text: 'text-green-700 dark:text-green-300',
+        border: 'border-green-600 dark:border-green-400',
+        icon: 'text-green-600 dark:text-green-400',
+      },
+      blue: {
+        bg: 'bg-blue-100 dark:bg-blue-500/50',
+        text: 'text-blue-700 dark:text-blue-300',
+        border: 'border-blue-600 dark:border-blue-400',
+        icon: 'text-blue-600 dark:text-blue-400',
+      },
+      emerald: {
+        bg: 'bg-emerald-100 dark:bg-emerald-500/50',
+        text: 'text-emerald-700 dark:text-emerald-300',
+        border: 'border-emerald-600 dark:border-emerald-400',
+        icon: 'text-emerald-600 dark:text-emerald-400',
+      },
+      teal: {
+        bg: 'bg-teal-100 dark:bg-teal-500/50',
+        text: 'text-teal-700 dark:text-teal-300',
+        border: 'border-teal-600 dark:border-teal-400',
+        icon: 'text-teal-600 dark:text-teal-400',
+      },
+      indigo: {
+        bg: 'bg-indigo-100 dark:bg-indigo-500/50',
+        text: 'text-indigo-700 dark:text-indigo-300',
+        border: 'border-indigo-600 dark:border-indigo-400',
+        icon: 'text-indigo-600 dark:text-indigo-400',
+      },
+      purple: {
+        bg: 'bg-purple-100 dark:bg-purple-500/50',
+        text: 'text-purple-700 dark:text-purple-300',
+        border: 'border-purple-600 dark:border-purple-400',
+        icon: 'text-purple-600 dark:text-purple-400',
+      },
+      gray: {
+        bg: 'bg-gray-100 dark:bg-gray-500/50',
+        text: 'text-gray-700 dark:text-gray-300',
+        border: 'border-gray-600 dark:border-gray-400',
+        icon: 'text-gray-600 dark:text-gray-400',
+      },
+    };
+    return classes[primaryColor] || classes.green;
+  };
+
+  // Helper para obter classes de item inativo do menu
+  const getInactiveMenuClasses = () => {
+    const classes: Record<ColorPaletteKey, { text: string; hover: string; icon: string }> = {
+      green: {
+        text: 'text-green-700 dark:text-green-300',
+        hover: 'hover:bg-green-100 hover:text-green-900 dark:hover:bg-green-500/50 dark:hover:text-green-200',
+        icon: 'text-green-500 dark:text-green-400 group-hover:text-green-700 dark:group-hover:text-green-200',
+      },
+      blue: {
+        text: 'text-blue-700 dark:text-blue-300',
+        hover: 'hover:bg-blue-100 hover:text-blue-900 dark:hover:bg-blue-500/50 dark:hover:text-blue-200',
+        icon: 'text-blue-500 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-200',
+      },
+      emerald: {
+        text: 'text-emerald-700 dark:text-emerald-300',
+        hover: 'hover:bg-emerald-100 hover:text-emerald-900 dark:hover:bg-emerald-500/50 dark:hover:text-emerald-200',
+        icon: 'text-emerald-500 dark:text-emerald-400 group-hover:text-emerald-700 dark:group-hover:text-emerald-200',
+      },
+      teal: {
+        text: 'text-teal-700 dark:text-teal-300',
+        hover: 'hover:bg-teal-100 hover:text-teal-900 dark:hover:bg-teal-500/50 dark:hover:text-teal-200',
+        icon: 'text-teal-500 dark:text-teal-400 group-hover:text-teal-700 dark:group-hover:text-teal-200',
+      },
+      indigo: {
+        text: 'text-indigo-700 dark:text-indigo-300',
+        hover: 'hover:bg-indigo-100 hover:text-indigo-900 dark:hover:bg-indigo-500/50 dark:hover:text-indigo-200',
+        icon: 'text-indigo-500 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-200',
+      },
+      purple: {
+        text: 'text-purple-700 dark:text-purple-300',
+        hover: 'hover:bg-purple-100 hover:text-purple-900 dark:hover:bg-purple-500/50 dark:hover:text-purple-200',
+        icon: 'text-purple-500 dark:text-purple-400 group-hover:text-purple-700 dark:group-hover:text-purple-200',
+      },
+      gray: {
+        text: 'text-gray-700 dark:text-gray-300',
+        hover: 'hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-500/50 dark:hover:text-gray-200',
+        icon: 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200',
+      },
+    };
+    return classes[primaryColor] || classes.green;
+  };
+
+  const activeClasses = getActiveMenuClasses();
+  const inactiveClasses = getInactiveMenuClasses();
 
   return (
     <>
@@ -159,13 +282,15 @@ export default function Sidebar() {
             setSidebarCollapsed(false);
           }
         }}
-        className="fixed top-3 left-3 z-50 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden"
+        className={`fixed top-3 left-3 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden ${
+          sidebarOpen ? 'z-[60]' : 'z-50'
+        }`}
         aria-label="Toggle sidebar"
       >
         {sidebarOpen ? (
-          <Icons.X className="w-6 h-6 text-gray-600 dark:text-slate-300" />
+          <Icons.X className="w-4  h-4 text-gray-600 dark:text-slate-300" />
         ) : (
-          <Icons.Menu className="w-6 h-6 text-gray-600 dark:text-slate-300" />
+          <Icons.Menu className="w-4 h-4 text-gray-600 dark:text-slate-300" />
         )}
       </button>
 
@@ -180,16 +305,16 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm z-40
+          fixed top-0 left-0 h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm
           transform transition-all duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full'}
-          lg:translate-x-0
+          ${sidebarOpen ? 'translate-x-0 w-64 z-50' : '-translate-x-full z-40'}
+          lg:translate-x-0 lg:z-40
           ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
         `}
       >
         <div className="flex flex-col h-full">
           {/* Header Completo e Profissional */}
-          <div className={`border-b border-gray-200 dark:border-slate-700 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 relative ${sidebarCollapsed && !sidebarOpen ? 'p-3' : 'p-4'}`}>
+          <div className={`border-b border-gray-200 dark:border-slate-700 bg-gradient-to-br ${getHeaderGradient()} relative ${sidebarCollapsed && !sidebarOpen ? 'p-3' : 'p-4'}`}>
             {sidebarCollapsed && !sidebarOpen ? (
               <div className="flex flex-col items-center gap-3">
                 <button
@@ -209,7 +334,16 @@ export default function Sidebar() {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
                       if (target.parentElement) {
-                        target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600"><svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>';
+                        const colorMap: Record<ColorPaletteKey, string> = {
+                          green: 'from-green-500 to-emerald-600',
+                          blue: 'from-blue-500 to-indigo-600',
+                          emerald: 'from-emerald-500 to-teal-600',
+                          teal: 'from-teal-500 to-cyan-600',
+                          indigo: 'from-indigo-500 to-blue-600',
+                          purple: 'from-purple-500 to-pink-600',
+                          gray: 'from-gray-500 to-gray-600',
+                        };
+                        target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br ${colorMap[primaryColor] || colorMap.green}"><svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>`;
                       }
                     }}
                   />
@@ -223,7 +357,7 @@ export default function Sidebar() {
                   className="hidden lg:block absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-slate-700/60 transition-colors z-20 bg-white/40 dark:bg-slate-800/60 backdrop-blur-sm shadow-sm"
                   title="Recolher sidebar"
                 >
-                  <Icons.ChevronLeft className="w-4 h-4 text-gray-700 dark:text-slate-300" />
+                  <Icons.ChevronLeft className={`w-4 h-4 ${getTitleTextClass(primaryColor)}`} />
                 </button>
                 
                 {/* Conteúdo do header */}
@@ -239,24 +373,33 @@ export default function Sidebar() {
                           const target = e.target as HTMLImageElement;
                           target.style.display = 'none';
                           if (target.parentElement) {
-                            target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600"><svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>';
+                            const colorMap: Record<ColorPaletteKey, string> = {
+                              green: 'from-green-500 to-green-600',
+                              blue: 'from-blue-500 to-blue-600',
+                              emerald: 'from-emerald-500 to-emerald-600',
+                              teal: 'from-teal-500 to-teal-600',
+                              indigo: 'from-indigo-500 to-indigo-600',
+                              purple: 'from-purple-500 to-purple-600',
+                              gray: 'from-gray-500 to-gray-600',
+                            };
+                            target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br ${colorMap[primaryColor] || colorMap.green}"><svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>`;
                           }
                         }}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h1 className="text-sm font-bold text-gray-900 dark:text-slate-100 leading-tight">Gerenciador de Fazendas</h1>
-                      <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5">Sistema de Gestão</p>
+                      <h1 className={`text-sm font-bold ${getTitleTextClass(primaryColor)} leading-tight`}>Gerenciador de Fazendas</h1>
+                      <p className={`text-xs ${getThemeClasses(primaryColor, 'text')} mt-0.5`}>Sistema de Gestão</p>
                     </div>
                   </div>
                   
                   {/* Status e Tema */}
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200/50 dark:border-slate-700/50">
+                  <div className={`flex items-center gap-2 mt-3 pt-3 border-t ${getSeparatorBorderClass(primaryColor)}`}>
                     <SyncStatus collapsed={false} />
                     <div className="flex-1"></div>
                     <button
                       onClick={toggleTheme}
-                      className="inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm flex-shrink-0"
+                      className={`inline-flex items-center justify-center rounded-lg border ${getThemeToggleButtonClass(primaryColor)} backdrop-blur-sm px-2.5 py-1.5 text-xs font-medium transition-all shadow-sm flex-shrink-0`}
                       title={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
                     >
                       {theme === 'dark' ? (
@@ -293,8 +436,8 @@ export default function Sidebar() {
                         ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : ''}
                         ${
                           active
-                            ? 'bg-blue-50 text-blue-700 border-l-3 border-blue-600 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-400 shadow-sm'
-                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-slate-700/50 dark:hover:text-white'
+                            ? `${activeClasses.bg} ${activeClasses.text} border-l-3 ${activeClasses.border} shadow-sm`
+                            : `${inactiveClasses.text} ${inactiveClasses.hover}`
                         }
                       `}
                       title={sidebarCollapsed && !sidebarOpen ? item.label : ''}
@@ -303,8 +446,8 @@ export default function Sidebar() {
                       <Icon
                         className={`w-5 h-5 shrink-0 transition-colors ${
                           active 
-                            ? 'text-blue-600 dark:text-blue-400' 
-                            : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
+                            ? activeClasses.icon
+                            : inactiveClasses.icon
                         }`}
                       />
                       {(!sidebarCollapsed || sidebarOpen) && (
@@ -331,141 +474,14 @@ export default function Sidebar() {
 
           {/* Footer Profissional */}
           <div className="border-t border-gray-200 dark:border-slate-700 bg-gradient-to-b from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
-            <div className="px-3 py-2.5 space-y-1.5">
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 rounded-md transition-all text-xs font-medium border border-indigo-200 dark:border-indigo-800/50 shadow-sm`}
-                title={sidebarCollapsed && !sidebarOpen ? 'Configurações' : ''}
-              >
-                <Icons.Settings className="w-4 h-4" />
-                {(!sidebarCollapsed || sidebarOpen) && <span>Configurações</span>}
-              </button>
-              
-              <button
-                onClick={handleManualSync}
-                disabled={syncing}
-                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs font-medium relative overflow-hidden`}
-                title={sidebarCollapsed && !sidebarOpen ? (syncing ? 'Sincronizando...' : 'Sincronizar') : ''}
-                aria-label={syncing ? 'Sincronizando...' : 'Sincronizar Agora'}
-              >
-                <Icons.RefreshCw 
-                  className={`w-4 h-4 transition-transform duration-300 ${
-                    syncing ? 'animate-spin' : ''
-                  }`}
-                />
-                {(!sidebarCollapsed || sidebarOpen) && (
-                  <span className="relative z-10">
-                    {syncing ? 'Sincronizando...' : 'Sincronizar'}
-                  </span>
+            <div className="px-3 py-2.5">
+              {/* Versão da aplicação */}
+              <div className={`flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'justify-center'} px-2.5 py-1.5 text-[10px] text-gray-400 dark:text-slate-500 font-mono`}>
+                {sidebarCollapsed && !sidebarOpen ? (
+                  <span title={`Versão ${APP_VERSION}`}>v{APP_VERSION}</span>
+                ) : (
+                  <span>v{APP_VERSION}</span>
                 )}
-                {syncing && (
-                  <span className="absolute inset-0 bg-blue-700 opacity-20 animate-pulse" />
-                )}
-              </button>
-
-              <button
-                onClick={async () => {
-                  try {
-                    const { exportarBackupCompleto } = await import('../utils/exportarDados');
-                    const resultado = await exportarBackupCompleto();
-                    showToast({
-                      type: 'success',
-                      title: 'Backup exportado',
-                      message: `Arquivo: ${resultado.nomeArquivo}\nFazendas: ${resultado.totalRegistros.totalFazendas}\nRaças: ${resultado.totalRegistros.totalRacas}\nNascimentos: ${resultado.totalRegistros.totalNascimentos}\nDesmamas: ${resultado.totalRegistros.totalDesmamas}\nUsuários: ${resultado.totalRegistros.totalUsuarios}`
-                    });
-                  } catch (error) {
-                    console.error('Erro ao exportar backup:', error);
-                    showToast({
-                      type: 'error',
-                      title: 'Erro ao exportar backup',
-                      message: 'Tente novamente.'
-                    });
-                  }
-                }}
-                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 rounded-md transition-all text-xs font-medium border border-purple-200 dark:border-purple-800/50 shadow-sm`}
-                title={sidebarCollapsed && !sidebarOpen ? 'Backup' : ''}
-              >
-                <Icons.Download className="w-4 h-4" />
-                {(!sidebarCollapsed || sidebarOpen) && <span>Backup</span>}
-              </button>
-              
-              <button
-                onClick={() => {
-                  setConfirmDialog({
-                    open: true,
-                    title: 'Limpar cache',
-                    message: 'Deseja limpar o cache do navegador? Isso irá:\n\n- Limpar IndexedDB\n- Limpar Local Storage\n- Limpar Session Storage\n- Limpar Cache do navegador\n\nA aplicação será recarregada após a limpeza.',
-                    variant: 'warning',
-                    onConfirm: async () => {
-                      setConfirmDialog(prev => ({ ...prev, open: false }));
-                      try {
-                        // Limpar IndexedDB
-                        if ('indexedDB' in window) {
-                          const databases = await indexedDB.databases();
-                          for (const db of databases) {
-                            if (db.name) {
-                              indexedDB.deleteDatabase(db.name);
-                            }
-                          }
-                        }
-                        
-                        // Limpar Local Storage
-                        localStorage.clear();
-                        
-                        // Limpar Session Storage
-                        sessionStorage.clear();
-                        
-                        // Limpar Cache (se suportado)
-                        if ('caches' in window) {
-                          const cacheNames = await caches.keys();
-                          await Promise.all(
-                            cacheNames.map(name => caches.delete(name))
-                          );
-                        }
-                        
-                        showToast({
-                          type: 'success',
-                          title: 'Cache limpo',
-                          message: 'O cache foi limpo. A página será recarregada.'
-                        });
-                        window.location.reload();
-                      } catch (error) {
-                        console.error('Erro ao limpar cache:', error);
-                        showToast({
-                          type: 'error',
-                          title: 'Erro ao limpar cache',
-                          message: 'Tente limpar manualmente pelo navegador.'
-                        });
-                      }
-                    }
-                  });
-                }}
-                className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-md transition-all text-xs font-medium border border-gray-200 dark:border-slate-700 shadow-sm`}
-                title={sidebarCollapsed && !sidebarOpen ? 'Limpar Cache' : ''}
-              >
-                <Icons.Trash2 className="w-4 h-4" />
-                {(!sidebarCollapsed || sidebarOpen) && <span>Limpar Cache</span>}
-              </button>
-
-              <div className="pt-1.5 border-t border-gray-200 dark:border-slate-700 space-y-1.5">
-                <button
-                  onClick={handleLogout}
-                  className={`w-full flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'gap-2'} px-2.5 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 rounded-md transition-all text-xs font-medium border border-red-200 dark:border-red-900/30 shadow-sm`}
-                  title={sidebarCollapsed && !sidebarOpen ? 'Sair' : ''}
-                  aria-label="Sair"
-                >
-                  <Icons.LogOut className="w-4 h-4" />
-                  {(!sidebarCollapsed || sidebarOpen) && <span>Sair</span>}
-                </button>
-                
-                {/* Versão da aplicação */}
-                <div className={`flex items-center ${sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'justify-center'} px-2.5 py-1.5 text-[10px] text-gray-400 dark:text-slate-500 font-mono`}>
-                  {sidebarCollapsed && !sidebarOpen ? (
-                    <span title={`Versão ${APP_VERSION}`}>v{APP_VERSION}</span>
-                  ) : (
-                    <span>v{APP_VERSION}</span>
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -476,8 +492,8 @@ export default function Sidebar() {
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl">
           <div className="border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Configurações de alertas</h3>
-              <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Ajuste limites de desmama e mortalidade.</p>
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Configurações</h3>
+              <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Ajuste limites de alertas e timeout de inatividade.</p>
             </div>
             <button
               onClick={() => setSettingsOpen(false)}
@@ -505,7 +521,7 @@ export default function Sidebar() {
                       limiteMesesDesmama: Number(e.target.value)
                     }))
                   }
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100"
+                  className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
                 />
               </div>
               <div>
@@ -523,7 +539,7 @@ export default function Sidebar() {
                       janelaMesesMortalidade: Number(e.target.value)
                     }))
                   }
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100"
+                  className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
                 />
               </div>
               <div>
@@ -541,8 +557,36 @@ export default function Sidebar() {
                       limiarMortalidade: Number(e.target.value)
                     }))
                   }
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100"
+                  className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
                 />
+              </div>
+            </div>
+
+            {/* Configurações do App */}
+            <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-4">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-3 ml-4">Timeout de Inatividade</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-1 gap-2 ml-4 mr-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    Tempo de inatividade (minutos)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={draftAppSettings.timeoutInatividade}
+                    onChange={(e) =>
+                      setDraftAppSettings((prev: AppSettings) => ({
+                        ...prev,
+                        timeoutInatividade: Number(e.target.value)
+                      }))
+                    }
+                    className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                    O sistema fará logout automático após {draftAppSettings.timeoutInatividade} minutos de inatividade.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -551,6 +595,7 @@ export default function Sidebar() {
                 type="button"
                 onClick={async () => {
                   await resetSettings();
+                  await resetAppSettings();
                   // Sincronizar após restaurar as configurações
                   try {
                     const { pushPending } = await import('../api/syncService');
@@ -558,14 +603,14 @@ export default function Sidebar() {
                     showToast({
                       type: 'info',
                       title: 'Configuração padrão',
-                      message: 'Limites restaurados e sincronizados.'
+                      message: 'Configurações restauradas e sincronizadas.'
                     });
                   } catch (error) {
                     console.error('Erro ao sincronizar configurações:', error);
                     showToast({
                       type: 'info',
                       title: 'Configuração padrão',
-                      message: 'Limites restaurados. A sincronização será feita automaticamente.'
+                      message: 'Configurações restauradas. A sincronização será feita automaticamente.'
                     });
                   }
                 }}
@@ -577,6 +622,7 @@ export default function Sidebar() {
                 type="button"
                 onClick={async () => {
                   await saveSettings();
+                  await saveAppSettings();
                   // Sincronizar após salvar as configurações
                   try {
                     const { pushPending } = await import('../api/syncService');
@@ -584,19 +630,19 @@ export default function Sidebar() {
                     showToast({
                       type: 'success',
                       title: 'Configurações salvas',
-                      message: 'Alertas atualizados e sincronizados.'
+                      message: 'Configurações atualizadas e sincronizadas.'
                     });
                   } catch (error) {
                     console.error('Erro ao sincronizar configurações:', error);
                     showToast({
                       type: 'success',
                       title: 'Configurações salvas',
-                      message: 'Alertas atualizados. A sincronização será feita automaticamente.'
+                      message: 'Configurações atualizadas. A sincronização será feita automaticamente.'
                     });
                   }
                   setSettingsOpen(false);
                 }}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                className={`px-4 py-2 text-sm font-medium text-white ${getPrimaryButtonClass(primaryColor)} rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors`}
               >
                 Salvar
               </button>

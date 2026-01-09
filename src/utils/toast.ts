@@ -9,7 +9,7 @@ interface ToastParams {
   duration?: number;
 }
 
-export function showToast({ type = 'info', title, message, duration }: ToastParams) {
+export function showToast({ type = 'success', title, message, duration }: ToastParams) {
   if (typeof window === 'undefined') return;
   const id = uuidv4();
   window.dispatchEvent(

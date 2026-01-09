@@ -8,6 +8,10 @@ import { Fazenda } from '../db/models';
 import Modal from './Modal';
 import { showToast } from '../utils/toast';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
+import { getThemeClasses } from '../utils/themeHelpers';
 
 type Mode = 'create' | 'edit';
 
@@ -33,6 +37,8 @@ export default function FazendaModal({
   onClose,
   onSaved
 }: FazendaModalProps) {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const titulo = mode === 'create' ? 'Nova Fazenda' : 'Editar Fazenda';
@@ -117,7 +123,7 @@ export default function FazendaModal({
         </label>
         <input
           type="text"
-          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
           placeholder="Ex: Fazenda Capenema III"
           {...register('nome')}
           autoFocus
@@ -133,7 +139,7 @@ export default function FazendaModal({
         </label>
         <input
           type="url"
-          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
           placeholder="https://exemplo.com/logo.png"
           {...register('logoUrl')}
         />
@@ -159,7 +165,7 @@ export default function FazendaModal({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+          className={`px-4 py-2 text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50`}
         >
           {isSubmitting ? 'Salvando...' : 'Salvar'}
         </button>

@@ -8,14 +8,14 @@ interface SyncStatusProps {
 export default function SyncStatus({ collapsed = false }: SyncStatusProps) {
   const online = useOnline();
   return (
-    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 whitespace-nowrap">
+    <div className="flex items-center gap-2 text-xs sm:text-sm whitespace-nowrap">
       <span
         className={`inline-block w-2 h-2 rounded-full ${
-          online ? 'bg-green-500' : 'bg-red-500'
+          online ? `${`bg-green-500`}` : `${`bg-red-500`}`
         }`}
         title={online ? 'Online' : 'Offline'}
       />
-      {!collapsed && <span>{online ? 'Online' : 'Offline'}</span>}
+      {!collapsed && <span className={`${online ? 'text-green-700' : 'text-red-600'}`}>{online ? 'Online' : 'Offline'}</span>}
     </div>
   );
 }

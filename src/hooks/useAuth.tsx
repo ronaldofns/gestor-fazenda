@@ -19,17 +19,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Carregar usuário da sessão ao montar
+  // Carregar sessão persistida ao inicializar
   useEffect(() => {
     const loadSession = async () => {
       try {
-        const sessionUserId = localStorage.getItem('gestor-fazenda-user-id');
-        if (sessionUserId) {
-          const usuario = await getUserById(sessionUserId);
+        const savedUserId = localStorage.getItem('gestor-fazenda-user-id');
+        if (savedUserId) {
+          const usuario = await getUserById(savedUserId);
           if (usuario && usuario.ativo) {
             setUser(usuario);
           } else {
-            // Usuário não encontrado ou inativo, limpar sessão
+            // Se usuário não encontrado ou inativo, limpar sessão
             localStorage.removeItem('gestor-fazenda-user-id');
           }
         }

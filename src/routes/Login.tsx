@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Icons } from '../utils/iconMapping';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../db/dexieDB';
-import { pullUpdates } from '../api/syncService';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getThemeClasses, getPrimaryButtonClass } from '../utils/themeHelpers';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading, login } = useAuth();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [verificandoUsuarios, setVerificandoUsuarios] = useState(true);
@@ -21,26 +25,21 @@ export default function Login() {
   useEffect(() => {
     const verificarUsuarios = async () => {
       try {
-        // Primeiro, verificar se há usuários locais
-        let usuarios = await db.usuarios.toArray();
-        
-        // Se não houver usuários locais, tentar sincronizar do Supabase
-        if (usuarios.length === 0) {
-          setSincronizando(true);
-          try {
-            // Fazer pull apenas de usuários do Supabase (mais rápido)
-            const { pullUsuarios } = await import('../api/syncService');
-            await pullUsuarios();
-            // Verificar novamente após sincronização
-            usuarios = await db.usuarios.toArray();
-          } catch (syncError) {
-            console.error('Erro ao sincronizar usuários:', syncError);
-            // Continuar mesmo se a sincronização falhar (pode estar offline)
-          } finally {
-            setSincronizando(false);
-          }
+        // Sempre sincronizar usuários do Supabase primeiro para garantir dados atualizados
+        setSincronizando(true);
+        try {
+          // Fazer pull apenas de usuários do Supabase (mais rápido)
+          const { pullUsuarios } = await import('../api/syncService');
+          await pullUsuarios();
+        } catch (syncError) {
+          console.error('Erro ao sincronizar usuários:', syncError);
+          // Continuar mesmo se a sincronização falhar (pode estar offline)
+        } finally {
+          setSincronizando(false);
         }
         
+        // Verificar se há usuários após sincronização
+        const usuarios = await db.usuarios.toArray();
         setTemUsuarios(usuarios.length > 0);
       } catch (error) {
         console.error('Erro ao verificar usuários:', error);
@@ -60,6 +59,13 @@ export default function Login() {
       navigate(from, { replace: true });
     }
   }, [user, authLoading, navigate, location]);
+
+  // Redirecionar para setup se não há usuários (após verificação)
+  useEffect(() => {
+    if (!verificandoUsuarios && !temUsuarios) {
+      navigate('/setup', { replace: true });
+    }
+  }, [verificandoUsuarios, temUsuarios, navigate]);
 
   async function onSubmit(data: any) {
     setError(null);
@@ -81,14 +87,14 @@ export default function Login() {
   
   if (authLoading || verificandoUsuarios) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+      <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} via-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-900`}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className={`w-12 h-12 border-4 ${getThemeClasses(primaryColor, 'border')} border-t-transparent rounded-full animate-spin mx-auto mb-4`}></div>
           <div className="text-gray-500 dark:text-slate-400">
             {sincronizando ? 'Sincronizando usuários...' : 'Carregando...'}
           </div>
           {sincronizando && (
-            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600">
+            <div className={`mt-4 flex items-center justify-center gap-2 text-sm ${getThemeClasses(primaryColor, 'text')}`}>
               <Icons.RefreshCw className="w-4 h-4 animate-spin" />
               <span>Buscando usuários do servidor</span>
             </div>
@@ -98,18 +104,17 @@ export default function Login() {
     );
   }
 
-  // Se não há usuários, redirecionar para setup
-  if (!temUsuarios) {
-    navigate('/setup', { replace: true });
-    return null;
+  // Se não há usuários, não renderizar o formulário (o useEffect acima fará o redirecionamento)
+  if (!verificandoUsuarios && !temUsuarios) {
+    return null; // Aguardar redirecionamento para setup
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 px-4">
+    <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} via-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 px-4`}>
       <div className="max-w-md w-full">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl shadow-lg mb-4">
+          <div className={`inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-to')} rounded-2xl shadow-lg mb-4`}>
             <Icons.LogIn className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Gestor Fazenda</h1>
@@ -130,11 +135,11 @@ export default function Login() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Icons.Mail className="h-5 w-5 text-gray-400" />
+                  <Icons.Mail className={`h-5 w-5 ${getThemeClasses(primaryColor, 'text')}`} />
                 </div>
                 <input 
                   type="email"
-                  className="w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
+                  className={`w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`} 
                   placeholder="seu@email.com" 
                   {...register('email', { required: 'Email é obrigatório' })} 
                 />
@@ -148,11 +153,11 @@ export default function Login() {
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Senha</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Icons.Lock className="h-5 w-5 text-gray-400" />
+                  <Icons.Lock className={`h-5 w-5 ${getThemeClasses(primaryColor, 'text')}`} />
                 </div>
                 <input 
                   type="password"
-                  className="w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
+                  className={`w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`} 
                   placeholder="Sua senha" 
                   {...register('password', { required: 'Senha é obrigatória' })} 
                 />
@@ -165,7 +170,7 @@ export default function Login() {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className={`w-full px-4 py-3 ${getPrimaryButtonClass(primaryColor)} text-white font-semibold rounded-lg focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-offset-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
             >
               {loading ? (
                 <>
@@ -188,7 +193,7 @@ export default function Login() {
             <div className="mt-4 text-center">
               <Link
                 to="/setup"
-                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                className={`text-sm ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'hover-text')} hover:underline`}
               >
                 Primeira vez? Configure o sistema
               </Link>

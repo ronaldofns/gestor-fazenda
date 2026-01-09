@@ -10,6 +10,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Icons } from '../utils/iconMapping';
 import { useAuth } from '../hooks/useAuth';
 import { registrarAudit } from '../utils/audit';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
 
 const schema = z.object({
   dataDesmama: z.string().min(1, 'Informe a data de desmama'),
@@ -21,6 +24,8 @@ export default function CadastroDesmama() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user: currentUser } = useAuth();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   
   // useLiveQuery retorna dados imediatamente do cache local, sem piscar tela
   const nascimento = useLiveQuery(
@@ -126,7 +131,7 @@ export default function CadastroDesmama() {
               <h2 className="text-lg font-semibold text-gray-900">Desmama</h2>
               <button
                 onClick={() => navigate(-1)}
-                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                  className={`text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} rounded-md p-1`}
               >
                 <Icons.X className="w-5 h-5" />
               </button>
@@ -149,7 +154,7 @@ export default function CadastroDesmama() {
             <h2 className="text-xl font-semibold text-gray-900">Cadastro de Desmama</h2>
             <button
               onClick={() => navigate(-1)}
-              className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                  className={`text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} rounded-md p-1`}
             >
               <Icons.X className="w-6 h-6" />
             </button>
@@ -186,7 +191,7 @@ export default function CadastroDesmama() {
                   </label>
                   <input 
                     type="date"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                     {...register('dataDesmama')} 
                   />
                   {errors.dataDesmama && (
@@ -201,7 +206,7 @@ export default function CadastroDesmama() {
                   <input 
                     type="number"
                     step="0.1"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                     {...register('pesoDesmama')} 
                     placeholder="Ex: 180.5"
                   />
@@ -215,7 +220,7 @@ export default function CadastroDesmama() {
                 <button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`flex-1 px-4 py-2 ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {isSubmitting ? 'Salvando...' : 'Salvar Desmama'}
                 </button>

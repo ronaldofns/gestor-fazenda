@@ -19,6 +19,9 @@ import { useAuth } from '../hooks/useAuth';
 import { registrarAudit } from '../utils/audit';
 import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
 import { useFavoritos } from '../hooks/useFavoritos';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses, getTitleTextClass, getPrimaryBadgeClass, getPrimaryCardClass, getPrimaryActionButtonLightClass, getPrimaryBgClass, getCheckboxClass } from '../utils/themeHelpers';
 
 const OPCOES_ITENS_POR_PAGINA = [10, 20, 50, 70, 100];
 const ITENS_POR_PAGINA_PADRAO = 10;
@@ -92,6 +95,8 @@ export default function Home() {
   useSync();
   const { user: currentUser } = useAuth();
   const { favoritos, isFavorito, toggleFavorito } = useFavoritos();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalNovoNascimentoOpen, setModalNovoNascimentoOpen] = useState(false);
   const [modalEditarNascimentoOpen, setModalEditarNascimentoOpen] = useState(false);
@@ -1181,7 +1186,7 @@ export default function Home() {
         nascimentos: nascimentosFiltrados,
         desmamas: desmamasMap,
         fazendaNome: fazendaSelecionada.nome,
-        mes: filtroMes as number,
+        mes: filtroMes.length > 0 ? filtroMes[0] : mesAtual,
         ano: filtroAno as number,
         totais: {
           vacas: totais.vacas,
@@ -1265,36 +1270,22 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100">
-      <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl sm:text-2xl font-semibold">Nascimento/Desmama</h2>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+      <div className="p-4 sm:p-4 text-gray-900 dark:text-slate-100">
+        {(filtroMes.length > 0 && filtroAno !== '') || fazendaSelecionada ? (
+          <div className="mb-4">
+            <p className="text-sm text-gray-600 dark:text-slate-400">
               {filtroMes.length > 0 && filtroAno !== '' && (
                 <>
                   MÊS{filtroMes.length > 1 ? 'ES' : ''}: {filtroMes.map(m => nomeMes(m)).join(', ')} - ANO {filtroAno}
                 </>
               )}
-              {fazendaSelecionada && ` - ${fazendaSelecionada.nome}`}
+              {fazendaSelecionada && ` ${filtroMes.length > 0 && filtroAno !== '' ? '•' : ''} ${fazendaSelecionada.nome}`}
             </p>
           </div>
-            <button
-              onClick={() => {
-                if (fazendas.length === 0) {
-                  showToast({ type: 'warning', title: 'Cadastre uma fazenda', message: 'Crie pelo menos uma fazenda antes de lançar nascimentos.' });
-                  return;
-                }
-                setModalNovoNascimentoOpen(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
-            >
-              <Icons.Plus className="w-4 h-4" />
-                Novo Nascimento
-            </button>
-          </div>
+        ) : null}
 
           {/* Filtros */}
-          <div className="pt-4 border-t space-y-3">
+          <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
             <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda</label>
@@ -1316,7 +1307,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setMenuMesesAberto(!menuMesesAberto)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between"
+                  className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} flex items-center justify-between`}
                 >
                   <span className="truncate">
                     {filtroMes.length === 0 
@@ -1337,7 +1328,7 @@ export default function Home() {
                           setFiltroMes([]);
                           setMenuMesesAberto(false);
                         }}
-                        className="w-full text-left text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
+                        className={`w-full text-left text-sm ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'hover-text')} font-medium`}
                       >
                         Limpar seleção (Todos)
                       </button>
@@ -1353,7 +1344,7 @@ export default function Home() {
                           >
                             <input
                               type="checkbox"
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              className={`h-4 w-4 ${getThemeClasses(primaryColor, 'text')} border-gray-300 rounded ${getThemeClasses(primaryColor, 'ring')}`}
                               checked={isSelected}
                               onChange={(e) => {
                                 if (e.target.checked) {
@@ -1381,7 +1372,7 @@ export default function Home() {
                 max="2100"
                 value={filtroAno}
                 onChange={(e) => setFiltroAno(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                 placeholder="Ano"
               />
             </div>
@@ -1392,7 +1383,7 @@ export default function Home() {
                   type="text"
                   value={filtroMatrizBrinco}
                   onChange={(e) => setFiltroMatrizBrinco(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                   placeholder="Buscar por matriz ou brinco"
                 />
               </div>
@@ -1450,7 +1441,7 @@ export default function Home() {
                       }
                     }
                   }}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                   placeholder="Brinco, matriz, fazenda, raça, obs"
                 />
               </div>
@@ -1461,7 +1452,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setMenuColunasAberto((prev) => !prev)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
+                  className={`flex items-center justify-center gap-2 px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-offset-2 transition-colors whitespace-nowrap`}
                   title="Escolher colunas da tabela"
                 >
                   <Icons.SlidersHorizontal className="w-4 h-4" />
@@ -1481,7 +1472,7 @@ export default function Home() {
                         >
                           <input
                             type="checkbox"
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className={`h-4 w-4 ${getThemeClasses(primaryColor, 'text')} border-gray-300 rounded ${getThemeClasses(primaryColor, 'ring')}`}
                             checked={colunasVisiveis[coluna.chave]}
                             onChange={(e) => {
                               const checked = e.target.checked;
@@ -1503,7 +1494,7 @@ export default function Home() {
               <div className="relative flex-1" ref={menuExportarRef}>
                 <button
                   onClick={() => setMenuExportarAberto(!menuExportarAberto)}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors`}
                   title="Exportar dados"
                 >
                   <Icons.Download className="w-4 h-4" />
@@ -1520,7 +1511,7 @@ export default function Home() {
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Exportar dados para Excel'}
                       >
-                        <Icons.FileSpreadsheet className="w-4 h-4 text-green-600" />
+                        <Icons.FileSpreadsheet className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')}`} />
                         Exportar Excel (.xlsx)
                       </button>
                       <button
@@ -1529,7 +1520,7 @@ export default function Home() {
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={nascimentosFiltrados.length === 0 ? 'Nenhum nascimento encontrado nos dados filtrados' : 'Exportar dados para CSV'}
                       >
-                        <Icons.FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                        <Icons.FileSpreadsheet className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')}`} />
                         Exportar CSV (.csv)
                       </button>
                       <div className="border-t border-gray-200 my-1"></div>
@@ -1588,7 +1579,7 @@ export default function Home() {
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={nascimentosFiltrados.filter(n => desmamasMap.has(n.id)).length === 0 ? 'Nenhuma desmama encontrada nos dados filtrados' : 'Gerar relatório de desmama com médias de peso'}
                       >
-                        <Icons.FileText className="w-4 h-4 text-purple-600" />
+                        <Icons.FileText className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')}`} />
                         PDF Desmama (Médias)
                       </button>
                       <button
@@ -1765,7 +1756,7 @@ export default function Home() {
           </div>
         </div>
         {/* Versão Desktop - Tabela */}
-        <div className="hidden md:block bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
+        <div className="pl-4 pr-4 hidden md:block bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-300 dark:divide-slate-600">
               <thead className="bg-gray-100 dark:bg-slate-600">
@@ -1850,7 +1841,7 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
-                              className="text-left text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200 hover:underline"
+                              className={`text-left ${getTitleTextClass(primaryColor)} ${getThemeClasses(primaryColor, 'hover-text')} hover:underline`}
                               title="Ver histórico da matriz"
                             >
                           {matrizIdentificador}
@@ -1859,12 +1850,12 @@ export default function Home() {
                         )}
                         {colunasVisiveis.novilha && (
                           <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
-                          {n.novilha ? <span className="text-blue-600 dark:text-blue-400 font-bold text-xs">X</span> : ''}
+                          {n.novilha ? <span className={`${getThemeClasses(primaryColor, 'text')} font-bold text-xs`}>X</span> : ''}
                         </td>
                         )}
                         {colunasVisiveis.vaca && (
                           <td className="px-1 py-2 whitespace-nowrap text-center border-r border-gray-200 dark:border-slate-600">
-                          {n.vaca ? <span className="text-blue-600 dark:text-blue-400 font-bold text-xs">X</span> : ''}
+                          {n.vaca ? <span className={`${getThemeClasses(primaryColor, 'text')} font-bold text-xs`}>X</span> : ''}
                         </td>
                         )}
                         {colunasVisiveis.sexo && (
@@ -1894,7 +1885,7 @@ export default function Home() {
                             ) : !desmama ? (
                               <Link 
                                 to={`/desmama/${n.id}`}
-                                className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                                className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium ${getPrimaryBadgeClass(primaryColor)} rounded transition-colors`}
                                 title="Cadastrar desmama"
                               >
                                 <Icons.Plus className="w-3 h-3 mr-0.5" />
@@ -1921,7 +1912,7 @@ export default function Home() {
                           <div className="flex items-center justify-center gap-1">
                                 <button
                                   onClick={() => handleAbrirEdicao(n.id)}
-                                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                  className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                                   title="Editar nascimento"
                                 >
                               <Icons.Edit className="w-4 h-4" />
@@ -1933,7 +1924,7 @@ export default function Home() {
                                 setHistoricoEntityNome(`Matriz ${matrizIdentificador}${n.brincoNumero ? ` - Brinco ${n.brincoNumero}` : ''}`);
                                 setHistoricoOpen(true);
                               }}
-                              className="p-1.5 text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                              className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                               title="Ver histórico de alterações"
                             >
                               <Icons.History className="w-4 h-4" />
@@ -2049,7 +2040,7 @@ export default function Home() {
                         setItensPorPagina(novoValor);
                       }
                     }}
-                    className="px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-900"
+                    className={`px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} bg-white dark:bg-slate-900`}
                   >
                     {OPCOES_ITENS_POR_PAGINA.map(opcao => (
                       <option key={opcao} value={opcao}>{opcao}</option>
@@ -2117,7 +2108,7 @@ export default function Home() {
                               onClick={() => setPaginaAtual(paginaNumero)}
                               className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                                 paginaAtual === paginaNumero
-                                  ? 'z-10 bg-blue-50 dark:bg-blue-900/40 border-blue-500 text-blue-600'
+                                  ? `z-10 ${getThemeClasses(primaryColor, 'bg-light')} ${getThemeClasses(primaryColor, 'border')} ${getThemeClasses(primaryColor, 'text')}`
                                   : 'bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-700 text-gray-500 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'
                               }`}
                             >
@@ -2159,12 +2150,12 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => handleAbrirHistoricoMatriz(n.matrizId)}
-                          className="text-sm sm:text-base font-semibold text-blue-700 hover:text-blue-900 break-words underline-offset-2 hover:underline"
+                          className={`text-sm sm:text-base font-semibold ${getTitleTextClass(primaryColor)} ${getThemeClasses(primaryColor, 'hover-text')} break-words underline-offset-2 hover:underline`}
                         >
                           Matriz: {matrizIdentificador}
                         </button>
-                        {n.novilha && <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded whitespace-nowrap">Novilha</span>}
-                        {n.vaca && <span className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded whitespace-nowrap">Vaca</span>}
+                        {n.novilha && <span className={`px-2 py-0.5 text-xs ${getPrimaryBadgeClass(primaryColor)} rounded whitespace-nowrap`}>Novilha</span>}
+                        {n.vaca && <span className={`px-2 py-0.5 text-xs ${getPrimaryBadgeClass(primaryColor)} rounded whitespace-nowrap`}>Vaca</span>}
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600">
                         <div><span className="font-medium">Mês/Ano:</span> {getMesNome(n.mes)}/{n.ano}</div>
@@ -2194,7 +2185,7 @@ export default function Home() {
                     <div className="flex flex-col gap-1 ml-2">
                       <button
                         onClick={() => handleAbrirEdicao(n.id)}
-                        className="p-1.5 text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                        className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                         title="Editar"
                       >
                         <Icons.Edit className="w-4 h-4" />
@@ -2206,7 +2197,7 @@ export default function Home() {
                           setHistoricoEntityNome(`Matriz ${matrizIdentificador}${n.brincoNumero ? ` - Brinco ${n.brincoNumero}` : ''}`);
                           setHistoricoOpen(true);
                         }}
-                        className="p-1.5 text-purple-600 hover:text-purple-800 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                        className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                         title="Ver histórico"
                       >
                         <Icons.History className="w-4 h-4" />
@@ -2289,7 +2280,7 @@ export default function Home() {
                     <div className="mt-2 pt-2 border-t border-gray-200">
                       <Link 
                         to={`/desmama/${n.id}`}
-                        className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                        className={`inline-flex items-center px-2 py-1 text-xs font-medium ${getPrimaryBadgeClass(primaryColor)} rounded hover:opacity-80 transition-colors`}
                       >
                         <Icons.Plus className="w-3 h-3 mr-1" />
                         Cadastrar Desmama
@@ -2316,7 +2307,7 @@ export default function Home() {
                         setItensPorPagina(novoValor);
                       }
                     }}
-                    className="px-2 py-1 text-xs border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    className={`px-2 py-1 text-xs border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} bg-white`}
                   >
                     {OPCOES_ITENS_POR_PAGINA.map(opcao => (
                       <option key={opcao} value={opcao}>{opcao}</option>
@@ -2365,39 +2356,39 @@ export default function Home() {
             {/* Cards principais */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-6">
               {/* Card Vacas */}
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 rounded-lg p-4 border border-purple-200 dark:border-purple-500/40">
+              <div className={`bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} rounded-lg p-4 border ${getThemeClasses(primaryColor, 'border-light')}`}>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs sm:text-sm font-medium text-purple-800  tracking-wide">Vacas</h4>
-                  <Icons.Vaca className="w-6 h-6 text-purple-600" />
+                  <h4 className={`text-xs sm:text-sm font-medium ${getTitleTextClass(primaryColor)} tracking-wide`}>Vacas</h4>
+                  <Icons.Vaca className={`w-6 h-6 ${getThemeClasses(primaryColor, 'text')}`} />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-purple-900 dark:text-purple-200">{totais.vacas}</div>
+                <div className={`text-2xl sm:text-3xl font-bold ${getTitleTextClass(primaryColor)}`}>{totais.vacas}</div>
               </div>
 
               {/* Card Novilhas */}
-              <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/10 rounded-lg p-4 border border-green-200 dark:border-green-500/40">
+              <div className={`bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} rounded-lg p-4 border ${getThemeClasses(primaryColor, 'border-light')}`}>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs sm:text-sm font-medium text-green-800  tracking-wide">Novilhas</h4>
-                  <Icons.Novilha className="w-5 h-5 sm:w-7 sm:h-7 text-green-600" />
+                  <h4 className={`text-xs sm:text-sm font-medium ${getTitleTextClass(primaryColor)} tracking-wide`}>Novilhas</h4>
+                  <Icons.Novilha className={`w-5 h-5 sm:w-7 sm:h-7 ${getThemeClasses(primaryColor, 'text')}`} />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-green-900 dark:text-green-200">{totais.novilhas}</div>
+                <div className={`text-2xl sm:text-3xl font-bold ${getTitleTextClass(primaryColor)}`}>{totais.novilhas}</div>
               </div>
 
               {/* Card Fêmeas */}
-              <div className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-900/10 rounded-lg p-4 border border-pink-200 dark:border-pink-500/40">
+              <div className={`bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} rounded-lg p-4 border ${getThemeClasses(primaryColor, 'border-light')}`}>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs sm:text-sm font-medium text-pink-800  tracking-wide">Fêmeas</h4>
-                  <Icons.Venus className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
+                  <h4 className={`text-xs sm:text-sm font-medium ${getTitleTextClass(primaryColor)} tracking-wide`}>Fêmeas</h4>
+                  <Icons.Venus className={`w-5 h-5 sm:w-6 sm:h-6 ${getThemeClasses(primaryColor, 'text')}`} />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-pink-900 dark:text-pink-200">{totais.femeas}</div>
+                <div className={`text-2xl sm:text-3xl font-bold ${getTitleTextClass(primaryColor)}`}>{totais.femeas}</div>
               </div>
 
               {/* Card Machos */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 rounded-lg p-4 border border-blue-200 dark:border-blue-500/40">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs sm:text-sm font-medium text-blue-800  tracking-wide">Machos</h4>
-                  <Icons.Mars className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+              <div className={`bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} rounded-lg p-4 border ${getThemeClasses(primaryColor, 'border-light')}`}>
+                  <div className="flex items-center justify-between mb-2">
+                  <h4 className={`text-xs sm:text-sm font-medium ${getTitleTextClass(primaryColor)} tracking-wide`}>Machos</h4>
+                  <Icons.Mars className={`w-5 h-5 sm:w-6 sm:h-6 ${getThemeClasses(primaryColor, 'text')}`} />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-200">{totais.machos}</div>
+                <div className={`text-2xl sm:text-3xl font-bold ${getTitleTextClass(primaryColor)}`}>{totais.machos}</div>
               </div>
             </div>
 
@@ -2464,7 +2455,7 @@ export default function Home() {
                 <h2 className="text-xl font-semibold text-gray-900">Novo Nascimento/Desmama</h2>
                 <button
                   onClick={() => setModalNovoNascimentoOpen(false)}
-                  className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                  className={`text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} rounded-md p-1`}
                 >
                   <Icons.X className="w-6 h-6" />
                 </button>
@@ -2516,7 +2507,7 @@ export default function Home() {
                       type="number"
                       min="2000"
                       max="2100"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       {...registerNascimento('ano', { valueAsNumber: true })} 
                     />
                     {errorsNascimento.ano && <p className="text-red-600 text-sm mt-1">{String(errorsNascimento.ano.message)}</p>}
@@ -2527,7 +2518,7 @@ export default function Home() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1"> *</label>
                     <input 
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       {...registerNascimento('matrizId', {
                         onBlur: () => {},
                       })}
@@ -2544,7 +2535,7 @@ export default function Home() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Número do Brinco</label>
                     <input 
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       {...registerNascimento('brincoNumero')} 
                       placeholder="Número do brinco"
                     />
@@ -2558,7 +2549,7 @@ export default function Home() {
                       type="text"
                       inputMode="numeric"
                       maxLength={10}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       placeholder="dd/mm/yyyy"
                       value={watchNascimento('dataNascimento') ? converterDataParaFormatoInput(watchNascimento('dataNascimento') || '') : ''}
                       onChange={(e) => {
@@ -2612,7 +2603,7 @@ export default function Home() {
                         <input 
                           type="radio" 
                           value="novilha"
-                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                          className={`w-4 h-4 ${getCheckboxClass(primaryColor)}`}
                           {...registerNascimento('tipo')} 
                         />
                         <span className="text-xs sm:text-sm font-medium text-gray-700">Novilha</span>
@@ -2621,7 +2612,7 @@ export default function Home() {
                         <input 
                           type="radio" 
                           value="vaca"
-                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                          className={`w-4 h-4 ${getCheckboxClass(primaryColor)}`}
                           {...registerNascimento('tipo')} 
                         />
                         <span className="text-xs sm:text-sm font-medium text-gray-700">Vaca</span>
@@ -2634,7 +2625,7 @@ export default function Home() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                   <textarea 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                     rows={3}
                     {...registerNascimento('obs')} 
                     placeholder="Observações adicionais"
@@ -2657,7 +2648,7 @@ export default function Home() {
                   <button 
                     type="submit" 
                     disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`flex-1 px-4 py-2 ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {isSubmitting ? 'Salvando...' : 'Salvar'}
                   </button>
@@ -2698,7 +2689,7 @@ export default function Home() {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Editar Nascimento/Desmama</h2>
                 <button
                   onClick={handleFecharEdicao}
-                  className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
+                  className={`text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} rounded-md p-1`}
                 >
                   <Icons.X className="w-6 h-6" />
                 </button>
@@ -2713,7 +2704,7 @@ export default function Home() {
                     className={`
                       py-4 px-4 border-b-2 font-medium text-sm transition-colors
                       ${abaAtivaEdicao === 'nascimento'
-                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        ? `${getThemeClasses(primaryColor, 'border')} ${getThemeClasses(primaryColor, 'text')}`
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                       }
                     `}
@@ -2726,7 +2717,7 @@ export default function Home() {
                     className={`
                       py-4 px-4 border-b-2 font-medium text-sm transition-colors
                       ${abaAtivaEdicao === 'desmama'
-                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        ? `${getThemeClasses(primaryColor, 'border')} ${getThemeClasses(primaryColor, 'text')}`
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                       }
                     `}
@@ -2785,7 +2776,7 @@ export default function Home() {
                       type="number"
                       min="2000"
                       max="2100"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       {...registerEdicao('ano', { valueAsNumber: true })} 
                     />
                     {errorsEdicao.ano && <p className="text-red-600 text-sm mt-1">{String(errorsEdicao.ano.message)}</p>}
@@ -2796,7 +2787,7 @@ export default function Home() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Matriz *</label>
                     <input 
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       {...registerEdicao('matrizId', {
                         onBlur: () => {},
                       })}
@@ -2812,7 +2803,7 @@ export default function Home() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Número do Brinco</label>
                     <input 
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       {...registerEdicao('brincoNumero')} 
                       placeholder="Número do brinco"
                     />
@@ -2826,7 +2817,7 @@ export default function Home() {
                       type="text"
                       inputMode="numeric"
                       maxLength={10}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       placeholder="dd/mm/yyyy"
                       value={watchEdicao('dataNascimento') ? converterDataParaFormatoInput(watchEdicao('dataNascimento') || '') : ''}
                       onChange={(e) => {
@@ -2880,7 +2871,7 @@ export default function Home() {
                         <input 
                           type="radio" 
                           value="novilha"
-                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                          className={`w-4 h-4 ${getCheckboxClass(primaryColor)}`} 
                           {...registerEdicao('tipo')} 
                         />
                         <span className="text-xs sm:text-sm font-medium text-gray-700">Novilha</span>
@@ -2889,7 +2880,7 @@ export default function Home() {
                         <input 
                           type="radio" 
                           value="vaca"
-                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                          className={`w-4 h-4 ${getCheckboxClass(primaryColor)}`}
                           {...registerEdicao('tipo')} 
                         />
                         <span className="text-xs sm:text-sm font-medium text-gray-700">Vaca</span>
@@ -2902,7 +2893,7 @@ export default function Home() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                   <textarea 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                     rows={3}
                     {...registerEdicao('obs')} 
                     placeholder="Observações adicionais"
@@ -2933,7 +2924,7 @@ export default function Home() {
                       type="text"
                       inputMode="numeric"
                       maxLength={10}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`} 
                       placeholder="dd/mm/yyyy"
                       value={watchEdicao('dataDesmama') ? converterDataParaFormatoInput(watchEdicao('dataDesmama') || '') : ''}
                       onChange={(e) => {
@@ -2954,7 +2945,7 @@ export default function Home() {
                       type="number"
                       step="0.01"
                       min="0"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-800 dark:text-slate-100" 
+                      className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`} 
                       placeholder="Ex: 180.5"
                       value={watchEdicao('pesoDesmama') || ''}
                       onChange={(e) => setValueEdicao('pesoDesmama', e.target.value, { shouldValidate: true })}
@@ -2962,8 +2953,8 @@ export default function Home() {
                     {errorsEdicao.pesoDesmama && <p className="text-red-600 text-sm mt-1">{String(errorsEdicao.pesoDesmama.message)}</p>}
                   </div>
                 </div>
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/40 rounded-md p-3">
-                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                <div className={`${getPrimaryCardClass(primaryColor)} rounded-md p-3`}>
+                  <p className={`text-sm ${getTitleTextClass(primaryColor)}`}>
                     <strong>Dica:</strong> Preencha pelo menos um dos campos (Data ou Peso) para salvar os dados de desmama. Se ambos estiverem vazios, o registro de desmama será removido.
                   </p>
                 </div>
@@ -2974,7 +2965,7 @@ export default function Home() {
                   <button 
                     type="submit" 
                     disabled={isSubmittingEdicao}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`flex-1 px-4 py-2 ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {isSubmittingEdicao ? 'Salvando...' : 'Salvar Alterações'}
                   </button>
@@ -3015,7 +3006,7 @@ export default function Home() {
                       <span className="font-semibold">{matrizResumo.totalPartos}</span>
                       {' • '}
                       Vivos:{' '}
-                      <span className="font-semibold text-green-700">{matrizResumo.vivos}</span>
+                      <span className={`font-semibold ${getThemeClasses(primaryColor, 'text')}`}>{matrizResumo.vivos}</span>
                       {' • '}
                       Mortos:{' '}
                       <span className="font-semibold text-red-700">{matrizResumo.mortos}</span>
@@ -3030,7 +3021,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleFecharHistoricoMatriz}
-                  className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')}`}
                 >
                   <Icons.X className="w-5 h-5" />
                 </button>
@@ -3108,7 +3099,7 @@ export default function Home() {
                                   SIM
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full ${getPrimaryBadgeClass(primaryColor)} text-[10px] font-semibold`}>
                                   NÃO
                                 </span>
                               )}
@@ -3166,6 +3157,23 @@ export default function Home() {
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
       />
+
+      {/* Botão Flutuante - Novo Nascimento */}
+      <button
+        onClick={() => {
+          if (fazendas.length === 0) {
+            showToast({ type: 'warning', title: 'Cadastre uma fazenda', message: 'Crie pelo menos uma fazenda antes de lançar nascimentos.' });
+            return;
+          }
+          setModalNovoNascimentoOpen(true);
+        }}
+        className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3 py-3 ${getPrimaryButtonClass(primaryColor)} text-white rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg hover:shadow-xl hover:scale-105`}
+        title="Novo Nascimento"
+        aria-label="Novo Nascimento"
+      >
+        <Icons.Plus className="w-5 h-5" />
+        <span className="text-sm font-medium hidden sm:inline">Novo Nascimento</span>
+      </button>
     </div>
   );
 }

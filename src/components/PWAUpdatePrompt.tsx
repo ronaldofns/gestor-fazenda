@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses, getTitleTextClass } from '../utils/themeHelpers';
 import { showToast } from '../utils/toast';
 
 export default function PWAUpdatePrompt() {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [needRefresh, setNeedRefresh] = useState(false);
   const [offlineReady, setOfflineReady] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
@@ -105,26 +110,26 @@ export default function PWAUpdatePrompt() {
       )}
 
       {needRefresh && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/40 rounded-lg shadow-lg p-4">
+        <div className={`${getThemeClasses(primaryColor, 'bg-light')} border ${getThemeClasses(primaryColor, 'border-light')} rounded-lg shadow-lg p-4`}>
           <div className="flex items-start">
-            <Icons.Download className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <Icons.Download className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')} mt-0.5 flex-shrink-0`} />
             <div className="ml-3 flex-1">
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+              <p className={`text-sm font-medium ${getTitleTextClass(primaryColor)} mb-2`}>
                 Nova versão disponível!
               </p>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+              <p className={`text-xs ${getThemeClasses(primaryColor, 'text')} mb-3`}>
                 Uma nova versão do aplicativo está disponível. Clique em "Atualizar" para aplicar as mudanças.
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={update}
-                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                  className={`px-3 py-1.5 text-xs font-medium text-white ${getPrimaryButtonClass(primaryColor)} rounded-md transition-colors`}
                 >
                   Atualizar
                 </button>
                 <button
                   onClick={close}
-                  className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 rounded-md transition-colors"
+                  className={`px-3 py-1.5 text-xs font-medium ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'bg-light')} hover:${getThemeClasses(primaryColor, 'hover-bg')} dark:hover:${getPrimaryBgClass(primaryColor)}/60 rounded-md transition-colors`}
                 >
                   Depois
                 </button>
@@ -132,7 +137,7 @@ export default function PWAUpdatePrompt() {
             </div>
             <button
               onClick={close}
-              className="ml-4 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+              className={`ml-4 ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'hover-text')}`}
             >
               <Icons.X className="w-4 h-4" />
             </button>

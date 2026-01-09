@@ -10,6 +10,10 @@ import { Nascimento } from '../db/models';
 import Modal from './Modal';
 import { showToast } from '../utils/toast';
 import { criarMatrizSeNaoExistir } from '../utils/criarMatrizAutomatica';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getThemeClasses, getPrimaryButtonClass } from '../utils/themeHelpers';
+import { Icons } from '../utils/iconMapping';
 
 type Mode = 'create' | 'edit';
 
@@ -61,6 +65,8 @@ function NascimentoModalComponent({
   verificarBrincoDuplicado
 }: NascimentoModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [isPending, startTransition] = useTransition();
 
   // Mapa de matrizes para converter UUID em identificador
@@ -261,10 +267,10 @@ function NascimentoModalComponent({
   };
 
   const conteudoFormulario = (
-    <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 bg-white dark:bg-slate-900">
       <div className="flex flex-col md:flex-row gap-2">
         <div className="flex-1">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Fazenda *</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda *</label>
           <Combobox
             value={watch('fazendaId') || ''}
             onChange={(value) => startTransition(() => setValue('fazendaId', value))}
@@ -276,7 +282,7 @@ function NascimentoModalComponent({
         </div>
 
         <div className="md:w-40">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Mês *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mês *</label>
           <Combobox
             value={watch('mes') && !isNaN(Number(watch('mes'))) ? watch('mes')?.toString() : ''}
             onChange={(value) => {
@@ -306,7 +312,7 @@ function NascimentoModalComponent({
             type="number"
             min="2000"
             max="2100"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('ano', { valueAsNumber: true })}
           />
           {errors.ano && <p className="text-red-600 text-sm mt-1">{String(errors.ano.message)}</p>}
@@ -317,7 +323,7 @@ function NascimentoModalComponent({
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Matriz *</label>
           <input
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('matrizId')}
             placeholder="Número da matriz"
             autoFocus
@@ -328,7 +334,7 @@ function NascimentoModalComponent({
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Número do Brinco</label>
           <input
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('brincoNumero')}
             placeholder="Número do brinco"
           />
@@ -340,7 +346,7 @@ function NascimentoModalComponent({
           <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento *</label>
           <input
             type="date"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('dataNascimento')}
           />
           {errors.dataNascimento && <p className="text-red-600 text-sm mt-1">{String(errors.dataNascimento.message)}</p>}
@@ -382,19 +388,19 @@ function NascimentoModalComponent({
               <input
                 type="radio"
                 value="novilha"
-                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')} border-gray-300 dark:border-slate-600 ${getThemeClasses(primaryColor, 'ring')}`}
                 {...register('tipo')}
               />
-              <span className="text-xs sm:text-sm font-medium text-gray-700">Novilha</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300">Novilha</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 value="vaca"
-                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')} border-gray-300 dark:border-slate-600 ${getThemeClasses(primaryColor, 'ring')}`}
                 {...register('tipo')}
               />
-              <span className="text-xs sm:text-sm font-medium text-gray-700">Vaca</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300">Vaca</span>
             </label>
           </div>
           {errors.tipo && <p className="text-red-600 text-xs sm:text-sm mt-1">{String(errors.tipo.message)}</p>}
@@ -402,32 +408,32 @@ function NascimentoModalComponent({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Observações</label>
         <textarea
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
           rows={3}
           {...register('obs')}
           placeholder="Observações adicionais"
         />
       </div>
 
-      <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+      <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/40 rounded-md">
         <input
           type="checkbox"
           id="morto-modal"
-          className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+          className="w-4 h-4 text-red-600 border-gray-300 dark:border-slate-600 rounded focus:ring-red-500"
           {...register('morto')}
         />
-        <label htmlFor="morto-modal" className="text-sm font-medium text-red-800 cursor-pointer">
+        <label htmlFor="morto-modal" className="text-sm font-medium text-red-800 dark:text-red-200 cursor-pointer">
           Bezerro morto?
         </label>
       </div>
 
-      <div className="flex gap-3 pt-4 border-t border-gray-200">
+      <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-slate-700">
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`flex-1 px-4 py-2 ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Salvar' : 'Salvar Alterações'}
         </button>
@@ -443,7 +449,7 @@ function NascimentoModalComponent({
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-300 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
         >
           Cancelar
         </button>
@@ -452,8 +458,19 @@ function NascimentoModalComponent({
   );
 
   return (
-    <Modal isOpen={open} onClose={onClose} title={titulo}>
-      {conteudoFormulario}
+    <Modal open={open} onClose={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between z-10">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{titulo}</h2>
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <Icons.X className="w-5 h-5" />
+          </button>
+        </div>
+        {conteudoFormulario}
+      </div>
     </Modal>
   );
 }

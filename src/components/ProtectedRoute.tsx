@@ -1,14 +1,19 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
+import { UserRole } from '../db/models';
+import { PermissionType } from '../db/models';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'admin' | 'gerente' | 'peao' | 'visitante' | ('admin' | 'gerente' | 'peao' | 'visitante')[];
+  requiredRole?: UserRole | UserRole[];
+  requiredPermission?: PermissionType | PermissionType[];
 }
 
-export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+export default function ProtectedRoute({ children, requiredRole, requiredPermission }: ProtectedRouteProps) {
+  const { user, loading, hasRole } = useAuth();
+  const { hasPermission, hasAnyPermission } = usePermissions();
   const location = useLocation();
 
   if (loading) {
@@ -30,7 +35,24 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   // Verificar role se necessário
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    if (!roles.includes(user.role)) {
+    if (!hasRole(roles)) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="text-red-600 text-lg font-semibold mb-2">Acesso Negado</div>
+            <div className="text-gray-600">
+              Você não tem permissão para acessar esta página.
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Verificar permissão se necessário
+  if (requiredPermission) {
+    const permissions = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
+    if (!hasAnyPermission(permissions)) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
@@ -46,4 +68,3 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
 
   return <>{children}</>;
 }
-

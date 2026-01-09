@@ -1,10 +1,15 @@
 import { Icons } from '../utils/iconMapping';
 import { Link } from 'react-router-dom';
 import { useNotifications } from '../hooks/useNotifications';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryBgClass, getThemeClasses, getPrimaryCardClass, getPrimaryBadgeClass, getPrimarySmallButtonClass } from '../utils/themeHelpers';
 import { marcarNotificacaoComoLida, marcarTodasComoLidas, chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro } from '../utils/notificacoesLidas';
 
 export default function Notificacoes() {
   const notificacoes = useNotifications();
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
 
   const handleMarcarComoLida = async (tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz', chave: string) => {
     try {
@@ -42,10 +47,6 @@ export default function Notificacoes() {
 
   return (
     <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold">Notificações</h2>
-        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Pendências detectadas pelo sistema.</p>
-      </div>
 
       <div className="space-y-4">
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-amber-200 dark:border-amber-500/40 p-4">
@@ -160,10 +161,10 @@ export default function Notificacoes() {
           )}
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-blue-200 dark:border-blue-500/40 p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-green-200 dark:border-green-500/40 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Icons.FileWarning className="w-5 h-5 text-blue-500" />
+              <Icons.FileWarning className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')}`} />
               <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Dados incompletos</h3>
             </div>
             <div className="flex items-center gap-2">
@@ -176,7 +177,7 @@ export default function Notificacoes() {
                     const chaves = notificacoes.dadosIncompletos.map(n => chaveDadosIncompletos(n.id));
                     handleMarcarTodasComoLidas('dados', chaves);
                   }}
-                  className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors flex items-center gap-1"
+                  className={`text-xs px-2 py-1 ${getPrimarySmallButtonClass(primaryColor)} text-white rounded-md transition-colors flex items-center gap-1`}
                   title="Marcar todas como lidas"
                 >
                   <Icons.CheckCheck className="w-3 h-3" />
@@ -190,7 +191,7 @@ export default function Notificacoes() {
           ) : (
             <div className="space-y-2 max-h-64 overflow-auto">
               {notificacoes.dadosIncompletos.slice(0, 20).map((item) => (
-                <div key={item.id} className="flex items-start justify-between p-2 rounded-md border border-blue-100 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10">
+                <div key={item.id} className={`flex items-start justify-between p-2 rounded-md border ${getThemeClasses(primaryColor, 'border-light')} ${getThemeClasses(primaryColor, 'bg-light')} dark:${getThemeClasses(primaryColor, 'border')}/30 dark:${getPrimaryBgClass(primaryColor)}/10`}>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                       Matriz {item.matrizId} {item.brinco ? `• Brinco ${item.brinco}` : ''}
@@ -200,7 +201,7 @@ export default function Notificacoes() {
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {item.problemas.map((problema, idx) => (
-                        <span key={idx} className="text-xs px-2 py-0.5 bg-blue-200 text-blue-800 dark:bg-blue-500/30 dark:text-blue-200 rounded">
+                        <span key={idx} className={`text-xs px-2 py-0.5 ${getPrimaryBadgeClass(primaryColor)} rounded`}>
                           {problema}
                         </span>
                       ))}
@@ -208,7 +209,7 @@ export default function Notificacoes() {
                   </div>
                   <button
                     onClick={() => handleMarcarComoLida('dados', chaveDadosIncompletos(item.id))}
-                    className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded transition-colors ml-2"
+                    className={`p-1 ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'hover-text')} hover:${getThemeClasses(primaryColor, 'bg-light')} dark:hover:${getPrimaryBgClass(primaryColor)}/20 rounded transition-colors ml-2`}
                     title="Marcar como lida"
                   >
                     <Icons.Check className="w-4 h-4" />

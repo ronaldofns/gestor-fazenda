@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB } from './models';
+import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -21,6 +21,7 @@ class AppDB extends Dexie {
   audits!: Dexie.Table<AuditLog, string>; // Tabela de auditoria / histórico de alterações
   notificacoesLidas!: Dexie.Table<NotificacaoLida, string>; // Tabela para notificações marcadas como lidas
   alertSettings!: Dexie.Table<AlertSettingsDB, string>; // Tabela para configurações de alerta
+  appSettings!: Dexie.Table<AppSettingsDB, string>; // Tabela para configurações do app
 
   constructor() {
     super('FazendaDB');
@@ -225,6 +226,140 @@ class AppDB extends Dexie {
         } catch (err) {
           console.error('Erro ao migrar configurações de alerta:', err);
         }
+      }
+    });
+
+    // Versão 15: Adicionar tabela de permissões por role
+    this.version(15).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]'
+    }).upgrade(async (tx) => {
+      // Inicializar permissões padrão para cada role
+      // Usar crypto.randomUUID() nativo do navegador (não requer import dinâmico)
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        // Fallback para navegadores antigos
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      const now = new Date().toISOString();
+      const roles: UserRole[] = ['admin', 'gerente', 'peao', 'visitante'];
+      const permissions: PermissionType[] = [
+        'importar_planilha',
+        'gerenciar_usuarios',
+        'gerenciar_fazendas',
+        'gerenciar_matrizes',
+        'gerenciar_racas',
+        'gerenciar_categorias',
+        'cadastrar_nascimento',
+        'editar_nascimento',
+        'excluir_nascimento',
+        'cadastrar_desmama',
+        'editar_desmama',
+        'excluir_desmama',
+        'ver_dashboard',
+        'ver_notificacoes',
+        'exportar_dados',
+        'gerar_relatorios'
+      ];
+
+      // Permissões padrão por role
+      const defaultPermissions: Record<UserRole, PermissionType[]> = {
+        admin: permissions, // Admin tem todas as permissões
+        gerente: [
+          'ver_dashboard',
+          'ver_notificacoes',
+          'cadastrar_nascimento',
+          'editar_nascimento',
+          'cadastrar_desmama',
+          'editar_desmama',
+          'gerenciar_matrizes',
+          'exportar_dados',
+          'gerar_relatorios'
+        ],
+        peao: [
+          'ver_dashboard',
+          'ver_notificacoes',
+          'cadastrar_nascimento',
+          'cadastrar_desmama'
+        ],
+        visitante: [
+          'ver_dashboard',
+          'ver_notificacoes'
+        ]
+      };
+
+      // Criar permissões para cada role
+      // IMPORTANTE: Fazer todas as operações dentro da transação sem await de imports
+      const promises: Promise<any>[] = [];
+      for (const role of roles) {
+        const rolePerms = defaultPermissions[role];
+        for (const permission of permissions) {
+          const granted = rolePerms.includes(permission);
+          promises.push(
+            tx.table('rolePermissions').add({
+              id: generateUUID(),
+              role,
+              permission,
+              granted,
+              createdAt: now,
+              updatedAt: now,
+              synced: false,
+              remoteId: null
+            })
+          );
+        }
+      }
+      // Aguardar todas as operações de uma vez
+      await Promise.all(promises);
+    });
+
+    // Versão 16: Adicionar tabela de configurações do app
+    this.version(16).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId'
+    }).upgrade(async (tx) => {
+      // Inicializar configurações padrão do app
+      const now = new Date().toISOString();
+      const defaultPrimaryColor = 'green'; // Verde padrão (adequado para fazendas)
+      const existing = await tx.table('appSettings').get('app-settings-global');
+      if (!existing) {
+        await tx.table('appSettings').add({
+          id: 'app-settings-global',
+          timeoutInatividade: 15, // 15 minutos padrão
+          primaryColor: defaultPrimaryColor,
+          createdAt: now,
+          updatedAt: now,
+          synced: false,
+          remoteId: null
+        });
       }
     });
   }

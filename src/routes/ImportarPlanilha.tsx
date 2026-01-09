@@ -6,8 +6,14 @@ import { lerPlanilha, detectarMapeamento, importarNascimentos, MapeamentoColunas
 import { showToast } from '../utils/toast';
 import { Icons } from '../utils/iconMapping';
 import Combobox from '../components/Combobox';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
+import { getThemeClasses } from '../utils/themeHelpers';
 
 export default function ImportarPlanilha() {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -145,9 +151,6 @@ export default function ImportarPlanilha() {
 
   return (
     <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-      <div className="mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold">Importar Planilha</h2>
-      </div>
 
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg p-4 sm:p-6 space-y-6">
         {/* Upload de Arquivo */}
@@ -165,14 +168,14 @@ export default function ImportarPlanilha() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className={`flex items-center gap-2 px-4 py-2 ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors`}
             >
               <Icons.Upload className="w-5 h-5" />
               Selecionar Arquivo
             </button>
             {arquivo && (
               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
-                <Icons.FileSpreadsheet className="w-5 h-5 text-green-600" />
+                <Icons.FileSpreadsheet className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')}`} />
                 <span>{arquivo.name}</span>
                 <span className="text-gray-500">({dados.length} linhas)</span>
               </div>
@@ -219,7 +222,7 @@ export default function ImportarPlanilha() {
                         [campo.key]: e.target.value || undefined
                       });
                     }}
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="">-- Não mapear --</option>
                     {colunas.map(col => (
@@ -271,7 +274,7 @@ export default function ImportarPlanilha() {
             <button
               onClick={handleImportar}
               disabled={importando || !mapeamento.matrizId}
-              className="px-6 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`px-6 py-2 ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {importando ? 'Importando...' : `Importar ${dados.length} registro(s)`}
             </button>
@@ -310,7 +313,7 @@ export default function ImportarPlanilha() {
                   <div className="mt-3">
                     <button
                       onClick={() => setMostrarErros(!mostrarErros)}
-                      className="text-sm text-blue-600 hover:text-blue-800 underline"
+                      className={`text-sm ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'hover-text')} underline`}
                     >
                       {mostrarErros ? 'Ocultar' : 'Mostrar'} erros
                     </button>

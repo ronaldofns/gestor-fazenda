@@ -12,6 +12,9 @@ import ModalCategoria from './ModalCategoria';
 import ModalRaca from './ModalRaca';
 import { showToast } from '../utils/toast';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses, getCheckboxClass } from '../utils/themeHelpers';
 import { registrarAudit } from '../utils/audit';
 import { useAuth } from '../hooks/useAuth';
 
@@ -52,6 +55,8 @@ export default function MatrizModal({
   onClose,
   onSaved
 }: MatrizModalProps) {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, startTransition] = useTransition();
@@ -286,7 +291,7 @@ export default function MatrizModal({
           </label>
           <input
             type="text"
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             placeholder="Ex: 123, V-01..."
             {...register('identificador')}
             autoFocus
@@ -353,7 +358,7 @@ export default function MatrizModal({
             type="text"
             inputMode="numeric"
             maxLength={10}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             placeholder="dd/mm/yyyy"
             {...register('dataNascimento')}
             onChange={(e) => {
@@ -373,7 +378,7 @@ export default function MatrizModal({
           </label>
           <input
             type="text"
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             placeholder="Identificador do pai (se houver)"
             {...register('pai')}
           />
@@ -385,7 +390,7 @@ export default function MatrizModal({
           </label>
           <input
             type="text"
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             placeholder="Identificador da mãe (se houver)"
             {...register('mae')}
           />
@@ -395,7 +400,7 @@ export default function MatrizModal({
           <input
             type="checkbox"
             id="ativo"
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-slate-700 rounded"
+            className={`h-4 w-4 ${getCheckboxClass(primaryColor)}`}
             {...register('ativo')}
           />
           <label htmlFor="ativo" className="ml-2 block text-sm text-gray-700 dark:text-slate-300">
@@ -410,7 +415,7 @@ export default function MatrizModal({
         </label>
         <textarea
           rows={3}
-          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
           placeholder="Informações adicionais relevantes sobre a matriz."
           {...register('obs')}
         />
@@ -436,7 +441,7 @@ export default function MatrizModal({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+          className={`px-4 py-2 text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50`}
         >
           {isSubmitting ? 'Salvando...' : 'Salvar'}
         </button>

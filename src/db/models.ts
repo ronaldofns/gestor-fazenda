@@ -126,3 +126,44 @@ export interface AlertSettingsDB {
   synced: boolean; // Se foi sincronizado com o servidor
   remoteId?: number | null; // ID remoto no Supabase
 }
+
+export interface AppSettingsDB {
+  id: string; // Sempre 'app-settings-global'
+  timeoutInatividade: number; // Tempo de inatividade em minutos antes de fazer logout (padrão: 15)
+  primaryColor?: string; // Cor primária do tema (padrão: 'green')
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean; // Se foi sincronizado com o servidor
+  remoteId?: number | null; // ID remoto no Supabase
+}
+
+// Tipos de permissões disponíveis no sistema
+export type PermissionType = 
+  | 'importar_planilha'
+  | 'gerenciar_usuarios'
+  | 'gerenciar_fazendas'
+  | 'gerenciar_matrizes'
+  | 'gerenciar_racas'
+  | 'gerenciar_categorias'
+  | 'cadastrar_nascimento'
+  | 'editar_nascimento'
+  | 'excluir_nascimento'
+  | 'cadastrar_desmama'
+  | 'editar_desmama'
+  | 'excluir_desmama'
+  | 'ver_dashboard'
+  | 'ver_notificacoes'
+  | 'exportar_dados'
+  | 'gerar_relatorios';
+
+// Permissão por role
+export interface RolePermission {
+  id: string; // UUID interno
+  role: UserRole; // Role que possui a permissão
+  permission: PermissionType; // Tipo de permissão
+  granted: boolean; // Se a permissão está concedida
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean; // Se foi sincronizado com o servidor
+  remoteId?: number | null; // ID remoto no Supabase
+}

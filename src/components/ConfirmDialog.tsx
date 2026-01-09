@@ -1,4 +1,9 @@
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -21,6 +26,9 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel
 }: ConfirmDialogProps) {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+
   const variantStyles = {
     danger: {
       button: 'bg-red-600 hover:bg-red-700 text-white',
@@ -33,18 +41,29 @@ export default function ConfirmDialog({
       border: 'border-amber-200 dark:border-amber-500/40'
     },
     info: {
-      button: 'bg-blue-600 hover:bg-blue-700 text-white',
-      icon: 'text-blue-600',
-      border: 'border-blue-200 dark:border-blue-500/40'
+      button: `${getPrimaryButtonClass(primaryColor)} text-white`,
+      icon: getThemeClasses(primaryColor, 'text'),
+      border: `${getThemeClasses(primaryColor, 'border-light')}`
     }
   };
 
   const styles = variantStyles[variant];
 
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
   if (!open) return null;
   
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  const dialogContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div 
         className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm" 
         onClick={onCancel} 
@@ -88,5 +107,7 @@ export default function ConfirmDialog({
       </div>
     </div>
   );
+
+  return createPortal(dialogContent, document.body);
 }
 
