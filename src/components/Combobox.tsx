@@ -256,7 +256,7 @@ function ComboboxComponent({
           onBlur={handleBlur}
           disabled={disabled}
           aria-busy={isPending}
-          className={`w-full px-3 py-2 pr-10 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed`}
+          className={`w-full px-3 py-2 pr-10 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed`}
           placeholder={placeholder}
         />
         {/* Seta indicadora de dropdown - clicável */}
@@ -297,7 +297,7 @@ function ComboboxComponent({
         {showDropdown && (
           <div 
             ref={dropdownRef}
-            className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md shadow-lg max-h-60 overflow-auto"
+            className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md shadow-lg max-h-60 overflow-auto"
           >
             {filteredOptions.map((option, index) => {
               const isFav = isFavorito ? isFavorito(option.value) : false;

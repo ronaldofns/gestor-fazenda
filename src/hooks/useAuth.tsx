@@ -19,23 +19,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Carregar sessão persistida ao inicializar
+  // Carregar sessão apenas do sessionStorage (será limpo ao fechar a aba/janela)
   useEffect(() => {
     const loadSession = async () => {
       try {
-        const savedUserId = localStorage.getItem('gestor-fazenda-user-id');
+        // Limpar qualquer sessão antiga do localStorage (migração)
+        localStorage.removeItem('gestor-fazenda-user-id');
+        
+        // Carregar apenas do sessionStorage (persiste durante recarregamentos, mas é limpo ao fechar aba/janela)
+        const savedUserId = sessionStorage.getItem('gestor-fazenda-user-id');
         if (savedUserId) {
           const usuario = await getUserById(savedUserId);
           if (usuario && usuario.ativo) {
             setUser(usuario);
           } else {
             // Se usuário não encontrado ou inativo, limpar sessão
-            localStorage.removeItem('gestor-fazenda-user-id');
+            sessionStorage.removeItem('gestor-fazenda-user-id');
           }
         }
       } catch (error) {
         console.error('Erro ao carregar sessão:', error);
-        localStorage.removeItem('gestor-fazenda-user-id');
+        sessionStorage.removeItem('gestor-fazenda-user-id');
       } finally {
         setLoading(false);
       }
@@ -50,12 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Email ou senha incorretos');
     }
     setUser(usuario);
-    localStorage.setItem('gestor-fazenda-user-id', usuario.id);
+    // Usar sessionStorage ao invés de localStorage para que a sessão seja limpa ao fechar a aba/janela
+    sessionStorage.setItem('gestor-fazenda-user-id', usuario.id);
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('gestor-fazenda-user-id');
+    sessionStorage.removeItem('gestor-fazenda-user-id');
   };
 
   const refreshUser = async () => {

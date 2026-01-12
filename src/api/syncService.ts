@@ -712,17 +712,36 @@ export async function pullUpdates() {
         }
       }
       
-      for (const s of servCategorias) {
+        for (const s of servCategorias) {
+        if (!s.uuid) {
+          console.warn('Categoria do servidor sem UUID, ignorando:', s);
+          continue;
+        }
+
         const local = await db.categorias.get(s.uuid);
         if (!local) {
-          await db.categorias.add({
-            id: s.uuid,
-            nome: s.nome,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          try {
+            await db.categorias.put({
+              id: s.uuid,
+              nome: s.nome,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.categorias.update(s.uuid, {
+                nome: s.nome,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
         } else {
           if (new Date(local.updatedAt) < new Date(s.updated_at)) {
             await db.categorias.update(local.id, {
@@ -772,16 +791,35 @@ export async function pullUpdates() {
       
       // Adicionar/atualizar raças do servidor
       for (const s of servRacas) {
+        if (!s.uuid) {
+          console.warn('Raça do servidor sem UUID, ignorando:', s);
+          continue;
+        }
+
         const local = await db.racas.get(s.uuid);
         if (!local) {
-          await db.racas.add({
-            id: s.uuid,
-            nome: s.nome,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          try {
+            await db.racas.put({
+              id: s.uuid,
+              nome: s.nome,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.racas.update(s.uuid, {
+                nome: s.nome,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
         } else {
           if (new Date(local.updatedAt) < new Date(s.updated_at)) {
             await db.racas.update(local.id, {
@@ -831,17 +869,37 @@ export async function pullUpdates() {
       
       // Adicionar/atualizar fazendas do servidor
       for (const s of servFaz) {
+        if (!s.uuid) {
+          console.warn('Fazenda do servidor sem UUID, ignorando:', s);
+          continue;
+        }
+
         const local = await db.fazendas.get(s.uuid);
         if (!local) {
-          await db.fazendas.add({
-            id: s.uuid,
-            nome: s.nome,
-            logoUrl: s.logo_url,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          try {
+            await db.fazendas.put({
+              id: s.uuid,
+              nome: s.nome,
+              logoUrl: s.logo_url,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.fazendas.update(s.uuid, {
+                nome: s.nome,
+                logoUrl: s.logo_url,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
         } else {
           if (new Date(local.updatedAt) < new Date(s.updated_at)) {
             await db.fazendas.update(local.id, {
@@ -923,12 +981,32 @@ export async function pullUpdates() {
         }
         
         if (!local) {
-          // Verificar se já existe uma matriz com esse UUID antes de adicionar
-          const existePorUuid = await db.matrizes.get(s.uuid);
-          if (!existePorUuid) {
-            try {
-              await db.matrizes.add({
-                id: s.uuid,
+          if (!s.uuid) {
+            console.warn('Matriz do servidor sem UUID, ignorando:', s);
+            continue;
+          }
+
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          try {
+            await db.matrizes.put({
+              id: s.uuid,
+              identificador: s.identificador,
+              fazendaId: s.fazenda_uuid,
+              categoriaId: categoriaId,
+              raca: racaNome,
+              dataNascimento: dataNascimentoBR,
+              pai: s.pai || undefined,
+              mae: s.mae || undefined,
+              ativo: s.ativo,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            } as any);
+          } catch (putError: any) {
+            // Se ainda der erro, tentar atualizar
+            if (putError.name === 'ConstraintError' || putError.message?.includes('Key already exists')) {
+              await db.matrizes.update(s.uuid, {
                 identificador: s.identificador,
                 fazendaId: s.fazenda_uuid,
                 categoriaId: categoriaId,
@@ -937,32 +1015,14 @@ export async function pullUpdates() {
                 pai: s.pai || undefined,
                 mae: s.mae || undefined,
                 ativo: s.ativo,
-                createdAt: s.created_at,
                 updatedAt: s.updated_at,
                 synced: true,
                 remoteId: s.id
               } as any);
-            } catch (addError: any) {
-              // Se der erro de constraint, pode ser que a matriz já existe
-              // Tentar atualizar ao invés de adicionar
-              if (addError.name === 'ConstraintError' || addError.message?.includes('Key already exists')) {
-                await db.matrizes.update(s.uuid, {
-                  identificador: s.identificador,
-                  fazendaId: s.fazenda_uuid,
-                  categoriaId: categoriaId,
-                  raca: racaNome,
-                  dataNascimento: dataNascimentoBR,
-                  pai: s.pai || undefined,
-                  mae: s.mae || undefined,
-                  ativo: s.ativo,
-                  updatedAt: s.updated_at,
-                  synced: true,
-                  remoteId: s.id
-                } as any);
-              } else {
-                throw addError;
-              }
+            } else {
+              throw putError;
             }
+          }
           }
         } else {
           // Atualizar apenas se a versão do servidor for mais recente ou se não tiver remoteId
@@ -1098,7 +1158,8 @@ export async function pullUpdates() {
         }
         
         try {
-          await db.nascimentos.add({
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          await db.nascimentos.put({
             id: s.uuid,
             fazendaId: s.fazenda_uuid,
             matrizId: s.matriz_id,
@@ -1217,18 +1278,39 @@ export async function pullUpdates() {
     
     // Adicionar/atualizar desmamas do servidor
     for (const s of servDesm) {
+      if (!s.uuid) {
+        console.warn('Desmama do servidor sem UUID, ignorando:', s);
+        continue;
+      }
+
       const local = await db.desmamas.get(s.uuid);
       if (!local) {
-        await db.desmamas.add({
-          id: s.uuid,
-          nascimentoId: s.nascimento_uuid,
-          dataDesmama: s.data_desmama,
-          pesoDesmama: s.peso_desmama,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id
-        });
+        // Usar put ao invés de add para evitar erro de chave duplicada
+        try {
+          await db.desmamas.put({
+            id: s.uuid,
+            nascimentoId: s.nascimento_uuid,
+            dataDesmama: s.data_desmama,
+            pesoDesmama: s.peso_desmama,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
+          });
+        } catch (putError: any) {
+          if (putError.name === 'ConstraintError') {
+            await db.desmamas.update(s.uuid, {
+              nascimentoId: s.nascimento_uuid,
+              dataDesmama: s.data_desmama,
+              pesoDesmama: s.peso_desmama,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } else {
+            throw putError;
+          }
+        }
       } else {
         if (new Date(local.updatedAt) < new Date(s.updated_at)) {
           await db.desmamas.update(local.id, {
@@ -1274,21 +1356,45 @@ export async function pullUpdates() {
       
       // Adicionar/atualizar usuários do servidor
       for (const s of servUsuarios) {
+        if (!s.uuid) {
+          console.warn('Usuário do servidor sem UUID, ignorando:', s);
+          continue;
+        }
+
         const local = await db.usuarios.get(s.uuid);
         if (!local) {
-          await db.usuarios.add({
-            id: s.uuid,
-            nome: s.nome,
-            email: s.email,
-            senhaHash: s.senha_hash,
-            role: s.role,
-            fazendaId: s.fazenda_uuid || undefined,
-            ativo: s.ativo,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          try {
+            await db.usuarios.put({
+              id: s.uuid,
+              nome: s.nome,
+              email: s.email,
+              senhaHash: s.senha_hash,
+              role: s.role,
+              fazendaId: s.fazenda_uuid || undefined,
+              ativo: s.ativo,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.usuarios.update(s.uuid, {
+                nome: s.nome,
+                email: s.email,
+                senhaHash: s.senha_hash,
+                role: s.role,
+                fazendaId: s.fazenda_uuid || undefined,
+                ativo: s.ativo,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
         } else {
           // Atualizar apenas se a versão do servidor for mais recente
           if (new Date(local.updatedAt) < new Date(s.updated_at)) {
@@ -1350,7 +1456,8 @@ export async function pullUpdates() {
           const local = await db.audits.get(s.uuid);
           if (!local) {
             try {
-              await db.audits.add({
+              // Usar put ao invés de add para evitar erro de chave duplicada
+              await db.audits.put({
                 id: s.uuid,
                 entity: s.entity,
                 entityId: s.entity_id,
@@ -1364,9 +1471,9 @@ export async function pullUpdates() {
                 synced: true,
                 remoteId: s.id
               });
-            } catch (addError: any) {
-              if (addError.name === 'ConstraintError' || addError.message?.includes('already exists')) {
-                // Se já existe, atualizar
+            } catch (putError: any) {
+              // Se ainda der erro, tentar atualizar
+              if (putError.name === 'ConstraintError' || putError.message?.includes('already exists')) {
                 const existing = await db.audits.get(s.uuid);
                 if (existing) {
                   await db.audits.update(s.uuid, {
@@ -1384,7 +1491,7 @@ export async function pullUpdates() {
                   });
                 }
               } else {
-                console.error('Erro ao adicionar audit do servidor:', addError);
+                console.error('Erro ao adicionar audit do servidor:', putError);
               }
             }
           } else {
@@ -1437,17 +1544,32 @@ export async function pullUpdates() {
         const local = await db.alertSettings.get('alert-settings-global');
         
         if (!local) {
-          // Criar local se não existir
-          await db.alertSettings.add({
-            id: 'alert-settings-global',
-            limiteMesesDesmama: s.limite_meses_desmama,
-            janelaMesesMortalidade: s.janela_meses_mortalidade,
-            limiarMortalidade: s.limiar_mortalidade,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Criar local se não existir - usar put para evitar erro de chave duplicada
+          try {
+            await db.alertSettings.put({
+              id: 'alert-settings-global',
+              limiteMesesDesmama: s.limite_meses_desmama,
+              janelaMesesMortalidade: s.janela_meses_mortalidade,
+              limiarMortalidade: s.limiar_mortalidade,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.alertSettings.update('alert-settings-global', {
+                limiteMesesDesmama: s.limite_meses_desmama,
+                janelaMesesMortalidade: s.janela_meses_mortalidade,
+                limiarMortalidade: s.limiar_mortalidade,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
           
           // Atualizar localStorage e disparar evento
           if (typeof window !== 'undefined') {
@@ -1534,14 +1656,30 @@ export async function pullUpdates() {
         
         if (!local) {
           // Criar local se não existir
-          await db.appSettings.add({
-            id: 'app-settings-global',
-            timeoutInatividade: s.timeout_inatividade,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          try {
+            await db.appSettings.put({
+              id: 'app-settings-global',
+              timeoutInatividade: s.timeout_inatividade,
+              primaryColor: s.primary_color || 'gray',
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.appSettings.update('app-settings-global', {
+                timeoutInatividade: s.timeout_inatividade,
+                primaryColor: s.primary_color || 'gray',
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
           
           // Disparar evento para atualizar o hook
           if (typeof window !== 'undefined') {
@@ -1621,18 +1759,40 @@ export async function pullUpdates() {
 
       // Adicionar/atualizar permissões do servidor
       for (const s of servPermissoes) {
+        if (!s.uuid) {
+          console.warn('Permissão do servidor sem UUID, ignorando:', s);
+          continue;
+        }
+
         const local = await db.rolePermissions.get(s.uuid);
         if (!local) {
-          await db.rolePermissions.add({
-            id: s.uuid,
-            role: s.role,
-            permission: s.permission,
-            granted: s.granted,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Usar put ao invés de add para evitar erro de chave duplicada
+          try {
+            await db.rolePermissions.put({
+              id: s.uuid,
+              role: s.role,
+              permission: s.permission,
+              granted: s.granted,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (err: any) {
+            // Se ainda der erro, tentar atualizar (pode ter sido criado entre a verificação e o put)
+            if (err.name === 'ConstraintError') {
+              await db.rolePermissions.update(s.uuid, {
+                role: s.role,
+                permission: s.permission,
+                granted: s.granted,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw err;
+            }
+          }
         } else {
           // Atualizar se a versão do servidor é mais recente
           if (new Date(local.updatedAt) < new Date(s.updated_at)) {
@@ -1677,20 +1837,38 @@ export async function pullUsuarios() {
       for (const s of servUsuarios) {
         const local = await db.usuarios.get(s.uuid);
         if (!local) {
-          // Adicionar novo usuário do servidor
-          await db.usuarios.add({
-            id: s.uuid,
-            nome: s.nome,
-            email: s.email,
-            senhaHash: s.senha_hash,
-            role: s.role,
-            fazendaId: s.fazenda_uuid || undefined,
-            ativo: s.ativo,
-            createdAt: s.created_at,
-            updatedAt: s.updated_at,
-            synced: true,
-            remoteId: s.id
-          });
+          // Adicionar novo usuário do servidor - usar put para evitar erro de chave duplicada
+          try {
+            await db.usuarios.put({
+              id: s.uuid,
+              nome: s.nome,
+              email: s.email,
+              senhaHash: s.senha_hash,
+              role: s.role,
+              fazendaId: s.fazenda_uuid || undefined,
+              ativo: s.ativo,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.usuarios.update(s.uuid, {
+                nome: s.nome,
+                email: s.email,
+                senhaHash: s.senha_hash,
+                role: s.role,
+                fazendaId: s.fazenda_uuid || undefined,
+                ativo: s.ativo,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
         } else {
           // Atualizar apenas se a versão do servidor for mais recente
           // Mas preservar dados locais se o servidor não tiver remoteId
@@ -1762,20 +1940,26 @@ export async function pullUsuarios() {
           
           // Adicionar/atualizar notificações do servidor
           for (const s of servNotificacoes) {
+            if (!s.uuid) {
+              console.warn('Notificação do servidor sem UUID, ignorando:', s);
+              continue;
+            }
+
             const local = await db.notificacoesLidas.get(s.uuid);
             if (!local) {
               // Adicionar notificação do servidor que não existe localmente
               try {
-                await db.notificacoesLidas.add({
+                // Usar put ao invés de add para evitar erro de chave duplicada
+                await db.notificacoesLidas.put({
                   id: s.uuid,
                   tipo: s.tipo,
                   marcadaEm: s.marcada_em,
                   synced: true,
                   remoteId: s.id
                 });
-              } catch (addError: any) {
-                // Se der erro ao adicionar (ex: chave duplicada), tentar atualizar
-                if (addError.name === 'ConstraintError' || addError.message?.includes('already exists')) {
+              } catch (putError: any) {
+                // Se ainda der erro, tentar atualizar
+                if (putError.name === 'ConstraintError' || putError.message?.includes('already exists')) {
                   const existing = await db.notificacoesLidas.get(s.uuid);
                   if (existing) {
                     await db.notificacoesLidas.update(s.uuid, {
@@ -1786,7 +1970,7 @@ export async function pullUsuarios() {
                     });
                   }
                 } else {
-                  console.error('Erro ao adicionar notificação lida do servidor:', addError);
+                  console.error('Erro ao adicionar notificação lida do servidor:', putError);
                 }
               }
             } else {
@@ -1858,10 +2042,16 @@ export async function pullUsuarios() {
         }
 
         for (const s of servAudits) {
+          if (!s.uuid) {
+            console.warn('Audit do servidor sem UUID, ignorando:', s);
+            continue;
+          }
+
           const local = await db.audits.get(s.uuid);
           if (!local) {
             try {
-              await db.audits.add({
+              // Usar put ao invés de add para evitar erro de chave duplicada
+              await db.audits.put({
                 id: s.uuid,
                 entity: s.entity,
                 entityId: s.entity_id,
@@ -1875,8 +2065,9 @@ export async function pullUsuarios() {
                 synced: true,
                 remoteId: s.id
               });
-            } catch (addError: any) {
-              if (addError.name === 'ConstraintError' || addError.message?.includes('already exists')) {
+            } catch (putError: any) {
+              // Se ainda der erro, tentar atualizar
+              if (putError.name === 'ConstraintError' || putError.message?.includes('already exists')) {
                 const existing = await db.audits.get(s.uuid);
                 if (existing) {
                   await db.audits.update(s.uuid, {
@@ -1894,7 +2085,7 @@ export async function pullUsuarios() {
                   });
                 }
               } else {
-                console.error('Erro ao adicionar audit do servidor:', addError);
+                console.error('Erro ao adicionar audit do servidor:', putError);
               }
             }
           } else {

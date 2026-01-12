@@ -69,7 +69,7 @@ export default function ConfirmDialog({
         onClick={onCancel} 
       />
       <div className="relative z-10 w-full max-w-md">
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full">
         <div className={`border-b ${styles.border} px-6 py-4 flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <Icons.AlertTriangle className={`w-6 h-6 ${styles.icon}`} />
@@ -92,7 +92,7 @@ export default function ConfirmDialog({
         <div className="border-t border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-end gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
           >
             {cancelText}
           </button>

@@ -49,7 +49,7 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-4 sm:p-6">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
             Cadastro Rápido de Raça
@@ -63,7 +63,7 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
                 type="text"
                 value={nomeRaca}
                 onChange={(e) => setNomeRaca(e.target.value)}
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
+                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                 placeholder="Ex: ANGUS, NELORE"
                 autoFocus
                 disabled={salvando}

@@ -2452,7 +2452,7 @@ export default function Home() {
             <div className="relative bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-                <h2 className="text-xl font-semibold text-gray-900">Novo Nascimento/Desmama</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-50">Novo Nascimento/Desmama</h2>
                 <button
                   onClick={() => setModalNovoNascimentoOpen(false)}
                   className={`text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} rounded-md p-1`}
@@ -2516,7 +2516,7 @@ export default function Home() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1"> *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Matriz *</label>
                     <input 
                       className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       {...registerNascimento('matrizId', {

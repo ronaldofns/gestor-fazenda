@@ -26,3 +26,87 @@ body {
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
+
+/* Forçar inputs a respeitarem o modo escuro - aplicado globalmente */
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="date"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="url"],
+.dark input[type="tel"],
+.dark input:not([type]),
+.dark textarea,
+.dark select {
+  background-color: rgb(51 65 85) !important; /* slate-700 */
+  color: rgb(241 245 249) !important; /* slate-100 */
+  border-color: rgb(71 85 105) !important; /* slate-600 */
+}
+
+.dark input[type="text"]::placeholder,
+.dark input[type="number"]::placeholder,
+.dark input[type="date"]::placeholder,
+.dark input[type="email"]::placeholder,
+.dark input[type="password"]::placeholder,
+.dark input[type="url"]::placeholder,
+.dark input[type="tel"]::placeholder,
+.dark input:not([type])::placeholder,
+.dark textarea::placeholder {
+  color: rgb(148 163 184) !important; /* slate-400 */
+}
+
+/* Forçar elementos do input date no modo escuro */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+.dark input[type="date"]::-webkit-datetime-edit-text,
+.dark input[type="date"]::-webkit-datetime-edit-month-field,
+.dark input[type="date"]::-webkit-datetime-edit-day-field,
+.dark input[type="date"]::-webkit-datetime-edit-year-field {
+  color: rgb(241 245 249) !important; /* slate-100 */
+}
+
+/* Garantir que labels sejam legíveis no modo escuro */
+.dark label {
+  color: rgb(241 245 249) !important; /* slate-100 */
+}
+
+/* Garantir que elementos dentro de modais respeitem o modo escuro */
+.dark .bg-white {
+  background-color: rgb(30 41 59) !important; /* slate-800 */
+}
+
+/* Forçar labels dentro de modais a serem legíveis */
+.dark form label,
+.dark .block.text-sm label,
+.dark .block.text-xs label,
+.dark label.block {
+  color: rgb(241 245 249) !important; /* slate-100 */
+}
+
+/* Garantir que spans dentro de labels também sejam legíveis */
+.dark label span,
+.dark span.text-xs,
+.dark span.text-sm {
+  color: rgb(241 245 249) !important; /* slate-100 */
+}
+
+/* Forçar inputs dentro de formulários no modo escuro */
+.dark form input[type="text"],
+.dark form input[type="number"],
+.dark form input[type="date"],
+.dark form input:not([type]),
+.dark form textarea {
+  background-color: rgb(51 65 85) !important; /* slate-700 */
+  color: rgb(241 245 249) !important; /* slate-100 */
+  border-color: rgb(71 85 105) !important; /* slate-600 */
+}
+
+/* Garantir que o header do modal seja escuro */
+.dark .sticky.top-0.bg-white,
+.dark .bg-white.rounded-lg {
+  background-color: rgb(30 41 59) !important; /* slate-800 */
+}

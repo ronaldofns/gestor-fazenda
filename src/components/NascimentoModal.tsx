@@ -267,10 +267,10 @@ function NascimentoModalComponent({
   };
 
   const conteudoFormulario = (
-    <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 bg-white dark:bg-slate-900">
+    <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 bg-white dark:bg-slate-800">
       <div className="flex flex-col md:flex-row gap-2">
         <div className="flex-1">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda *</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Fazenda *</label>
           <Combobox
             value={watch('fazendaId') || ''}
             onChange={(value) => startTransition(() => setValue('fazendaId', value))}
@@ -278,11 +278,11 @@ function NascimentoModalComponent({
             placeholder="Selecione a fazenda"
             allowCustomValue={false}
           />
-          {errors.fazendaId && <p className="text-red-600 text-sm mt-1">{String(errors.fazendaId.message)}</p>}
+          {errors.fazendaId && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{String(errors.fazendaId.message)}</p>}
         </div>
 
         <div className="md:w-40">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mês *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Mês *</label>
           <Combobox
             value={watch('mes') && !isNaN(Number(watch('mes'))) ? watch('mes')?.toString() : ''}
             onChange={(value) => {
@@ -303,38 +303,38 @@ function NascimentoModalComponent({
             placeholder="Selecione o mês"
             allowCustomValue={false}
           />
-          {errors.mes && <p className="text-red-600 text-sm mt-1">{String(errors.mes.message)}</p>}
+          {errors.mes && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{String(errors.mes.message)}</p>}
         </div>
 
         <div className="md:w-28">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Ano *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Ano *</label>
           <input
             type="number"
             min="2000"
             max="2100"
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('ano', { valueAsNumber: true })}
           />
-          {errors.ano && <p className="text-red-600 text-sm mt-1">{String(errors.ano.message)}</p>}
+          {errors.ano && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{String(errors.ano.message)}</p>}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Matriz *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Matriz *</label>
           <input
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('matrizId')}
             placeholder="Número da matriz"
             autoFocus
           />
-          {errors.matrizId && <p className="text-red-600 text-sm mt-1">{String(errors.matrizId.message)}</p>}
+          {errors.matrizId && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{String(errors.matrizId.message)}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Número do Brinco</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Número do Brinco</label>
           <input
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('brincoNumero')}
             placeholder="Número do brinco"
           />
@@ -343,17 +343,17 @@ function NascimentoModalComponent({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Data de Nascimento *</label>
           <input
             type="date"
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
+            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             {...register('dataNascimento')}
           />
-          {errors.dataNascimento && <p className="text-red-600 text-sm mt-1">{String(errors.dataNascimento.message)}</p>}
+          {errors.dataNascimento && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{String(errors.dataNascimento.message)}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Sexo *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Sexo *</label>
           <Combobox
             value={watch('sexo') || ''}
             onChange={(value) => setValue('sexo', value as 'M' | 'F', { shouldValidate: true })}
@@ -364,13 +364,13 @@ function NascimentoModalComponent({
             placeholder="Selecione o sexo"
             allowCustomValue={false}
           />
-          {errors.sexo && <p className="text-red-600 text-sm mt-1">{String(errors.sexo.message)}</p>}
+          {errors.sexo && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{String(errors.sexo.message)}</p>}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Raça</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Raça</label>
           <Combobox
             value={watch('raca') || ''}
             onChange={(value) => setValue('raca', value)}
@@ -382,7 +382,7 @@ function NascimentoModalComponent({
         </div>
 
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Tipo *</label>
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-100 mb-2">Tipo *</label>
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -391,7 +391,7 @@ function NascimentoModalComponent({
                 className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')} border-gray-300 dark:border-slate-600 ${getThemeClasses(primaryColor, 'ring')}`}
                 {...register('tipo')}
               />
-              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300">Novilha</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-100">Novilha</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -400,31 +400,31 @@ function NascimentoModalComponent({
                 className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')} border-gray-300 dark:border-slate-600 ${getThemeClasses(primaryColor, 'ring')}`}
                 {...register('tipo')}
               />
-              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300">Vaca</span>
+              <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-100">Vaca</span>
             </label>
           </div>
-          {errors.tipo && <p className="text-red-600 text-xs sm:text-sm mt-1">{String(errors.tipo.message)}</p>}
+          {errors.tipo && <p className="text-red-600 dark:text-red-400 text-xs sm:text-sm mt-1">{String(errors.tipo.message)}</p>}
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Observações</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Observações</label>
         <textarea
-          className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
+          className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
           rows={3}
           {...register('obs')}
           placeholder="Observações adicionais"
         />
       </div>
 
-      <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/40 rounded-md">
+      <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-800/60 rounded-md">
         <input
           type="checkbox"
           id="morto-modal"
-          className="w-4 h-4 text-red-600 border-gray-300 dark:border-slate-600 rounded focus:ring-red-500"
+          className="w-4 h-4 accent-red-600 dark:accent-red-500 border-gray-300 dark:border-slate-600 rounded focus:ring-red-500 dark:focus:ring-red-400"
           {...register('morto')}
         />
-        <label htmlFor="morto-modal" className="text-sm font-medium text-red-800 dark:text-red-200 cursor-pointer">
+        <label htmlFor="morto-modal" className="text-sm font-medium text-red-800 dark:text-red-100 cursor-pointer">
           Bezerro morto?
         </label>
       </div>
@@ -441,7 +441,7 @@ function NascimentoModalComponent({
           type="button"
           onClick={handleLimpar}
           disabled={isSubmitting}
-          className="px-4 py-2 bg-yellow-500 text-white font-medium rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 font-medium rounded-md hover:bg-gray-300 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-slate-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
         >
           Limpar
         </button>
@@ -459,12 +459,12 @@ function NascimentoModalComponent({
 
   return (
     <Modal open={open} onClose={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{titulo}</h2>
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between z-10">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-50">{titulo}</h2>
           <button
             onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
           >
             <Icons.X className="w-5 h-5" />
           </button>
