@@ -1023,7 +1023,6 @@ export async function pullUpdates() {
               throw putError;
             }
           }
-          }
         } else {
           // Atualizar apenas se a versão do servidor for mais recente ou se não tiver remoteId
           if (!local.remoteId || new Date(local.updatedAt) < new Date(s.updated_at)) {
