@@ -202,6 +202,7 @@ export function getPrimaryCardClass(color: ColorPaletteKey): string {
     teal: 'border-teal-200 dark:border-teal-500/40 bg-teal-50 dark:bg-teal-500/10',
     indigo: 'border-indigo-200 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10',
     purple: 'border-purple-200 dark:border-purple-500/40 bg-purple-50 dark:bg-purple-500/10',
+    gray: 'border-gray-200 dark:border-gray-500/40 bg-gray-50 dark:bg-gray-500/10',
   };
   return classMap[color] || classMap.gray;
 }
