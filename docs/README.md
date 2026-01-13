@@ -10,6 +10,7 @@ Esta pasta contém toda a documentação técnica e de processo do projeto.
 - **ESTRUTURA_PROJETO.md** - Estrutura completa do projeto, organização de pastas e arquivos
 - **SINCRONIZACAO_VERIFICACAO.md** - Verificação e status da sincronização IndexedDB ↔ Supabase
 - **SINCRONIZACAO_STATUS.md** - Status detalhado da sincronização
+- **ROADMAP_FUNCIONALIDADES.md** - Roadmap de funcionalidades e status de implementação
 
 ### Documentação de Deploy
 - **DEPLOY_VERCEL.md** - Guia de deploy na Vercel

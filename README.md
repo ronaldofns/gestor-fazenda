@@ -2,30 +2,113 @@
 
 Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web App) com sincronização offline/online.
 
-## 🚀 Características
+## 🚀 Características Principais
 
-- **PWA**: Funciona offline e pode ser instalado como app
-- **Sincronização**: Sincronização bidirecional entre IndexedDB (local) e Supabase (servidor)
-- **Multi-usuário**: Sistema de permissões por roles (admin, gerente, peão, visitante)
-- **Tema Dinâmico**: Cores personalizáveis e modo escuro
-- **Gestão Completa**: 
-  - Fazendas
-  - Matrizes
-  - Nascimentos
-  - Desmamas
-  - Raças e Categorias
-  - Usuários e Permissões
-  - Notificações e Alertas
-  - Dashboard com estatísticas
+### 📱 PWA (Progressive Web App)
+- ✅ Funciona **100% offline**
+- ✅ Pode ser instalado como app no celular/tablet
+- ✅ Sincronização automática quando online
+- ✅ Service Worker para cache inteligente
 
-## 🛠️ Tecnologias
+### 🔄 Sincronização Offline-First
+- ✅ Sincronização bidirecional IndexedDB ↔ Supabase
+- ✅ 13 tabelas sincronizadas automaticamente
+- ✅ Sincronização automática a cada 30 segundos
+- ✅ Botão de sincronização manual
+- ✅ Indicador de status online/offline
+- ✅ Tratamento robusto de erros e conflitos
 
-- **Frontend**: React + TypeScript + Vite
+### 👥 Sistema Multi-usuário
+- ✅ 4 roles: Admin, Gerente, Peão, Visitante
+- ✅ 16 permissões granulares por role
+- ✅ Gerenciamento de usuários e permissões
+- ✅ Proteção de rotas por permissão
+- ✅ Sincronização de permissões entre dispositivos
+
+### 🎨 Personalização
+- ✅ Tema dinâmico com 7 cores (verde, azul, esmeralda, teal, índigo, roxo, cinza)
+- ✅ Modo escuro/claro
+- ✅ Configurações persistentes
+- ✅ Timeout de inatividade configurável
+
+### 🐄 Gestão de Rebanho
+- ✅ **Fazendas**: Múltiplas fazendas
+- ✅ **Matrizes**: Cadastro completo com identificador, categoria, raça, linhagem (pai/mãe)
+- ✅ **Nascimentos**: Cadastro completo com brinco, sexo, raça, data, observações
+- ✅ **Desmamas**: Peso e data de desmama
+- ✅ **Raças e Categorias**: Gestão de catálogos
+- ✅ **Histórico**: Histórico completo de partos por matriz
+
+### 📊 Dashboard e Indicadores
+- ✅ Dashboard com métricas em tempo real
+- ✅ Taxa de desmama (%)
+- ✅ Taxa de mortalidade
+- ✅ Peso médio por raça
+- ✅ Nascimentos por mês/ano
+- ✅ Gráficos de evolução (nascimentos, distribuição por sexo)
+- ✅ Estatísticas por fazenda
+
+### 🔔 Notificações e Alertas
+- ✅ Bezerros sem desmama após X meses (configurável)
+- ✅ Mortalidade alta por fazenda (configurável)
+- ✅ Dados incompletos (matriz sem cadastro)
+- ✅ Sistema de notificações lidas
+- ✅ Configurações de alertas sincronizadas
+
+### 📄 Relatórios e Exportação
+- ✅ **Relatórios PDF**:
+  - Relatório de Nascimento/Desmama
+  - Relatório de Produtividade por Fazenda
+  - Relatório de Mortalidade por Raça
+  - Relatório de Desmama com Médias de Peso
+- ✅ **Exportação Excel/CSV**: Planilhas completas com múltiplas abas
+- ✅ **Backup JSON**: Exportação completa de todos os dados locais
+
+### 🔍 Busca e Filtros
+- ✅ Busca global (matriz, brinco, raça, fazenda, observações)
+- ✅ Filtros combinados:
+  - Por fazenda
+  - Por mês e ano
+  - Por matriz/brinco
+  - Por sexo (Macho/Fêmea/Todos)
+  - Por status (Vivos/Mortos/Todos)
+- ✅ Histórico de buscas recentes
+- ✅ Paginação configurável
+
+### 📋 Importação
+- ✅ Importação de planilhas Excel/CSV
+- ✅ Detecção automática de colunas
+- ✅ Mapeamento manual de colunas
+- ✅ Preview antes de importar
+- ✅ Validação de dados
+- ✅ Criação automática de matrizes
+
+### 🔐 Auditoria e Segurança
+- ✅ **Auditoria completa**: Registro de todas as alterações
+- ✅ Histórico de alterações por entidade
+- ✅ Restauração de versões anteriores
+- ✅ Quem fez, o quê, quando
+- ✅ Snapshot antes/depois das alterações
+
+### ⚡ Performance e UX
+- ✅ Atalhos de teclado (Alt+Shift+tecla)
+- ✅ Favoritos (fazendas e matrizes)
+- ✅ Paginação otimizada
+- ✅ Loading states
+- ✅ Feedback visual (toasts)
+- ✅ Responsivo (mobile, tablet, desktop)
+
+## 🛠️ Stack Tecnológica
+
+- **Frontend**: React 19 + TypeScript + Vite
 - **Estilização**: Tailwind CSS
 - **Banco Local**: Dexie.js (IndexedDB)
 - **Backend**: Supabase (PostgreSQL)
-- **Roteamento**: React Router
+- **Roteamento**: React Router v7
 - **Formulários**: React Hook Form + Zod
+- **Gráficos**: Recharts
+- **PDF**: jsPDF + jsPDF-AutoTable
+- **Planilhas**: XLSX
 
 ## 📦 Instalação
 
@@ -33,6 +116,22 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 npm install
 npm run dev
 ```
+
+## 🗺️ Roadmap
+
+Para ver o roadmap completo de funcionalidades e o que está planejado, consulte [`docs/ROADMAP_FUNCIONALIDADES.md`](./docs/ROADMAP_FUNCIONALIDADES.md).
+
+### Próximas Funcionalidades Prioritárias
+
+**Sprint 1 - Robustez:**
+- Centro de Sincronização (tela dedicada)
+- Fila de Eventos Offline
+- Lock de Registro
+
+**Sprint 2 - Funcionalidades do Produtor:**
+- Linha do Tempo do Animal (timeline visual)
+- Pesagens Periódicas
+- Vacinação / Sanidade
 
 ## 📚 Documentação
 
