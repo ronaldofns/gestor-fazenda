@@ -520,20 +520,6 @@ export default function Matrizes() {
                       <td className="px-3 py-2 text-right space-x-1">
                         <button
                           type="button"
-                          onClick={() =>
-                            navigate(
-                              `/planilha?fazenda=${encodeURIComponent(
-                                m.fazendaId
-                              )}&matrizBrinco=${encodeURIComponent(m.matrizId)}`
-                            )
-                          }
-                          className={`inline-flex items-center justify-center p-1.5 ${getPrimaryActionButtonClass(primaryColor)} rounded-md`}
-                          title="Ver na planilha"
-                        >
-                          <Icons.FileSpreadsheet className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => {
                             // Buscar matriz cadastrada pelo identificador + fazendaId
                             const matrizCadastrada = matrizMap.byIdentificador.get(`${m.matrizId}|${m.fazendaId}`);
@@ -605,20 +591,6 @@ export default function Matrizes() {
                       </div>
                     </div>
                     <div className="flex flex-shrink-0 gap-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/planilha?fazenda=${encodeURIComponent(
-                              m.fazendaId
-                            )}&matrizBrinco=${encodeURIComponent(m.matrizId)}`
-                          )
-                        }
-                        className={`inline-flex items-center justify-center p-1.5 ${getPrimaryActionButtonClass(primaryColor)} rounded-md`}
-                        title="Ver na planilha"
-                      >
-                        <Icons.FileSpreadsheet className="w-4 h-4" />
-                      </button>
                       <button
                         type="button"
                         onClick={() => {

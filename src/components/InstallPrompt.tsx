@@ -108,7 +108,7 @@ export default function InstallPrompt() {
       <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-4">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
+            <div className={`w-12 h-12 bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-to')} rounded-lg flex items-center justify-center`}>
               <Icons.Download className="w-6 h-6 text-white" />
             </div>
           </div>

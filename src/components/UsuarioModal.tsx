@@ -17,11 +17,11 @@ import { getPrimaryButtonClass, getThemeClasses, getCheckboxClass } from '../uti
 type Mode = 'create' | 'edit';
 
 const schemaUsuario = z.object({
-  nome: z.string().min(1, 'Nome é obrigatório'),
-  email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres').optional().or(z.literal('')),
+  nome: z.string().min(1, 'Informe o nome'),
+  email: z.string().min(1, 'Informe o email').email('Email inválido'),
+  senha: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres').optional().or(z.literal('')),
   confirmarSenha: z.string().optional().or(z.literal('')),
-  role: z.enum(['admin', 'gerente', 'peao', 'visitante']),
+  role: z.enum(['admin', 'gerente', 'peao', 'visitante'], { required_error: 'Selecione o perfil do usuário' }),
   fazendaId: z.string().optional(),
   ativo: z.boolean()
 }).refine((data) => {

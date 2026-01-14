@@ -1,5 +1,6 @@
 import { db } from '../db/dexieDB';
 import { supabase } from './supabaseClient';
+import { processSyncQueue } from '../utils/syncEvents';
 
 function toIsoDate(dateStr?: string | null) {
   if (!dateStr) return null;
@@ -18,6 +19,16 @@ function toIsoDate(dateStr?: string | null) {
 }
 
 export async function pushPending() {
+  // Processar fila de eventos de sincronização primeiro (se houver)
+  try {
+    const queueResults = await processSyncQueue();
+    if (queueResults.processados > 0) {
+      console.log(`📦 Fila de eventos: ${queueResults.sucesso} sucesso, ${queueResults.falhas} falhas`);
+    }
+  } catch (err) {
+    console.error('Erro ao processar fila de eventos:', err);
+  }
+
   // Sincronizar exclusões pendentes primeiro
   try {
     // Verificar se a tabela deletedRecords existe (pode não existir em versões antigas do banco)
@@ -29,17 +40,47 @@ export async function pushPending() {
         try {
           // Se tem remoteId, tentar excluir no servidor
           if (deleted.remoteId) {
-            const { error } = await supabase.from('nascimentos_online').delete().eq('id', deleted.remoteId);
+            // Tentar excluir de todas as tabelas possíveis (mais seguro)
+            let sucesso = false;
+            let ultimoErro = null;
+            
+            // Tentar vacinações primeiro
+            let { error } = await supabase.from('vacinacoes_online').delete().eq('id', deleted.remoteId);
             if (!error) {
-              await db.deletedRecords.update(deleted.id, { synced: true });
-            } else {
-              // Se o erro for que o registro não existe mais, marcar como sincronizado
-              if (error.code === 'PGRST116' || error.message?.includes('No rows') || error.message?.includes('not found')) {
-                await db.deletedRecords.update(deleted.id, { synced: true });
+              sucesso = true;
+            } else if (error.code !== 'PGRST116' && !error.message?.includes('No rows') && !error.message?.includes('not found')) {
+              ultimoErro = error;
+              // Tentar pesagens
+              ({ error } = await supabase.from('pesagens_online').delete().eq('id', deleted.remoteId));
+              if (!error) {
+                sucesso = true;
+              } else if (error.code !== 'PGRST116' && !error.message?.includes('No rows') && !error.message?.includes('not found')) {
+                ultimoErro = error;
+                // Tentar nascimentos
+                ({ error } = await supabase.from('nascimentos_online').delete().eq('id', deleted.remoteId));
+                if (!error) {
+                  sucesso = true;
+                } else if (error.code === 'PGRST116' || error.message?.includes('No rows') || error.message?.includes('not found')) {
+                  // Registro não existe em nenhuma tabela, considerar sucesso
+                  sucesso = true;
+                } else {
+                  ultimoErro = error;
+                }
               } else {
-                console.error('Erro ao sincronizar exclusão no servidor:', error, deleted.uuid);
+                // Registro não existe, considerar sucesso
+                sucesso = true;
               }
+            } else {
+              // Registro não existe, considerar sucesso
+              sucesso = true;
             }
+            
+            if (sucesso) {
+              await db.deletedRecords.update(deleted.id, { synced: true });
+            } else if (ultimoErro) {
+              console.error('Erro ao sincronizar exclusão no servidor:', ultimoErro, deleted.uuid);
+            }
+            continue;
           } else {
             // Se não tem remoteId, nunca foi ao servidor, então já está "sincronizado"
             await db.deletedRecords.update(deleted.id, { synced: true });
@@ -368,6 +409,132 @@ export async function pushPending() {
     throw err;
   }
 
+  // Sincronizar pesagens
+  try {
+    const todasPesagens = await db.pesagens.toArray();
+    const pendPesagens = todasPesagens.filter(p => p.synced === false);
+
+    if (pendPesagens.length > 0) {
+      console.log(`📊 Sincronizando ${pendPesagens.length} pesagem(ns) pendente(s)`);
+    }
+
+    for (const p of pendPesagens) {
+      try {
+        // Validar dados antes de sincronizar
+        if (!p.nascimentoId) {
+          console.error('Pesagem sem nascimentoId, ignorando:', p.id, p);
+          continue;
+        }
+
+        const dataPesagemFormatada = toIsoDate(p.dataPesagem);
+        if (!dataPesagemFormatada) {
+          console.error('Pesagem sem data válida, ignorando:', p.id, p);
+          continue;
+        }
+
+        const { data, error } = await supabase
+          .from('pesagens_online')
+          .upsert(
+            {
+              uuid: p.id,
+              nascimento_id: p.nascimentoId, // Corrigido: era nascimento_uuid, mas a tabela usa nascimento_id
+              data_pesagem: dataPesagemFormatada,
+              peso: p.peso,
+              observacao: p.observacao || null,
+              created_at: p.createdAt,
+              updated_at: p.updatedAt
+            },
+            { onConflict: 'uuid' }
+          )
+          .select('id, uuid');
+
+        if (!error && data && data.length) {
+          await db.pesagens.update(p.id, { synced: true, remoteId: data[0].id });
+          console.log(`✅ Pesagem sincronizada: ${p.id} -> remoteId: ${data[0].id}`);
+        } else if (error) {
+          console.error('❌ Erro ao sincronizar pesagem:', {
+            pesagemId: p.id,
+            nascimentoId: p.nascimentoId,
+            dataPesagem: p.dataPesagem,
+            peso: p.peso,
+            error: {
+              message: error.message || 'Erro desconhecido',
+              code: error.code || 'Sem código',
+              details: error.details || null,
+              hint: error.hint || null
+            }
+          });
+        }
+      } catch (err: any) {
+        console.error('❌ Erro ao processar pesagem:', {
+          pesagemId: p.id,
+          error: err?.message || err,
+          stack: err?.stack
+        });
+      }
+    }
+  } catch (err) {
+    console.error('❌ Erro geral ao fazer push de pesagens:', err);
+    throw err;
+  }
+
+  // Sincronizar vacinações
+  try {
+    const todasVacinacoes = await db.vacinacoes.toArray();
+    const pendVacinacoes = todasVacinacoes.filter(v => v.synced === false);
+
+    for (const v of pendVacinacoes) {
+      try {
+        const { data, error } = await supabase
+          .from('vacinacoes_online')
+          .upsert(
+            {
+              uuid: v.id,
+              nascimento_id: v.nascimentoId,
+              vacina: v.vacina,
+              data_aplicacao: toIsoDate(v.dataAplicacao),
+              data_vencimento: v.dataVencimento ? toIsoDate(v.dataVencimento) : null,
+              lote: v.lote || null,
+              responsavel: v.responsavel || null,
+              observacao: v.observacao || null,
+              created_at: v.createdAt,
+              updated_at: v.updatedAt
+            },
+            { onConflict: 'uuid' }
+          )
+          .select('id, uuid');
+
+        if (!error && data && data.length) {
+          await db.vacinacoes.update(v.id, { synced: true, remoteId: data[0].id });
+        } else if (error) {
+          // Se a tabela não existe, apenas logar e continuar
+          if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('Could not find the table')) {
+            console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
+            break; // Parar o loop para não tentar todas as vacinações
+          } else {
+            console.error('Erro ao sincronizar vacinação:', error, v.id);
+          }
+        }
+      } catch (err: any) {
+        // Se a tabela não existe, apenas logar e continuar
+        if (err?.code === 'PGRST205' || err?.code === '42P01' || err?.message?.includes('Could not find the table')) {
+          console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
+          break; // Parar o loop
+        } else {
+          console.error('Erro ao processar vacinação:', err, v.id);
+        }
+      }
+    }
+  } catch (err: any) {
+    // Se a tabela não existe, apenas logar e continuar (não quebrar a sincronização)
+    if (err?.code === 'PGRST205' || err?.code === '42P01' || err?.message?.includes('Could not find the table')) {
+      console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
+    } else {
+      console.error('Erro geral ao fazer push de vacinações:', err);
+      // Não fazer throw para não quebrar a sincronização completa
+    }
+  }
+
   // Sincronizar usuários
   try {
     const todosUsuarios = await db.usuarios.toArray();
@@ -453,11 +620,10 @@ export async function pushPending() {
             await db.audits.update(a.id, { synced: true, remoteId: data[0].id });
           } else if (error) {
             console.error('Erro ao sincronizar audit log:', {
-              error,
-              message: error.message,
-              code: error.code,
-              details: error.details,
-              hint: error.hint,
+              message: error.message || 'Erro desconhecido',
+              code: error.code || 'Sem código',
+              details: error.details || null,
+              hint: error.hint || null,
               auditId: a.id,
               entity: a.entity,
               entityId: a.entityId
@@ -602,6 +768,8 @@ export async function pushPending() {
               {
                 uuid: s.id,
                 timeout_inatividade: s.timeoutInatividade,
+                intervalo_sincronizacao: s.intervaloSincronizacao ?? 30,
+                primary_color: s.primaryColor || 'gray',
                 created_at: s.createdAt || now,
                 updated_at: now // Sempre atualizar para garantir que seja mais recente
               },
@@ -643,43 +811,80 @@ export async function pushPending() {
     });
   }
 
-  // Sincronizar permissões por role
+  // Sincronizar permissões por role (otimizado com batch upsert)
   try {
     if (db.rolePermissions) {
       const todasPermissoes = await db.rolePermissions.toArray();
       const pendPermissoes = todasPermissoes.filter((p) => p.synced === false);
 
-      for (const p of pendPermissoes) {
-        try {
-          const { data, error } = await supabase
-            .from('role_permissions_online')
-            .upsert(
-              {
-                uuid: p.id,
-                role: p.role,
-                permission: p.permission,
-                granted: p.granted,
-                created_at: p.createdAt,
-                updated_at: p.updatedAt
-              },
-              { onConflict: 'role,permission' }
-            )
-            .select('id, uuid');
+      if (pendPermissoes.length === 0) {
+        return; // Nada para sincronizar
+      }
 
-          if (!error && data && data.length) {
-            await db.rolePermissions.update(p.id, { synced: true, remoteId: data[0].id });
-          } else if (error) {
-            console.error('Erro ao sincronizar permissão:', {
-              error,
-              message: error.message,
-              code: error.code,
-              permissionId: p.id,
-              role: p.role,
-              permission: p.permission
-            });
+      // Preparar dados para batch upsert
+      const dadosParaUpsert = pendPermissoes.map(p => ({
+        uuid: p.id,
+        role: p.role,
+        permission: p.permission,
+        granted: p.granted,
+        created_at: p.createdAt,
+        updated_at: p.updatedAt
+      }));
+
+      // Fazer batch upsert (muito mais rápido que múltiplos upserts individuais)
+      const { data, error } = await supabase
+        .from('role_permissions_online')
+        .upsert(dadosParaUpsert, { onConflict: 'role,permission' })
+        .select('id, uuid');
+
+      if (!error && data && data.length) {
+        // Criar mapa de uuid -> remoteId para atualização rápida
+        const uuidToRemoteId = new Map<string, number>();
+        data.forEach((item: any) => {
+          if (item.uuid && item.id) {
+            uuidToRemoteId.set(item.uuid, item.id);
           }
-        } catch (err) {
-          console.error('Erro ao processar permissão:', err, p.id);
+        });
+
+        // Atualizar todas as permissões sincronizadas de uma vez
+        await Promise.all(
+          pendPermissoes.map(async (p) => {
+            const remoteId = uuidToRemoteId.get(p.id);
+            if (remoteId) {
+              await db.rolePermissions.update(p.id, { synced: true, remoteId });
+            }
+          })
+        );
+      } else if (error) {
+        console.error('Erro ao sincronizar permissões em lote:', {
+          message: error.message || 'Erro desconhecido',
+          code: error.code || 'Sem código',
+          count: pendPermissoes.length
+        });
+        // Em caso de erro no batch, tentar individualmente como fallback
+        for (const p of pendPermissoes) {
+          try {
+            const { data: singleData, error: singleError } = await supabase
+              .from('role_permissions_online')
+              .upsert(
+                {
+                  uuid: p.id,
+                  role: p.role,
+                  permission: p.permission,
+                  granted: p.granted,
+                  created_at: p.createdAt,
+                  updated_at: p.updatedAt
+                },
+                { onConflict: 'role,permission' }
+              )
+              .select('id, uuid');
+
+            if (!singleError && singleData && singleData.length) {
+              await db.rolePermissions.update(p.id, { synced: true, remoteId: singleData[0].id });
+            }
+          } catch (err) {
+            console.error('Erro ao processar permissão individual:', err, p.id);
+          }
         }
       }
     }
@@ -1328,6 +1533,202 @@ export async function pullUpdates() {
     throw err;
   }
 
+  // Buscar pesagens
+  try {
+    const { data: servPesagens, error: errorPesagens } = await supabase.from('pesagens_online').select('*');
+    if (errorPesagens) {
+      console.error('Erro ao buscar pesagens do servidor:', errorPesagens);
+    } else if (servPesagens && servPesagens.length > 0) {
+      const servUuids = new Set(servPesagens.map(p => p.uuid));
+      const todasPesagensLocais = await db.pesagens.toArray();
+      const pesagensSincronizadas = todasPesagensLocais.filter(p => p.remoteId != null);
+      
+      // Verificar quais pesagens foram excluídas localmente (verificar deletedRecords diretamente)
+      const deletedUuids = new Set<string>();
+      if (db.deletedRecords) {
+        const todasExclusoes = await db.deletedRecords.toArray();
+        for (const deleted of todasExclusoes) {
+          deletedUuids.add(deleted.uuid);
+        }
+      }
+      
+      for (const local of pesagensSincronizadas) {
+        const existeNoServidor = servUuids.has(local.id);
+        const foiExcluidoLocalmente = deletedUuids.has(local.id);
+        
+        if (!existeNoServidor && !foiExcluidoLocalmente) {
+          // Foi excluído no servidor mas não localmente, excluir localmente
+          await db.pesagens.delete(local.id);
+        }
+      }
+      
+      // Não recriar pesagens que foram excluídas localmente
+      for (const s of servPesagens) {
+        if (!s.uuid) {
+          console.warn('Pesagem do servidor sem UUID, ignorando:', s);
+          continue;
+        }
+        
+        // Não recriar pesagens que foram excluídas localmente
+        if (deletedUuids.has(s.uuid)) {
+          continue;
+        }
+
+        const local = await db.pesagens.get(s.uuid);
+        if (!local) {
+          try {
+            await db.pesagens.put({
+              id: s.uuid,
+              nascimentoId: s.nascimento_id || s.nascimento_uuid, // Suportar ambos os nomes
+              dataPesagem: s.data_pesagem,
+              peso: s.peso,
+              observacao: s.observacao || undefined,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.pesagens.update(s.uuid, {
+                nascimentoId: s.nascimento_id || s.nascimento_uuid, // Suportar ambos os nomes
+                dataPesagem: s.data_pesagem,
+                peso: s.peso,
+                observacao: s.observacao || undefined,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
+        } else {
+          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
+            await db.pesagens.update(local.id, {
+              dataPesagem: s.data_pesagem,
+              peso: s.peso,
+              observacao: s.observacao || undefined,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao processar pull de pesagens:', err);
+    throw err;
+  }
+
+  // Buscar vacinações
+  try {
+    const { data: servVacinacoes, error: errorVacinacoes } = await supabase.from('vacinacoes_online').select('*');
+    if (errorVacinacoes) {
+      // Se a tabela não existe (404 ou PGRST205), apenas logar e continuar (modo offline-first)
+      if (errorVacinacoes.code === 'PGRST205' || errorVacinacoes.code === '42P01' || errorVacinacoes.message?.includes('Could not find the table')) {
+        console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
+      } else {
+        console.error('Erro ao buscar vacinações do servidor:', errorVacinacoes);
+      }
+    } else if (servVacinacoes && servVacinacoes.length > 0) {
+      const servUuids = new Set(servVacinacoes.map(v => v.uuid));
+      const todasVacinacoesLocais = await db.vacinacoes.toArray();
+      const vacinacoesSincronizadas = todasVacinacoesLocais.filter(v => v.remoteId != null);
+      
+      // Verificar quais vacinações foram excluídas localmente (verificar deletedRecords diretamente)
+      const deletedUuids = new Set<string>();
+      if (db.deletedRecords) {
+        const todasExclusoes = await db.deletedRecords.toArray();
+        for (const deleted of todasExclusoes) {
+          deletedUuids.add(deleted.uuid);
+        }
+      }
+      
+      for (const local of vacinacoesSincronizadas) {
+        const existeNoServidor = servUuids.has(local.id);
+        const foiExcluidoLocalmente = deletedUuids.has(local.id);
+        
+        if (!existeNoServidor && !foiExcluidoLocalmente) {
+          // Foi excluído no servidor mas não localmente, excluir localmente
+          await db.vacinacoes.delete(local.id);
+        }
+      }
+    
+      for (const s of servVacinacoes) {
+        if (!s.uuid) {
+          console.warn('Vacinação do servidor sem UUID, ignorando:', s);
+          continue;
+        }
+        
+        // Não recriar vacinações que foram excluídas localmente
+        if (deletedUuids.has(s.uuid)) {
+          continue;
+        }
+
+        const local = await db.vacinacoes.get(s.uuid);
+        if (!local) {
+          try {
+            await db.vacinacoes.put({
+              id: s.uuid,
+              nascimentoId: s.nascimento_id,
+              vacina: s.vacina,
+              dataAplicacao: s.data_aplicacao,
+              dataVencimento: s.data_vencimento || undefined,
+              lote: s.lote || undefined,
+              responsavel: s.responsavel || undefined,
+              observacao: s.observacao || undefined,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          } catch (putError: any) {
+            if (putError.name === 'ConstraintError') {
+              await db.vacinacoes.update(s.uuid, {
+                nascimentoId: s.nascimento_id,
+                vacina: s.vacina,
+                dataAplicacao: s.data_aplicacao,
+                dataVencimento: s.data_vencimento || undefined,
+                lote: s.lote || undefined,
+                responsavel: s.responsavel || undefined,
+                observacao: s.observacao || undefined,
+                updatedAt: s.updated_at,
+                synced: true,
+                remoteId: s.id
+              });
+            } else {
+              throw putError;
+            }
+          }
+        } else {
+          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
+            await db.vacinacoes.update(local.id, {
+              vacina: s.vacina,
+              dataAplicacao: s.data_aplicacao,
+              dataVencimento: s.data_vencimento || undefined,
+              lote: s.lote || undefined,
+              responsavel: s.responsavel || undefined,
+              observacao: s.observacao || undefined,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    // Se a tabela não existe, apenas logar e continuar (não quebrar a sincronização)
+    if (err?.code === 'PGRST205' || err?.code === '42P01' || err?.message?.includes('Could not find the table')) {
+      console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
+    } else {
+      console.error('Erro ao processar pull de vacinações:', err);
+      // Não fazer throw para não quebrar a sincronização completa
+    }
+  }
+
   // Buscar usuários
   try {
     const { data: servUsuarios, error: errorUsuarios } = await supabase.from('usuarios_online').select('*');
@@ -1660,6 +2061,7 @@ export async function pullUpdates() {
             await db.appSettings.put({
               id: 'app-settings-global',
               timeoutInatividade: s.timeout_inatividade,
+              intervaloSincronizacao: s.intervalo_sincronizacao ?? 30,
               primaryColor: s.primary_color || 'gray',
               createdAt: s.created_at,
               updatedAt: s.updated_at,
@@ -1668,13 +2070,14 @@ export async function pullUpdates() {
             });
           } catch (putError: any) {
             if (putError.name === 'ConstraintError') {
-              await db.appSettings.update('app-settings-global', {
-                timeoutInatividade: s.timeout_inatividade,
-                primaryColor: s.primary_color || 'gray',
-                updatedAt: s.updated_at,
-                synced: true,
-                remoteId: s.id
-              });
+            await db.appSettings.update('app-settings-global', {
+              timeoutInatividade: s.timeout_inatividade,
+              intervaloSincronizacao: s.intervalo_sincronizacao ?? 30,
+              primaryColor: s.primary_color || 'gray',
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
+            });
             } else {
               throw putError;
             }
@@ -1683,13 +2086,17 @@ export async function pullUpdates() {
           // Disparar evento para atualizar o hook
           if (typeof window !== 'undefined') {
             const settings = {
-              timeoutInatividade: s.timeout_inatividade
+              timeoutInatividade: s.timeout_inatividade,
+              intervaloSincronizacao: s.intervalo_sincronizacao ?? 30,
+              primaryColor: s.primary_color || 'gray'
             };
             window.dispatchEvent(new CustomEvent('appSettingsUpdated', { detail: settings }));
           }
         } else {
           // Verificar se os valores são diferentes
           const timeoutDiferente = Number(local.timeoutInatividade) !== Number(s.timeout_inatividade);
+          const intervaloSincronizacaoDiferente = Number(local.intervaloSincronizacao ?? 30) !== Number(s.intervalo_sincronizacao ?? 30);
+          const primaryColorDiferente = (local.primaryColor || 'gray') !== (s.primary_color || 'gray');
           
           const servUpdated = new Date(s.updated_at).getTime();
           const localUpdated = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
@@ -1699,6 +2106,8 @@ export async function pullUpdates() {
           // OU se não está sincronizado OU se remoteId mudou
           const margemTimestamp = 1000; // 1 segundo de margem
           const deveAtualizar = timeoutDiferente || 
+                                intervaloSincronizacaoDiferente ||
+                                primaryColorDiferente ||
                                 (servUpdated > localUpdated + margemTimestamp) || 
                                 !local.synced || 
                                 local.remoteId !== s.id;
@@ -1706,6 +2115,8 @@ export async function pullUpdates() {
           if (deveAtualizar) {
             await db.appSettings.update('app-settings-global', {
               timeoutInatividade: s.timeout_inatividade,
+              intervaloSincronizacao: s.intervalo_sincronizacao ?? 30,
+              primaryColor: s.primary_color || 'gray',
               updatedAt: s.updated_at,
               synced: true,
               remoteId: s.id
@@ -1714,7 +2125,9 @@ export async function pullUpdates() {
             // Disparar evento para atualizar o hook
             if (typeof window !== 'undefined') {
               const settings = {
-                timeoutInatividade: s.timeout_inatividade
+                timeoutInatividade: s.timeout_inatividade,
+                intervaloSincronizacao: s.intervalo_sincronizacao ?? 30,
+                primaryColor: s.primary_color || 'gray'
               };
               window.dispatchEvent(new CustomEvent('appSettingsUpdated', { detail: settings }));
             }
@@ -2124,8 +2537,20 @@ export async function syncAll() {
     // Isso garante que pegamos as mudanças do servidor antes de enviar as nossas
     await pullUpdates();
     await pushPending();
+    
+    // Salvar timestamp da última sincronização bem-sucedida (manual ou automática)
+    if (typeof window !== 'undefined') {
+      const timestamp = new Date().toISOString();
+      localStorage.setItem('lastSyncTimestamp', timestamp);
+      // Disparar evento para atualizar componentes que escutam
+      window.dispatchEvent(new CustomEvent('syncCompleted', { detail: { timestamp, success: true } }));
+    }
   } catch (error) {
     console.error('❌ Erro durante sincronização:', error);
+    // Disparar evento de erro
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('syncCompleted', { detail: { timestamp: new Date().toISOString(), success: false, error } }));
+    }
     throw error;
   } finally {
     // Sempre atualizar estado para false ao finalizar

@@ -19,8 +19,10 @@ import Notificacoes from './routes/Notificacoes';
 import Matrizes from './routes/Matrizes';
 import Permissoes from './routes/Permissoes';
 import Perfil from './routes/Perfil';
+import Sincronizacao from './routes/Sincronizacao';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import TopBar from './components/TopBar';
+import { cleanupExpiredLocks } from './utils/recordLock';
 
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -33,6 +35,19 @@ export default function App() {
 
   // Hook para detectar inatividade e fazer logout automático
   useInactivityTimeout();
+
+  // Limpar locks expirados ao iniciar o app e periodicamente
+  useEffect(() => {
+    // Limpar imediatamente ao iniciar
+    cleanupExpiredLocks().catch(console.error);
+
+    // Limpar a cada 5 minutos
+    const interval = setInterval(() => {
+      cleanupExpiredLocks().catch(console.error);
+    }, 5 * 60 * 1000); // 5 minutos
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const handleSidebarToggle = (e: Event) => {
@@ -75,6 +90,7 @@ export default function App() {
                     <Route path="/usuarios" element={<ProtectedRoute requiredRole="admin"><ListaUsuarios /></ProtectedRoute>} />
                     <Route path="/permissoes" element={<ProtectedRoute requiredRole="admin"><Permissoes /></ProtectedRoute>} />
                     <Route path="/perfil" element={<Perfil />} />
+                    <Route path="/sincronizacao" element={<Sincronizacao />} />
                     </Routes>
                   </main>
                 </div>

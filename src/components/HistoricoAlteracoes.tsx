@@ -49,10 +49,29 @@ export default function HistoricoAlteracoes({
   // Buscar histórico de alterações
   const historico = useLiveQuery(
     async () => {
-      const todos = await db.audits.toArray();
-      return todos.filter(a => a.entity === entity && a.entityId === entityId);
+      if (!open || !entity || !entityId) return [];
+      try {
+        // Buscar todos os audits e filtrar (não há índice composto)
+        const todos = await db.audits.toArray();
+        const filtrados = todos.filter(a => {
+          const entityMatch = a.entity === entity;
+          const idMatch = a.entityId === entityId;
+          return entityMatch && idMatch;
+        });
+        console.log('HistoricoAlteracoes - Query:', { 
+          entity, 
+          entityId, 
+          totalAudits: todos.length, 
+          filtrados: filtrados.length,
+          sample: filtrados.slice(0, 2).map(f => ({ id: f.id, entity: f.entity, entityId: f.entityId, action: f.action }))
+        });
+        return filtrados;
+      } catch (error) {
+        console.error('Erro ao buscar histórico de alterações:', error);
+        return [];
+      }
     },
-    [entity, entityId]
+    [entity, entityId, open]
   ) || [];
 
   const historicoOrdenado = useMemo(() => {
@@ -99,6 +118,41 @@ export default function HistoricoAlteracoes({
     }
   };
 
+  const parseDateString = (value: string): Date | null => {
+    if (!value) return null;
+    if (value.includes('/')) {
+      const [dia, mes, ano] = value.split('/');
+      if (dia && mes && ano) {
+        const iso = `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? null : d;
+      }
+    }
+    if (value.includes('-')) {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  };
+
+  const normalizeValue = (key: string, value: any) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed === '') return null;
+      if (key.toLowerCase().includes('data')) {
+        const d = parseDateString(trimmed);
+        return d ? d.toISOString().split('T')[0] : trimmed;
+      }
+      return trimmed;
+    }
+    if (typeof value === 'number') return value;
+    if (typeof value === 'boolean') return value;
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'object') return value;
+    return value;
+  };
+
   const getDiff = (before: any, after: any) => {
     if (!before || !after) return null;
     
@@ -112,9 +166,9 @@ export default function HistoricoAlteracoes({
         return;
       }
       
-      const valorAntes = before[key];
-      const valorDepois = after[key];
-      
+      const valorAntes = normalizeValue(key, before[key]);
+      const valorDepois = normalizeValue(key, after[key]);
+
       if (JSON.stringify(valorAntes) !== JSON.stringify(valorDepois)) {
         diff.push({
           campo: key,
@@ -151,20 +205,29 @@ export default function HistoricoAlteracoes({
       // Buscar estado atual ANTES de restaurar para registrar na auditoria
       let estadoAtual: any = null;
       try {
-        switch (entity) {
-          case 'nascimento':
-            estadoAtual = await db.nascimentos.get(entityId);
-            break;
-          case 'fazenda':
-            estadoAtual = await db.fazendas.get(entityId);
-            break;
-          case 'matriz':
-            estadoAtual = await db.matrizes.get(entityId);
-            break;
-          case 'desmama':
-            estadoAtual = await db.desmamas.get(entityId);
-            break;
-        }
+      switch (entity) {
+        case 'nascimento':
+          estadoAtual = await db.nascimentos.get(entityId);
+          break;
+        case 'fazenda':
+          estadoAtual = await db.fazendas.get(entityId);
+          break;
+        case 'matriz':
+          estadoAtual = await db.matrizes.get(entityId);
+          break;
+        case 'desmama':
+          estadoAtual = await db.desmamas.get(entityId);
+          break;
+        case 'pesagem':
+          estadoAtual = await db.pesagens.get(entityId);
+          break;
+        case 'vacina':
+          estadoAtual = await db.vacinacoes.get(entityId);
+          break;
+        case 'usuario':
+          estadoAtual = await db.usuarios.get(entityId);
+          break;
+      }
       } catch (err) {
         console.warn('Erro ao buscar estado atual para auditoria:', err);
       }
@@ -209,6 +272,20 @@ export default function HistoricoAlteracoes({
             synced: false
           });
           break;
+        case 'pesagem':
+          await db.pesagens.update(entityId, {
+            ...dadosRestaurar,
+            updatedAt: now,
+            synced: false
+          });
+          break;
+        case 'vacina':
+          await db.vacinacoes.update(entityId, {
+            ...dadosRestaurar,
+            updatedAt: now,
+            synced: false
+          });
+          break;
         default:
           throw new Error(`Tipo de entidade não suportado: ${entity}`);
       }
@@ -237,10 +314,44 @@ export default function HistoricoAlteracoes({
   };
 
   const formatarValor = (valor: any): string => {
-    if (valor === null || valor === undefined) return '-';
+    if (valor === null || valor === undefined || valor === '') return '-';
     if (typeof valor === 'boolean') return valor ? 'Sim' : 'Não';
+    if (typeof valor === 'string') {
+      const d = parseDateString(valor);
+      if (d) {
+        return d.toLocaleDateString('pt-BR');
+      }
+      return valor;
+    }
+    if (typeof valor === 'number') return String(valor);
     if (typeof valor === 'object') return JSON.stringify(valor);
     return String(valor);
+  };
+
+  const formatarCampo = (campo: string): string => {
+    const map: Record<string, string> = {
+      brincoNumero: 'Brinco',
+      dataNascimento: 'Data de nascimento',
+      obs: 'Observação',
+      sexo: 'Sexo',
+      raca: 'Raça',
+      matrizId: 'Matriz',
+      fazendaId: 'Fazenda',
+      nascimentoId: 'Nascimento',
+      dataDesmama: 'Data de desmama',
+      pesoDesmama: 'Peso desmama',
+      dataPesagem: 'Data da pesagem',
+      peso: 'Peso',
+      observacao: 'Observação',
+      dataAplicacao: 'Data de aplicação',
+      dataVencimento: 'Data de vencimento',
+      lote: 'Lote',
+      responsavel: 'Responsável',
+      vacina: 'Vacina',
+      ativo: 'Ativo'
+    };
+
+    return map[campo] || campo;
   };
 
   return (
@@ -266,10 +377,13 @@ export default function HistoricoAlteracoes({
         </div>
 
         <div className="p-6">
-          {historicoOrdenado.length === 0 ? (
+          {!open ? null : historicoOrdenado.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-slate-400">
               <Icons.Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>Nenhuma alteração registrada para este item.</p>
+              <p className="text-xs mt-2 text-gray-400 dark:text-slate-500">
+                Entity: {entity} | ID: {entityId}
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -323,7 +437,7 @@ export default function HistoricoAlteracoes({
                                 {diff.map((change, idx) => (
                                   <div key={idx} className="text-sm">
                                     <div className="font-medium text-gray-900 dark:text-slate-100 mb-1">
-                                      {change.campo}:
+                                      {formatarCampo(change.campo)}:
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 text-xs">
                                       <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded">

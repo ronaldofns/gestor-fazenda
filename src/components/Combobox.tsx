@@ -10,7 +10,7 @@ export interface ComboboxOption {
 }
 
 export interface ComboboxProps {
-  value: string;
+  value: string | number | undefined | null;
   onChange: (value: string) => void;
   options: string[] | ComboboxOption[];
   placeholder?: string;
@@ -42,7 +42,9 @@ function ComboboxComponent({
   const [isOpen, setIsOpen] = useState(false);
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
-  const [inputValue, setInputValue] = useState(value);
+  // Garantir que value seja sempre uma string
+  const valueStr = value != null ? String(value) : '';
+  const [inputValue, setInputValue] = useState(valueStr);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,25 +62,27 @@ function ComboboxComponent({
   const normalizedOptions = useMemo(() => normalizeOptions(options), [options]);
 
   // Função para encontrar o label baseado no value
-  const getLabelFromValue = (val: string): string => {
-    if (!val) return '';
+  const getLabelFromValue = (val: string | number | undefined | null): string => {
+    if (!val && val !== 0) return '';
+    // Garantir que val seja uma string
+    const valStr = String(val);
     // Normalizar comparação (trim e case-insensitive)
-    const valNormalizado = val.trim().toLowerCase();
+    const valNormalizado = valStr.trim().toLowerCase();
     const matchingOption = normalizedOptions.find(opt => 
       opt.value.trim().toLowerCase() === valNormalizado ||
       opt.label.trim().toLowerCase() === valNormalizado
     );
-    return matchingOption ? matchingOption.label : val;
+    return matchingOption ? matchingOption.label : valStr;
   };
 
   // Atualizar inputValue quando value prop mudar
   useEffect(() => {
-    const label = getLabelFromValue(value);
+    const label = getLabelFromValue(valueStr);
     // Só atualizar se o label mudou para evitar resets desnecessários
     if (label !== inputValue) {
       setInputValue(label);
     }
-  }, [value, options, normalizedOptions, inputValue]); // Só quando value prop mudar
+  }, [valueStr, options, normalizedOptions, inputValue]); // Só quando value prop mudar
 
   const filteredOptions = useMemo(() => {
     let opts = normalizedOptions;

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import useOnline from './useOnline';
 import { useAuth } from './useAuth';
+import { useAppSettings } from './useAppSettings';
 import { syncAll } from '../api/syncService';
 
 /**
@@ -8,10 +9,14 @@ import { syncAll } from '../api/syncService';
  * IMPORTANTE: Só sincroniza outras tabelas (não usuários) após o usuário estar logado
  * A sincronização de usuários deve ser feita antes do login (em Login.tsx e SetupInicial.tsx)
  */
-export default function useSync(intervalMs = 30_000) { // Reduzido para 30 segundos para sincronização mais rápida
+export default function useSync() {
   const online = useOnline();
   const { user } = useAuth(); // Verificar se usuário está logado
+  const { appSettings } = useAppSettings(); // Obter intervalo de sincronização das configurações
   const ref = useRef<number | null>(null);
+  
+  // Converter segundos para milissegundos
+  const intervalMs = (appSettings.intervaloSincronizacao || 30) * 1000;
 
   useEffect(() => {
     // Só sincronizar se estiver online E usuário estiver logado

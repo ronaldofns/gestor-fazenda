@@ -29,9 +29,23 @@ export function chaveMatrizSemCadastro(matrizId: string, fazendaId: string): str
 }
 
 /**
+ * Gera chave única para uma notificação de peso fora do padrão
+ */
+export function chavePesoForaPadrao(nascimentoId: string): string {
+  return `peso-${nascimentoId}`;
+}
+
+/**
+ * Gera chave única para uma notificação de vacina
+ */
+export function chaveVacina(vacinaId: string): string {
+  return `vacina-${vacinaId}`;
+}
+
+/**
  * Marca uma notificação como lida
  */
-export async function marcarNotificacaoComoLida(chave: string, tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz'): Promise<void> {
+export async function marcarNotificacaoComoLida(chave: string, tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina'): Promise<void> {
   try {
     await db.notificacoesLidas.put({
       id: chave,
@@ -50,7 +64,7 @@ export async function marcarNotificacaoComoLida(chave: string, tipo: 'desmama' |
  * Marca todas as notificações de um tipo como lidas
  */
 export async function marcarTodasComoLidas(
-  tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz',
+  tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina',
   chaves: string[]
 ): Promise<void> {
   try {

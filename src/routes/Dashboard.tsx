@@ -8,6 +8,7 @@ import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getThemeClasses, getPrimaryBgClass } from '../utils/themeHelpers';
+import { calcularGMDAcumulado } from '../utils/calcularGMD';
 import {
   LineChart,
   Line,
@@ -37,6 +38,7 @@ export default function Dashboard() {
   
   const nascimentosTodosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
+  const pesagens = useLiveQuery(() => db.pesagens.toArray(), []) || [];
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
   const fazendas = useMemo(() => {
     if (!fazendasRaw || !Array.isArray(fazendasRaw) || fazendasRaw.length === 0) return [];
@@ -162,7 +164,11 @@ export default function Dashboard() {
         nascimentosEsteMes: 0,
         nascimentosPorMes: [],
         porFazenda: [],
-        totaisPorRaca: []
+        totaisPorRaca: [],
+        gmdMedio: null,
+        gmdAnimais: 0,
+        intervaloPartoDias: null,
+        intervalosParto: 0
       };
     }
     
@@ -231,6 +237,56 @@ export default function Dashboard() {
       n.ano === anoAtual && n.mes === mesAtual
     ).length;
 
+    // Intervalo parto-parto médio por matriz
+    const nascimentosPorMatriz = new Map<string, Date[]>();
+    nascimentosTodos.forEach((n) => {
+      if (!n.matrizId) return;
+      const dataBase = n.dataNascimento || n.createdAt;
+      const data = parseDate(dataBase);
+      if (!data) return;
+      const lista = nascimentosPorMatriz.get(n.matrizId) || [];
+      lista.push(data);
+      nascimentosPorMatriz.set(n.matrizId, lista);
+    });
+
+    const intervalosDias: number[] = [];
+    nascimentosPorMatriz.forEach((datas) => {
+      if (!Array.isArray(datas) || datas.length < 2) return;
+      const ordenadas = [...datas].sort((a, b) => a.getTime() - b.getTime());
+      for (let i = 1; i < ordenadas.length; i++) {
+        const diff = Math.floor((ordenadas[i].getTime() - ordenadas[i - 1].getTime()) / (1000 * 60 * 60 * 24));
+        if (diff > 0) intervalosDias.push(diff);
+      }
+    });
+
+    const intervaloPartoDias = intervalosDias.length > 0
+      ? intervalosDias.reduce((sum, d) => sum + d, 0) / intervalosDias.length
+      : null;
+
+    // GMD médio baseado em pesagens por animal
+    const pesagensPorAnimal = new Map<string, typeof pesagens>();
+    if (Array.isArray(pesagens) && pesagens.length > 0) {
+      pesagens.forEach((p) => {
+        if (!p.nascimentoId) return;
+        const lista = pesagensPorAnimal.get(p.nascimentoId) || [];
+        lista.push(p);
+        pesagensPorAnimal.set(p.nascimentoId, lista);
+      });
+    }
+
+    const gmdValores: number[] = [];
+    pesagensPorAnimal.forEach((lista) => {
+      if (!Array.isArray(lista) || lista.length < 2) return;
+      const gmd = calcularGMDAcumulado(lista);
+      if (gmd !== null && Number.isFinite(gmd)) {
+        gmdValores.push(gmd);
+      }
+    });
+
+    const gmdMedio = gmdValores.length > 0
+      ? gmdValores.reduce((sum, v) => sum + v, 0) / gmdValores.length
+      : null;
+
     return {
       totalNascimentos,
       vacas,
@@ -245,9 +301,13 @@ export default function Dashboard() {
       nascimentosEsteMes,
       nascimentosPorMes,
       porFazenda: Array.from(porFazenda.values()).sort((a, b) => a.nome.localeCompare(b.nome)),
-      totaisPorRaca
+      totaisPorRaca,
+      gmdMedio,
+      gmdAnimais: gmdValores.length,
+      intervaloPartoDias,
+      intervalosParto: intervalosDias.length
     };
-  }, [nascimentosTodos, desmamas, fazendas]);
+  }, [nascimentosTodos, desmamas, fazendas, pesagens]);
 
   const maxNascimentosMes = useMemo(() => {
     if (!metricas.nascimentosPorMes || metricas.nascimentosPorMes.length === 0) return 1;
@@ -350,12 +410,12 @@ export default function Dashboard() {
 
         {/* Alertas */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border border-amber-200 dark:border-amber-500/40">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border border-amber-200 dark:border-amber-500/40">
             <div className="flex items-center justify-between mb-3 gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Icons.AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Desmama atrasada</h3>
+                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Desmama atrasada</h3>
               </div>
               <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full whitespace-nowrap flex-shrink-0">
                 {alertSettings.limiteMesesDesmama}+ meses
@@ -364,7 +424,7 @@ export default function Dashboard() {
             {alertas.desmamaAtrasada.length === 0 ? (
               <p className="text-sm text-gray-600 dark:text-slate-400">Nenhum bezerro pendente de desmama no limite configurado.</p>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-auto">
+              <div className="space-y-2 max-h-56 overflow-auto">
                 {alertas.desmamaAtrasada.map((item) => {
                   const matrizIdentificador = matrizMap.get(item.matrizId) || item.matrizId;
                   return (
@@ -385,7 +445,7 @@ export default function Dashboard() {
                 })}
               </div>
             )}
-            <div className="mt-3 flex justify-end">
+            <div className="mt-2 flex justify-end">
               <Link
                 to="/planilha"
                 className="text-xs font-semibold text-amber-700 hover:text-amber-900"
@@ -395,11 +455,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border border-red-200 dark:border-red-500/40">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border border-red-200 dark:border-red-500/40">
             <div className="flex items-center justify-between mb-3 gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Icons.AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Mortalidade alta</h3>
+                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Mortalidade alta</h3>
               </div>
               <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full whitespace-nowrap flex-shrink-0">
                 Últimos {alertSettings.janelaMesesMortalidade} meses
@@ -408,7 +468,7 @@ export default function Dashboard() {
             {alertas.mortalidadeAlta.length === 0 ? (
               <p className="text-sm text-gray-600 dark:text-slate-400">Nenhuma fazenda acima do limiar de {alertSettings.limiarMortalidade}% na janela.</p>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-auto">
+              <div className="space-y-2 max-h-56 overflow-auto">
                 {alertas.mortalidadeAlta.map((item) => (
                   <div key={item.fazendaId} className="flex items-center justify-between p-2 rounded-md border border-red-100 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
                     <div className="min-w-0">
@@ -424,7 +484,7 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
-            <div className="mt-3 flex justify-end">
+            <div className="mt-2 flex justify-end">
               <Link
                 to="/planilha"
                 className="text-xs font-semibold text-red-700 hover:text-red-900"
@@ -436,24 +496,26 @@ export default function Dashboard() {
         </div>
 
         {/* Cards de Métricas Principais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-6">
-          <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 ${getThemeClasses(primaryColor, 'border')} hover:shadow-lg transition-shadow`}>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Total Nascimentos</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-6">
+          <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 ${getThemeClasses(primaryColor, 'border')} hover:shadow-md transition-shadow min-w-0`}>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">
+                Total Nascimentos
+              </h3>
               <Icons.TrendingUp className={`w-6 h-6 ${getThemeClasses(primaryColor, 'text')}`} />
             </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.totalNascimentos}</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metricas.totalNascimentos}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
               {metricas.nascimentosEsteAno} este ano • {metricas.nascimentosEsteMes} este mês
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Vacas</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-purple-500 hover:shadow-md transition-shadow min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">Vacas</h3>
               <Icons.Vaca className="w-6 h-6 text-purple-500" />
             </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.vacas}</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metricas.vacas}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
               {metricas.totalNascimentos > 0 
                 ? `${((metricas.vacas / metricas.totalNascimentos) * 100).toFixed(1)}% do total`
@@ -461,12 +523,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 ${getThemeClasses(primaryColor, 'border')} hover:shadow-lg transition-shadow`}>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Novilhas</h3>
+          <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 ${getThemeClasses(primaryColor, 'border')} hover:shadow-md transition-shadow min-w-0`}>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">Novilhas</h3>
               <Icons.Novilha className={`w-6 h-6 ${getThemeClasses(primaryColor, 'text')}`} />
             </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.novilhas}</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metricas.novilhas}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
               {metricas.totalNascimentos > 0 
                 ? `${((metricas.novilhas / metricas.totalNascimentos) * 100).toFixed(1)}% do total`
@@ -474,12 +536,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-red-500 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Mortandade</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-red-500 hover:shadow-md transition-shadow min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">Mortandade</h3>
               <Icons.AlertTriangle className="w-6 h-6 text-red-500" />
             </div>
-            <div className="text-3xl font-bold text-red-600">{metricas.totalMortos}</div>
+            <div className="text-2xl font-bold text-red-600">{metricas.totalMortos}</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
               Taxa: {metricas.taxaMortandade}% • {metricas.totalNascimentos > 0 
                 ? `${metricas.totalNascimentos - metricas.totalMortos} vivos`
@@ -487,31 +549,65 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border-l-4 border-pink-500 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-slate-400 tracking-wide">Taxa Desmama</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-pink-500 hover:shadow-md transition-shadow min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">Taxa Desmama</h3>
               <Icons.BarChart3 className="w-6 h-6 text-pink-500" />
             </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{metricas.taxaDesmama}%</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metricas.taxaDesmama}%</div>
             <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
               {metricas.totalDesmamas} de {metricas.totalNascimentos} nascimentos
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-emerald-500 hover:shadow-md transition-shadow min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div>
+                <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">GMD médio</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-500">Ganho Médio Diário</p>
+              </div>
+              <Icons.TrendingUp className="w-6 h-6 text-emerald-500" />
+            </div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+              {metricas.gmdMedio !== null ? `${metricas.gmdMedio.toFixed(2)}` : '-'}
+            </div>
+            <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+              kg/dia • {metricas.gmdAnimais} animal(is) com pesagens
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-indigo-500 hover:shadow-md transition-shadow min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div>
+                <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">Intervalo parto–parto</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-500">Média entre partos</p>
+              </div>
+              <Icons.Calendar className="w-6 h-6 text-indigo-500" />
+            </div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+              {metricas.intervaloPartoDias !== null ? `${Math.round(metricas.intervaloPartoDias)} d` : '-'}
+            </div>
+            <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+              {metricas.intervaloPartoDias !== null
+                ? `~${(metricas.intervaloPartoDias / 30.4).toFixed(1)} meses • ${metricas.intervalosParto} intervalo(s)`
+                : 'Sem intervalos suficientes'}
             </div>
           </div>
         </div>
 
         {/* Cards de Sexo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Distribuição por Sexo</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Distribuição por Sexo</h3>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2">
                   <Icons.Venus className="w-5 h-5 text-pink-500" />
-                  <span className="text-sm text-gray-600 dark:text-slate-300">Fêmeas</span>
+                  <span className="text-xs text-gray-600 dark:text-slate-300">Fêmeas</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Icons.Mars className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')}`} />
-                  <span className="text-sm text-gray-600 dark:text-slate-300">Machos</span>
+                  <span className="text-xs text-gray-600 dark:text-slate-300">Machos</span>
                 </div>
               </div>
             </div>
@@ -543,8 +639,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Nascimentos por Mês (Últimos 12 meses)</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-3">Nascimentos por Mês (Últimos 12 meses)</h3>
             <div className="space-y-3">
               {metricas.nascimentosPorMes.map((item, index) => (
                 <div key={index}>
@@ -565,16 +661,16 @@ export default function Dashboard() {
         </div>
 
         {/* Gráficos interativos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Nascimentos (últimos 12 meses)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Nascimentos (últimos 12 meses)</h3>
               <span className="text-xs text-gray-500 dark:text-slate-400">Gráfico de linha</span>
             </div>
             {metricas.nascimentosPorMes.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-slate-400">Sem dados suficientes.</p>
             ) : (
-              <div className="w-full" style={{ height: '160px' }}>
+              <div className="w-full" style={{ height: '150px' }}>
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={metricas.nascimentosPorMes} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
@@ -616,15 +712,15 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade por fazenda (janela)</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Mortalidade por fazenda (janela)</h3>
               <span className="text-xs text-gray-500 dark:text-slate-400">Gráfico de barras</span>
             </div>
             {alertas.mortalidadeAlta.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-slate-400">Nenhuma fazenda acima do limiar configurado.</p>
             ) : (
-              <div className="w-full" style={{ height: '200px' }}>
+              <div className="w-full" style={{ height: '190px' }}>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart
                     data={alertas.mortalidadeAlta.slice(0, 8)}
@@ -684,12 +780,12 @@ export default function Dashboard() {
         </div>
 
         {/* Gráficos por Fazenda e Raça */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Icons.Building2 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Comparativo por Fazenda</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Comparativo por Fazenda</h3>
               </div>
               <span className="text-xs text-gray-500 dark:text-slate-400">Nasc. x Desm.</span>
             </div>
@@ -764,10 +860,10 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-2 mb-3">
               <Icons.BarChart3 className="w-5 h-5 text-gray-600 dark:text-slate-300" />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Top Raças</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Top Raças</h3>
             </div>
             {metricas.totaisPorRaca.length > 0 ? (
               <div className="space-y-3">

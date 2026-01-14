@@ -5,10 +5,10 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 ## 🔥 PRIORIDADE 1 — Robustez (antes de mais features)
 
 ### 1️⃣ Centro de Sincronização
-**Status**: ⚠️ **PARCIAL**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Status Online/Offline (componente `SyncStatus`)
 - ✅ Botão "Sincronizar agora" (no TopBar e Sidebar)
-- ❌ **FALTA**: Tela dedicada com:
+- ✅ Tela dedicada com:
   - Último sync bem-sucedido (timestamp)
   - Quantidade de pendências locais (contador)
   - Erros do último sync (log detalhado)
@@ -17,22 +17,20 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 **Onde está**: `src/components/SyncStatus.tsx`, `src/components/TopBar.tsx`, `src/components/Sidebar.tsx`
 
 ### 2️⃣ Fila de Eventos Offline
-**Status**: ❌ **NÃO IMPLEMENTADO**
-- ❌ Tabela `sync_events` no IndexedDB
-- ❌ Tipo (INSERT, UPDATE, DELETE)
-- ❌ Entidade (nascimento, desmama, etc.)
-- ❌ Payload
-- ❌ Tentativas
-- ❌ Erro
-
-**Nota**: Existe `sync_events` no Supabase (migration 001_init.sql), mas não está sendo usado no código.
+**Status**: ✅ **IMPLEMENTADO**
+- ✅ Tabela `sync_events` no IndexedDB
+- ✅ Tipo (INSERT, UPDATE, DELETE)
+- ✅ Entidade (nascimento, desmama, etc.)
+- ✅ Payload
+- ✅ Tentativas
+- ✅ Erro
 
 ### 3️⃣ Lock de Registro
-**Status**: ❌ **NÃO IMPLEMENTADO**
-- ❌ Campo `locked_by`
-- ❌ Campo `locked_at`
-- ❌ TTL (ex.: 10 min)
-- ❌ Aviso quando outro usuário abre registro bloqueado
+**Status**: ✅ **IMPLEMENTADO**
+- ✅ Campo `locked_by`
+- ✅ Campo `locked_at`
+- ✅ TTL (ex.: 10 min)
+- ✅ Aviso quando outro usuário abre registro bloqueado
 
 ---
 
@@ -42,29 +40,27 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 **Status**: ⚠️ **PARCIAL**
 - ✅ Histórico de partos por matriz (em `Home.tsx`)
 - ✅ Mostra nascimento, desmama, peso
+- ✅ Pesagens periódicas
+- ✅ Vacinações
 - ❌ **FALTA**: Timeline visual completa com:
-  - Pesagens periódicas
-  - Vacinações
   - Observações/eventos
-  - Visualização em linha do tempo
+  - Visualização consolidada em linha do tempo
 
 **Onde está**: `src/routes/Home.tsx` (modal de histórico de matriz)
 
 ### 5️⃣ Pesagens Periódicas
-**Status**: ❌ **NÃO IMPLEMENTADO**
-- ❌ Tabela de pesagens
-- ❌ Campos: peso, data, observação
+**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
+- ✅ Tabela de pesagens
+- ✅ Campos: peso, data, observação
 - ❌ Cálculo de ganho médio diário (GMD)
 - ❌ Alertas para animais fora do padrão
 
-**Nota**: Existe apenas `pesoDesmama` em `Desmama`, não pesagens periódicas.
-
 ### 6️⃣ Vacinação / Sanidade
-**Status**: ❌ **NÃO IMPLEMENTADO**
-- ❌ Tabela de vacinações
-- ❌ Campos: vacina, data, lote, responsável
+**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
+- ✅ Tabela de vacinações
+- ✅ Campos: vacina, data, lote, responsável
+- ✅ Histórico de sanidade
 - ❌ Alertas de vacinas vencidas
-- ❌ Histórico de sanidade
 
 ---
 
@@ -131,13 +127,13 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 ## 🧱 PRIORIDADE 5 — Produto sério
 
 ### 1️⃣1️⃣ Backup Local
-**Status**: ✅ **IMPLEMENTADO**
+**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
 - ✅ Exportar dados para JSON
+- ✅ Exportar para CSV
 - ✅ Inclui todas as tabelas (fazendas, raças, nascimentos, desmamas, usuários)
 - ✅ Metadados (totais, data do backup)
 - ❌ **FALTA**: 
   - Importar backup (restaurar)
-  - Exportar para CSV também
 
 **Onde está**: `src/utils/exportarDados.ts` - `exportarBackupCompleto()`
 
@@ -176,39 +172,39 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 
 ## 📋 Resumo do Status
 
-### ✅ Totalmente Implementado: 5 funcionalidades
-1. Permissões Finas (RBAC)
-2. Auditoria
-3. Backup Local (exportação)
-4. Relatórios PDF
-5. Indicadores Automáticos (parcial - falta GMD e intervalo parto-parto)
+### ✅ Totalmente Implementado: 7 funcionalidades
+1. Centro de Sincronização
+2. Fila de Eventos Offline
+3. Lock de Registro
+4. Permissões Finas (RBAC)
+5. Auditoria
+6. Relatórios PDF
+7. Indicadores Automáticos (parcial - falta GMD e intervalo parto-parto)
 
-### ⚠️ Parcialmente Implementado: 4 funcionalidades
-1. Centro de Sincronização (falta tela dedicada com detalhes)
-2. Linha do Tempo do Animal (falta timeline visual completa)
-3. Alertas Inteligentes (falta alguns tipos)
-4. Multi-fazenda (falta troca rápida)
+### ⚠️ Parcialmente Implementado: 5 funcionalidades
+1. Linha do Tempo do Animal (falta timeline visual completa)
+2. Pesagens Periódicas (falta GMD e alertas)
+3. Vacinação / Sanidade (falta alertas de vencimento)
+4. Alertas Inteligentes (falta alguns tipos)
+5. Multi-fazenda (falta troca rápida)
 
-### ❌ Não Implementado: 5 funcionalidades
-1. Fila de Eventos Offline
-2. Lock de Registro
-3. Pesagens Periódicas
-4. Vacinação / Sanidade
-5. Integração com Balança
+### ❌ Não Implementado: 2 funcionalidades
+1. Integração com Balança
+2. Importar Backup (restaurar)
 
 ---
 
 ## 🎯 Funcionalidades Prioritárias para Implementar
 
 ### Sprint 1 - Robustez
-1. **Centro de Sincronização** (tela dedicada)
-2. **Fila de Eventos Offline** (tabela sync_events no IndexedDB)
-3. **Lock de Registro** (campos locked_by, locked_at, TTL)
+1. **Centro de Sincronização** (tela dedicada) ✅
+2. **Fila de Eventos Offline** (tabela sync_events no IndexedDB) ✅
+3. **Lock de Registro** (campos locked_by, locked_at, TTL) ✅
 
 ### Sprint 2 - Funcionalidades do Produtor
 4. **Linha do Tempo do Animal** (timeline visual completa)
-5. **Pesagens Periódicas** (tabela + GMD)
-6. **Vacinação / Sanidade** (tabela + alertas)
+5. **Pesagens Periódicas** (GMD + alertas)
+6. **Vacinação / Sanidade** (alertas)
 
 ### Sprint 3 - Melhorias
 7. **Indicadores Avançados** (GMD, intervalo parto-parto)
@@ -221,4 +217,4 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 
 ---
 
-**Última atualização**: 01/12/2025
+**Última atualização**: 14/01/2026

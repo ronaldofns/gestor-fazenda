@@ -16,7 +16,7 @@ import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
 
 const schema = z.object({
   dataDesmama: z.string().min(1, 'Informe a data de desmama'),
-  pesoDesmama: z.string().min(1, 'Informe o peso').transform(val => parseFloat(val))
+  pesoDesmama: z.string().min(1, 'Informe o peso da desmama').transform(val => parseFloat(val))
 });
 
 export default function CadastroDesmama() {

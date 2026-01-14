@@ -4,14 +4,14 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryBgClass, getThemeClasses, getPrimaryCardClass, getPrimaryBadgeClass, getPrimarySmallButtonClass } from '../utils/themeHelpers';
-import { marcarNotificacaoComoLida, marcarTodasComoLidas, chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro } from '../utils/notificacoesLidas';
+import { marcarNotificacaoComoLida, marcarTodasComoLidas, chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro, chavePesoForaPadrao, chaveVacina } from '../utils/notificacoesLidas';
 
 export default function Notificacoes() {
   const notificacoes = useNotifications();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
 
-  const handleMarcarComoLida = async (tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz', chave: string) => {
+  const handleMarcarComoLida = async (tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina', chave: string) => {
     try {
       await marcarNotificacaoComoLida(chave, tipo);
       // Sincronizar imediatamente após marcar como lida
@@ -28,7 +28,7 @@ export default function Notificacoes() {
     }
   };
 
-  const handleMarcarTodasComoLidas = async (tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz', chaves: string[]) => {
+  const handleMarcarTodasComoLidas = async (tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina', chaves: string[]) => {
     try {
       await marcarTodasComoLidas(tipo, chaves);
       // Sincronizar imediatamente após marcar todas como lidas
@@ -271,6 +271,157 @@ export default function Notificacoes() {
                     <button
                       onClick={() => handleMarcarComoLida('matriz', chaveMatrizSemCadastro(item.matrizId, item.fazendaId))}
                       className="p-1 text-purple-600 hover:text-purple-700 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded transition-colors"
+                      title="Marcar como lida"
+                    >
+                      <Icons.Check className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Peso Fora do Padrão */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-orange-200 dark:border-orange-500/40 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Icons.Scale className="w-5 h-5 text-orange-500" />
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Peso fora do padrão</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200 rounded-full">
+                {notificacoes.pesoForaPadrao.length} animal(is)
+              </span>
+              {notificacoes.pesoForaPadrao.length > 0 && (
+                <button
+                  onClick={() => {
+                    const chaves = notificacoes.pesoForaPadrao.map(n => chavePesoForaPadrao(n.nascimentoId));
+                    handleMarcarTodasComoLidas('peso', chaves);
+                  }}
+                  className="text-xs px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-colors flex items-center gap-1"
+                  title="Marcar todas como lidas"
+                >
+                  <Icons.CheckCheck className="w-3 h-3" />
+                  Marcar todas
+                </button>
+              )}
+            </div>
+          </div>
+          {notificacoes.pesoForaPadrao.length === 0 ? (
+            <p className="text-sm text-gray-600 dark:text-slate-400">Todos os animais estão com peso adequado.</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-auto">
+              {notificacoes.pesoForaPadrao.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-orange-100 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-500/10">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      {item.brinco ? `Brinco ${item.brinco}` : 'Animal sem brinco'}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
+                      Fazenda: {item.fazenda} • Idade: {item.idadeDias} dias
+                    </p>
+                    <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                      Peso atual: <strong>{item.pesoAtual} kg</strong> • Esperado: <strong>{item.pesoMedioEsperado} kg</strong> • Diferença: <strong>{item.diferencaPercentual.toFixed(1)}%</strong>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleMarcarComoLida('peso', chavePesoForaPadrao(item.nascimentoId))}
+                      className="p-1 text-orange-600 hover:text-orange-700 hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded transition-colors"
+                      title="Marcar como lida"
+                    >
+                      <Icons.Check className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Vacinas vencidas / vencendo */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-rose-200 dark:border-rose-500/40 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Icons.Injection className="w-5 h-5 text-rose-500" />
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">
+                Vacinas vencidas / vencendo
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs px-2 py-1 bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200 rounded-full">
+                {notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length} alerta(s)
+              </span>
+              {(notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length) > 0 && (
+                <button
+                  onClick={() => {
+                    const chaves = [
+                      ...notificacoes.vacinasVencidas.map(n => chaveVacina(n.id)),
+                      ...notificacoes.vacinasVencendo.map(n => chaveVacina(n.id))
+                    ];
+                    handleMarcarTodasComoLidas('vacina', chaves);
+                  }}
+                  className="text-xs px-2 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-md transition-colors flex items-center gap-1"
+                  title="Marcar todas como lidas"
+                >
+                  <Icons.CheckCheck className="w-3 h-3" />
+                  Marcar todas
+                </button>
+              )}
+            </div>
+          </div>
+          {notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length === 0 ? (
+            <p className="text-sm text-gray-600 dark:text-slate-400">Nenhuma vacina vencida ou vencendo em breve.</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-auto">
+              {notificacoes.vacinasVencidas.map((item) => (
+                <div key={`vacina-vencida-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-rose-100 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      {item.vacina} {item.brinco ? `• Brinco ${item.brinco}` : ''}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
+                      Fazenda: {item.fazenda} • Aplicação: {item.dataAplicacao}
+                    </p>
+                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
+                      Vencida em: <strong>{item.dataVencimento}</strong> • {Math.abs(item.diasParaVencer)} dia(s) em atraso
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-rose-700 whitespace-nowrap">
+                      Vencida
+                    </span>
+                    <button
+                      onClick={() => handleMarcarComoLida('vacina', chaveVacina(item.id))}
+                      className="p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded transition-colors"
+                      title="Marcar como lida"
+                    >
+                      <Icons.Check className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {notificacoes.vacinasVencendo.map((item) => (
+                <div key={`vacina-vence-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-amber-100 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      {item.vacina} {item.brinco ? `• Brinco ${item.brinco}` : ''}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
+                      Fazenda: {item.fazenda} • Aplicação: {item.dataAplicacao}
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                      Vence em: <strong>{item.dataVencimento}</strong> • {item.diasParaVencer} dia(s)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+                      Vence em breve
+                    </span>
+                    <button
+                      onClick={() => handleMarcarComoLida('vacina', chaveVacina(item.id))}
+                      className="p-1 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-500/20 rounded transition-colors"
                       title="Marcar como lida"
                     >
                       <Icons.Check className="w-4 h-4" />

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { useAlertSettings } from './useAlertSettings';
-import { chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro } from '../utils/notificacoesLidas';
+import { chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro, chavePesoForaPadrao, chaveVacina } from '../utils/notificacoesLidas';
 
 interface NotificacaoDesmama {
   id: string;
@@ -36,11 +36,38 @@ interface NotificacaoMatrizSemCadastro {
   totalNascimentos: number;
 }
 
+interface NotificacaoPesoForaPadrao {
+  id: string;
+  nascimentoId: string;
+  brinco?: string;
+  fazenda: string;
+  pesoAtual: number;
+  pesoMedioEsperado: number;
+  diferencaPercentual: number;
+  idadeDias: number;
+  ultimaPesagem: string;
+}
+
+interface NotificacaoVacina {
+  id: string;
+  nascimentoId: string;
+  brinco?: string;
+  fazenda: string;
+  vacina: string;
+  dataAplicacao: string;
+  dataVencimento: string;
+  status: 'vencida' | 'vence_em_breve';
+  diasParaVencer: number;
+}
+
 export interface Notificacoes {
   desmamaAtrasada: NotificacaoDesmama[];
   mortalidadeAlta: NotificacaoMortalidade[];
   dadosIncompletos: NotificacaoDadosIncompletos[];
   matrizesSemCadastro: NotificacaoMatrizSemCadastro[];
+  pesoForaPadrao: NotificacaoPesoForaPadrao[];
+  vacinasVencidas: NotificacaoVacina[];
+  vacinasVencendo: NotificacaoVacina[];
   total: number;
 }
 
@@ -67,6 +94,8 @@ function diffMeses(a: Date, b: Date) {
 export function useNotifications(): Notificacoes {
   const nascimentosTodosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
+  const pesagens = useLiveQuery(() => db.pesagens.toArray(), []) || [];
+  const vacinacoes = useLiveQuery(() => db.vacinacoes.toArray(), []) || [];
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
   const matrizesRaw = useLiveQuery(() => db.matrizes.toArray(), []) || [];
   const notificacoesLidasRaw = useLiveQuery(() => db.notificacoesLidas.toArray(), []) || [];
@@ -136,6 +165,7 @@ export function useNotifications(): Notificacoes {
 
   const notificacoes = useMemo<Notificacoes>(() => {
     const agora = new Date();
+    agora.setHours(0, 0, 0, 0);
     const { limiteMesesDesmama, janelaMesesMortalidade, limiarMortalidade } = alertSettings;
 
     const desmamaAtrasada = nascimentosTodosRaw
@@ -237,14 +267,167 @@ export function useNotifications(): Notificacoes {
       .sort((a, b) => b.totalNascimentos - a.totalNascimentos)
       .slice(0, 20); // Limitar a 20 para não sobrecarregar
 
+    // Peso fora do padrão: animais com peso abaixo da média esperada
+    // Calcular média de peso por idade (em dias) e raça
+    const pesoMedioPorIdadeERaca = (() => {
+      const map = new Map<string, { soma: number; count: number }>(); // chave: "idadeDias|raca"
+      
+      pesagens.forEach((pesagem) => {
+        const nascimento = nascimentosTodosRaw.find(n => n.id === pesagem.nascimentoId);
+        if (!nascimento || !nascimento.dataNascimento) return;
+        
+        const dataNasc = parseDate(nascimento.dataNascimento);
+        const dataPesagem = parseDate(pesagem.dataPesagem);
+        if (!dataNasc || !dataPesagem) return;
+        
+        const idadeDias = Math.floor((dataPesagem.getTime() - dataNasc.getTime()) / (1000 * 60 * 60 * 24));
+        if (idadeDias < 0) return;
+        
+        const raca = nascimento.raca || 'Sem raça';
+        const chave = `${Math.floor(idadeDias / 30)}|${raca}`; // Agrupar por mês e raça
+        const existing = map.get(chave) || { soma: 0, count: 0 };
+        existing.soma += pesagem.peso;
+        existing.count += 1;
+        map.set(chave, existing);
+      });
+      
+      const medias = new Map<string, number>();
+      map.forEach((value, key) => {
+        medias.set(key, value.soma / value.count);
+      });
+      
+      return medias;
+    })();
+
+    const pesoForaPadrao = nascimentosTodosRaw
+      .filter((n) => {
+        if (n.morto) return false;
+        if (!n.dataNascimento) return false;
+        
+        // Buscar última pesagem do animal
+        const pesagensAnimal = pesagens
+          .filter(p => p.nascimentoId === n.id)
+          .sort((a, b) => {
+            const dataA = parseDate(a.dataPesagem);
+            const dataB = parseDate(b.dataPesagem);
+            if (!dataA || !dataB) return 0;
+            return dataB.getTime() - dataA.getTime();
+          });
+        
+        if (pesagensAnimal.length === 0) return false;
+        
+        const ultimaPesagem = pesagensAnimal[0];
+        const dataNasc = parseDate(n.dataNascimento);
+        const dataPesagem = parseDate(ultimaPesagem.dataPesagem);
+        if (!dataNasc || !dataPesagem) return false;
+        
+        const idadeDias = Math.floor((dataPesagem.getTime() - dataNasc.getTime()) / (1000 * 60 * 60 * 24));
+        if (idadeDias < 30) return false; // Só alertar para animais com mais de 30 dias
+        
+        const raca = n.raca || 'Sem raça';
+        const chave = `${Math.floor(idadeDias / 30)}|${raca}`;
+        const pesoMedioEsperado = pesoMedioPorIdadeERaca.get(chave);
+        
+        if (!pesoMedioEsperado) return false;
+        
+        // Considerar fora do padrão se estiver 15% abaixo da média
+        const diferencaPercentual = ((ultimaPesagem.peso - pesoMedioEsperado) / pesoMedioEsperado) * 100;
+        const foraPadrao = diferencaPercentual < -15;
+        const naoLida = !notificacoesLidasSet.has(chavePesoForaPadrao(n.id));
+        
+        return foraPadrao && naoLida;
+      })
+      .map((n) => {
+        const pesagensAnimal = pesagens
+          .filter(p => p.nascimentoId === n.id)
+          .sort((a, b) => {
+            const dataA = parseDate(a.dataPesagem);
+            const dataB = parseDate(b.dataPesagem);
+            if (!dataA || !dataB) return 0;
+            return dataB.getTime() - dataA.getTime();
+          });
+        
+        const ultimaPesagem = pesagensAnimal[0];
+        const dataNasc = parseDate(n.dataNascimento)!;
+        const dataPesagem = parseDate(ultimaPesagem.dataPesagem)!;
+        const idadeDias = Math.floor((dataPesagem.getTime() - dataNasc.getTime()) / (1000 * 60 * 60 * 24));
+        const raca = n.raca || 'Sem raça';
+        const chave = `${Math.floor(idadeDias / 30)}|${raca}`;
+        const pesoMedioEsperado = pesoMedioPorIdadeERaca.get(chave) || 0;
+        const diferencaPercentual = ((ultimaPesagem.peso - pesoMedioEsperado) / pesoMedioEsperado) * 100;
+        
+        return {
+          id: ultimaPesagem.id,
+          nascimentoId: n.id,
+          brinco: n.brincoNumero,
+          fazenda: fazendaMap.get(n.fazendaId) || 'Sem fazenda',
+          pesoAtual: ultimaPesagem.peso,
+          pesoMedioEsperado: Math.round(pesoMedioEsperado * 100) / 100,
+          diferencaPercentual: Math.round(diferencaPercentual * 100) / 100,
+          idadeDias,
+          ultimaPesagem: ultimaPesagem.dataPesagem
+        };
+      })
+      .sort((a, b) => a.diferencaPercentual - b.diferencaPercentual); // Mais críticos primeiro
+
+    // Vacinas vencidas e vencendo (até 30 dias)
+    const vacinas = Array.isArray(vacinacoes) ? vacinacoes : [];
+    const vacinasComVencimento = vacinas.filter(v => v.dataVencimento && v.dataAplicacao);
+    const vacinasVencidas: NotificacaoVacina[] = [];
+    const vacinasVencendo: NotificacaoVacina[] = [];
+
+    vacinasComVencimento.forEach((vacina) => {
+      const dataVencimento = parseDate(vacina.dataVencimento);
+      if (!dataVencimento) return;
+      dataVencimento.setHours(0, 0, 0, 0);
+      const diffTime = dataVencimento.getTime() - agora.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const nascimento = nascimentosTodosRaw.find(n => n.id === vacina.nascimentoId);
+      if (!nascimento) return;
+      const fazenda = fazendaMap.get(nascimento.fazendaId) || 'Sem fazenda';
+      const brinco = nascimento.brincoNumero;
+      const base: NotificacaoVacina = {
+        id: vacina.id,
+        nascimentoId: vacina.nascimentoId,
+        brinco,
+        fazenda,
+        vacina: vacina.vacina || 'Vacina',
+        dataAplicacao: vacina.dataAplicacao,
+        dataVencimento: vacina.dataVencimento || '',
+        status: diffDays < 0 ? 'vencida' : 'vence_em_breve',
+        diasParaVencer: diffDays
+      };
+
+      if (notificacoesLidasSet.has(chaveVacina(vacina.id))) return;
+
+      if (diffDays < 0) {
+        vacinasVencidas.push(base);
+      } else if (diffDays <= 30) {
+        vacinasVencendo.push(base);
+      }
+    });
+
+    vacinasVencidas.sort((a, b) => a.diasParaVencer - b.diasParaVencer);
+    vacinasVencendo.sort((a, b) => a.diasParaVencer - b.diasParaVencer);
+
     return {
       desmamaAtrasada,
       mortalidadeAlta,
       dadosIncompletos,
       matrizesSemCadastro,
-      total: desmamaAtrasada.length + mortalidadeAlta.length + dadosIncompletos.length + matrizesSemCadastro.length
+      pesoForaPadrao,
+      vacinasVencidas,
+      vacinasVencendo,
+      total:
+        desmamaAtrasada.length +
+        mortalidadeAlta.length +
+        dadosIncompletos.length +
+        matrizesSemCadastro.length +
+        pesoForaPadrao.length +
+        vacinasVencidas.length +
+        vacinasVencendo.length
     };
-  }, [alertSettings, desmamaSet, fazendaMap, nascimentosTodosRaw, matrizSet, matrizesEmNascimentos, matrizMap, notificacoesLidasSet]);
+  }, [alertSettings, desmamaSet, fazendaMap, nascimentosTodosRaw, pesagens, vacinacoes, matrizSet, matrizesEmNascimentos, matrizMap, notificacoesLidasSet]);
 
   return notificacoes;
 }

@@ -8,6 +8,10 @@ import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
 import Combobox from '../components/Combobox';
 import ModalRaca from '../components/ModalRaca';
+import NascimentoModal, { VerificarBrincoFn } from '../components/NascimentoModal';
+import PesagemModal from '../components/PesagemModal';
+import VacinaModal from '../components/VacinaModal';
+import TimelineAnimal from '../components/TimelineAnimal';
 import { Icons } from '../utils/iconMapping';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { cleanDuplicateNascimentos } from '../utils/cleanDuplicates';
@@ -75,8 +79,8 @@ const STORAGE_COLUNAS_KEY = 'gf-colunas-nascimento-desmama';
 
 const schemaNascimento = z.object({
   fazendaId: z.string().min(1, 'Selecione a fazenda'),
-  mes: z.number().min(1).max(12),
-  ano: z.number().min(2000).max(2100),
+  mes: z.number().min(1, 'Informe um mês válido').max(12, 'Informe um mês válido'),
+  ano: z.number().min(2000, 'Informe um ano válido').max(2100, 'Informe um ano válido'),
   matrizId: z.string().min(1, 'Informe a matriz'),
   tipo: z.enum(['novilha', 'vaca'], { required_error: 'Selecione o tipo: Vaca ou Novilha' }),
   brincoNumero: z.string().optional(),
@@ -100,14 +104,23 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [modalNovoNascimentoOpen, setModalNovoNascimentoOpen] = useState(false);
   const [modalEditarNascimentoOpen, setModalEditarNascimentoOpen] = useState(false);
+  const [modalPesagemOpen, setModalPesagemOpen] = useState(false);
+  const [pesagemNascimentoId, setPesagemNascimentoId] = useState<string | null>(null);
+  const [pesagemEditando, setPesagemEditando] = useState<any | null>(null);
+  const [modalVacinaOpen, setModalVacinaOpen] = useState(false);
+  const [vacinaNascimentoId, setVacinaNascimentoId] = useState<string | null>(null);
+  const [vacinaEditando, setVacinaEditando] = useState<any | null>(null);
   const [nascimentoEditandoId, setNascimentoEditandoId] = useState<string | null>(null);
   const [abaAtivaEdicao, setAbaAtivaEdicao] = useState<'nascimento' | 'desmama'>('nascimento');
   const [modalRacaOpen, setModalRacaOpen] = useState(false);
+  const [novaRacaSelecionada, setNovaRacaSelecionada] = useState<string | undefined>(undefined);
   const [matrizHistoricoOpen, setMatrizHistoricoOpen] = useState(false);
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [historicoEntityId, setHistoricoEntityId] = useState<string | null>(null);
   const [historicoEntityNome, setHistoricoEntityNome] = useState<string>('');
   const [matrizHistoricoId, setMatrizHistoricoId] = useState<string | null>(null);
+  const [abaHistoricoMatriz, setAbaHistoricoMatriz] = useState<'tabela' | 'timeline'>('tabela');
+  const [timelineAnimalId, setTimelineAnimalId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingEdicao, setIsSubmittingEdicao] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(0);
@@ -437,6 +450,40 @@ export default function Home() {
     return map;
   }, [matrizes]);
 
+  // Carregar pesagens
+  const pesagens = useLiveQuery(
+    async () => {
+      try {
+        if (!db.isOpen()) {
+          await db.open();
+        }
+        const result = await db.pesagens.toArray();
+        return result || [];
+      } catch (error) {
+        console.error('Erro ao carregar pesagens:', error);
+        return [];
+      }
+    },
+    [forceRefresh]
+  ) || [];
+
+  // Carregar vacinações
+  const vacinacoes = useLiveQuery(
+    async () => {
+      try {
+        if (!db.isOpen()) {
+          await db.open();
+        }
+        const result = await db.vacinacoes.toArray();
+        return result || [];
+      } catch (error) {
+        console.error('Erro ao carregar vacinações:', error);
+        return [];
+      }
+    },
+    [forceRefresh]
+  ) || [];
+
   const desmamas = useLiveQuery(
     async () => {
       try {
@@ -596,7 +643,7 @@ export default function Home() {
   const mesAtual = hoje.getMonth() + 1;
   const anoAtual = hoje.getFullYear();
 
-  const { register: registerNascimento, handleSubmit: handleSubmitNascimento, formState: { errors: errorsNascimento }, reset: resetNascimento, setValue: setValueNascimento, watch: watchNascimento, setError: setErrorNascimento } = useForm<FormDataNascimento>({ 
+  const { register: registerNascimento, handleSubmit: handleSubmitNascimento, formState: { errors: errorsNascimento }, reset: resetNascimento, setValue: setValueNascimento, watch: watchNascimento, setError: setErrorNascimento, getValues: getValuesNascimento } = useForm<FormDataNascimento>({ 
     resolver: zodResolver(schemaNascimento),
     defaultValues: {
       mes: mesAtual,
@@ -606,10 +653,12 @@ export default function Home() {
   });
 
   // Observar campos que devem ser mantidos
-  const fazendaIdForm = watchNascimento('fazendaId');
-  const mesForm = watchNascimento('mes');
-  const anoForm = watchNascimento('ano');
-  const dataNascimentoForm = watchNascimento('dataNascimento');
+  // Remover watch() desnecessários que causam re-renders a cada digitação
+  // Usar getValues() apenas quando necessário (ex: no handleLimpar)
+  // const fazendaIdForm = watchNascimento('fazendaId');
+  // const mesForm = watchNascimento('mes');
+  // const anoForm = watchNascimento('ano');
+  // const dataNascimentoForm = watchNascimento('dataNascimento');
 
   const handleRacaCadastrada = (racaNome: string) => {
     setValueNascimento('raca', racaNome);
@@ -690,16 +739,17 @@ export default function Home() {
       
       // Manter campos: Fazenda, Mês, Ano, Data de Nascimento, Raça, Tipo
       // Limpar apenas: Matriz, Brinco, Sexo, Obs
+      const currentValues = getValuesNascimento();
       resetNascimento({
-        fazendaId: values.fazendaId,
-        mes: values.mes,
-        ano: values.ano,
-        dataNascimento: values.dataNascimento || '',
+        fazendaId: currentValues.fazendaId,
+        mes: currentValues.mes,
+        ano: currentValues.ano,
+        dataNascimento: currentValues.dataNascimento || '',
         matrizId: '',
         brincoNumero: '',
         sexo: undefined,
-        raca: values.raca || '',
-        tipo: values.tipo,
+        raca: currentValues.raca || '',
+        tipo: currentValues.tipo,
         obs: '',
         morto: false
       });
@@ -718,11 +768,12 @@ export default function Home() {
   }
 
   const handleLimparNascimento = () => {
+    const currentValues = getValuesNascimento();
     resetNascimento({
-      fazendaId: fazendaIdForm || '',
-      mes: mesForm || mesAtual,
-      ano: anoForm || anoAtual,
-      dataNascimento: dataNascimentoForm || '',
+      fazendaId: currentValues.fazendaId || '',
+      mes: currentValues.mes || mesAtual,
+      ano: currentValues.ano || anoAtual,
+      dataNascimento: currentValues.dataNascimento || '',
       matrizId: '',
       brincoNumero: '',
       sexo: undefined,
@@ -751,9 +802,11 @@ export default function Home() {
     [nascimentoEditandoId]
   );
 
-  const { register: registerEdicao, handleSubmit: handleSubmitEdicao, formState: { errors: errorsEdicao }, reset: resetEdicao, setValue: setValueEdicao, watch: watchEdicao, setError: setErrorEdicao } = useForm<FormDataNascimento>({
+  const { register: registerEdicao, handleSubmit: handleSubmitEdicao, formState: { errors: errorsEdicao }, reset: resetEdicao, setValue: setValueEdicao, watch: watchEdicao, setError: setErrorEdicao, getValues: getValuesEdicao } = useForm<FormDataNascimento>({
     resolver: zodResolver(schemaNascimento),
-    shouldUnregister: false
+    shouldUnregister: false,
+    mode: 'onBlur', // Validar apenas ao perder foco, não durante digitação
+    reValidateMode: 'onBlur' // Revalidar apenas ao perder foco
   });
 
   // Função para converter data de YYYY-MM-DD para DD/MM/YYYY se necessário
@@ -1076,7 +1129,21 @@ export default function Home() {
     if (itens.length === 0) return [];
 
     const lista = itens.map((n) => {
-      const desmama = desmamas.find((d) => d.nascimentoId === n.id);
+      const desmama = Array.isArray(desmamas) ? desmamas.find((d) => d && d.nascimentoId === n.id) : undefined;
+      const pesagensNascimento = Array.isArray(pesagens) 
+        ? pesagens.filter((p) => p && p.nascimentoId === n.id).sort((a, b) => {
+            const dateA = a.dataPesagem ? new Date(a.dataPesagem).getTime() : 0;
+            const dateB = b.dataPesagem ? new Date(b.dataPesagem).getTime() : 0;
+            return dateA - dateB;
+          })
+        : [];
+      const vacinacoesNascimento = Array.isArray(vacinacoes)
+        ? vacinacoes.filter((v) => v && v.nascimentoId === n.id).sort((a, b) => {
+            const dateA = a.dataAplicacao ? new Date(a.dataAplicacao).getTime() : 0;
+            const dateB = b.dataAplicacao ? new Date(b.dataAplicacao).getTime() : 0;
+            return dateA - dateB;
+          })
+        : [];
       const fazendaNome = fazendaMap.get(n.fazendaId) || 'Sem fazenda';
       return {
         id: n.id,
@@ -1091,6 +1158,8 @@ export default function Home() {
         dataNascimento: n.dataNascimento,
         dataDesmama: desmama?.dataDesmama,
         pesoDesmama: desmama?.pesoDesmama ?? null,
+        pesagens: pesagensNascimento,
+        vacinacoes: vacinacoesNascimento
       };
     });
 
@@ -1099,7 +1168,7 @@ export default function Home() {
       const bKey = (b.ano || 0) * 100 + (b.mes || 0);
       return aKey - bKey;
     });
-  }, [matrizHistoricoId, nascimentosTodos, desmamas, fazendaMap]);
+  }, [matrizHistoricoId, nascimentosTodos, desmamas, pesagens, vacinacoes, fazendaMap]);
 
   const matrizResumo = useMemo(() => {
     if (!matrizHistoricoId || matrizHistorico.length === 0) return null;
@@ -1919,6 +1988,28 @@ export default function Home() {
                             </button>
                             <button
                               onClick={() => {
+                                setPesagemNascimentoId(n.id);
+                                setPesagemEditando(null);
+                                setModalPesagemOpen(true);
+                              }}
+                              className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                              title="Adicionar pesagem"
+                            >
+                              <Icons.Scale className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setVacinaNascimentoId(n.id);
+                                setVacinaEditando(null);
+                                setModalVacinaOpen(true);
+                              }}
+                              className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                              title="Adicionar vacinação"
+                            >
+                              <Icons.Injection className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
                                 setHistoricoEntityId(n.id);
                                 const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
                                 setHistoricoEntityNome(`Matriz ${matrizIdentificador}${n.brincoNumero ? ` - Brinco ${n.brincoNumero}` : ''}`);
@@ -2184,6 +2275,28 @@ export default function Home() {
                     </div>
                     <div className="flex flex-col gap-1 ml-2">
                       <button
+                        onClick={() => {
+                          setPesagemNascimentoId(n.id);
+                          setPesagemEditando(null);
+                          setModalPesagemOpen(true);
+                        }}
+                        className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                        title="Adicionar pesagem"
+                      >
+                        <Icons.Scale className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setVacinaNascimentoId(n.id);
+                          setVacinaEditando(null);
+                          setModalVacinaOpen(true);
+                        }}
+                        className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                        title="Adicionar vacinação"
+                      >
+                        <Icons.Injection className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => handleAbrirEdicao(n.id)}
                         className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                         title="Editar"
@@ -2442,7 +2555,45 @@ export default function Home() {
         </div>
 
       {/* Modal Novo Nascimento */}
-      {modalNovoNascimentoOpen && (
+      <NascimentoModal
+        open={modalNovoNascimentoOpen}
+        mode="create"
+        fazendaOptions={fazendaOptions.filter(opt => opt.value !== '')}
+        racasOptions={racasOptions}
+        defaultFazendaId={fazendaSelecionada || undefined}
+        defaultMes={mesAtual}
+        defaultAno={anoAtual}
+        onClose={() => setModalNovoNascimentoOpen(false)}
+        onSaved={() => {
+          // Dados serão atualizados automaticamente pelo useLiveQuery
+        }}
+        onAddRaca={() => setModalRacaOpen(true)}
+        novaRacaSelecionada={novaRacaSelecionada}
+        verificarBrincoDuplicado={verificarBrincoDuplicado}
+        matrizInputRef={matrizInputRef}
+        onFocusMatriz={() => {
+          // Callback já é tratado internamente pelo componente
+        }}
+      />
+
+      {/* Modal Editar Nascimento */}
+      <NascimentoModal
+        open={modalEditarNascimentoOpen}
+        mode="edit"
+        fazendaOptions={fazendas.map(f => ({ label: f.nome, value: f.id }))}
+        racasOptions={racasOptions}
+        initialData={nascimentoEditando || null}
+        onClose={handleFecharEdicao}
+        onSaved={() => {
+          // Dados serão atualizados automaticamente pelo useLiveQuery
+        }}
+        onAddRaca={() => setModalRacaOpen(true)}
+        novaRacaSelecionada={novaRacaSelecionada}
+        verificarBrincoDuplicado={verificarBrincoDuplicado}
+      />
+
+      {/* Modais inline antigos - REMOVIDOS - usando NascimentoModal acima */}
+      {false && modalNovoNascimentoOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           {/* Overlay */}
           <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setModalNovoNascimentoOpen(false)}></div>
@@ -2551,15 +2702,22 @@ export default function Home() {
                       maxLength={10}
                       className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       placeholder="dd/mm/yyyy"
-                      value={watchNascimento('dataNascimento') ? converterDataParaFormatoInput(watchNascimento('dataNascimento') || '') : ''}
-                      onChange={(e) => {
-                        const norm = normalizarDataInput(e.target.value);
-                        setValueNascimento('dataNascimento', norm, { shouldValidate: true });
-                      }}
-                      onBlur={(e) => {
-                        const norm = normalizarDataInput(e.target.value);
-                        setValueNascimento('dataNascimento', norm, { shouldValidate: true });
-                      }}
+                      {...registerNascimento('dataNascimento', {
+                        onChange: (e) => {
+                          // Normalizar durante digitação sem validar
+                          const norm = normalizarDataInput(e.target.value);
+                          if (norm !== e.target.value) {
+                            e.target.value = norm;
+                            setValueNascimento('dataNascimento', norm, { shouldValidate: false });
+                          }
+                        },
+                        onBlur: (e) => {
+                          // Validar apenas ao perder foco
+                          const norm = normalizarDataInput(e.target.value);
+                          setValueNascimento('dataNascimento', norm, { shouldValidate: true });
+                        }
+                      })}
+                      defaultValue=""
                     />
                     {errorsNascimento.dataNascimento && <p className="text-red-600 text-sm mt-1">{String(errorsNascimento.dataNascimento.message)}</p>}
                   </div>
@@ -2675,8 +2833,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modal Editar Nascimento */}
-      {modalEditarNascimentoOpen && nascimentoEditando && (
+      {/* Modal Editar Nascimento - REMOVIDO - usando NascimentoModal acima */}
+      {false && modalEditarNascimentoOpen && nascimentoEditando && (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           {/* Overlay */}
           <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={handleFecharEdicao}></div>
@@ -2819,15 +2977,22 @@ export default function Home() {
                       maxLength={10}
                       className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`} 
                       placeholder="dd/mm/yyyy"
-                      value={watchEdicao('dataNascimento') ? converterDataParaFormatoInput(watchEdicao('dataNascimento') || '') : ''}
-                      onChange={(e) => {
-                        const norm = normalizarDataInput(e.target.value);
-                        setValueEdicao('dataNascimento', norm, { shouldValidate: true });
-                      }}
-                      onBlur={(e) => {
-                        const norm = normalizarDataInput(e.target.value);
-                        setValueEdicao('dataNascimento', norm, { shouldValidate: true });
-                      }}
+                      {...registerEdicao('dataNascimento', {
+                        onChange: (e) => {
+                          // Normalizar durante digitação sem validar
+                          const norm = normalizarDataInput(e.target.value);
+                          if (norm !== e.target.value) {
+                            e.target.value = norm;
+                            setValueEdicao('dataNascimento', norm, { shouldValidate: false });
+                          }
+                        },
+                        onBlur: (e) => {
+                          // Validar apenas ao perder foco
+                          const norm = normalizarDataInput(e.target.value);
+                          setValueEdicao('dataNascimento', norm, { shouldValidate: true });
+                        }
+                      })}
+                      defaultValue=""
                     />
                     {errorsEdicao.dataNascimento && <p className="text-red-600 text-sm mt-1">{String(errorsEdicao.dataNascimento.message)}</p>}
                   </div>
@@ -2985,148 +3150,428 @@ export default function Home() {
       )}
 
       {/* Modal Histórico Matriz */}
-      {matrizHistoricoOpen && matrizHistoricoId && (() => {
-        const matrizIdentificador = matrizMap.get(matrizHistoricoId) || matrizHistoricoId;
-        return (
-        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
-          <div
-            className="fixed inset-0 bg-gray-500 bg-opacity-60 transition-opacity"
-            onClick={handleFecharHistoricoMatriz}
-          />
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-white">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-                    Histórico da matriz {matrizIdentificador}
-                  </h2>
-                  {matrizResumo && (
-                    <p className="mt-1 text-xs sm:text-sm text-gray-600">
-                      Partos:{' '}
-                      <span className="font-semibold">{matrizResumo.totalPartos}</span>
-                      {' • '}
-                      Vivos:{' '}
-                      <span className={`font-semibold ${getThemeClasses(primaryColor, 'text')}`}>{matrizResumo.vivos}</span>
-                      {' • '}
-                      Mortos:{' '}
-                      <span className="font-semibold text-red-700">{matrizResumo.mortos}</span>
-                      {' • '}
-                      Média peso desmama:{' '}
-                      <span className="font-semibold">
-                        {matrizResumo.mediaPeso.toFixed(2)} kg
-                      </span>
-                    </p>
-                  )}
+      {matrizHistoricoOpen && matrizHistoricoId && (
+        <div key={`modal-historico-${matrizHistoricoId}`} className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden" role="dialog" aria-modal="true">
+            <div
+              className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity"
+              onClick={handleFecharHistoricoMatriz}
+            />
+            <div className="flex min-h-full items-center justify-center p-4">
+              <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-200/50 dark:border-slate-700/50 backdrop-blur-xl">
+                {/* Header com gradiente */}
+                <div className={`relative px-8 py-6 border-b border-gray-200/50 dark:border-slate-700/50 bg-gradient-to-br ${getThemeClasses(primaryColor, 'bg-light')} overflow-hidden`}>
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent dark:from-black/10"></div>
+                  <div className="relative flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className={`p-2.5 rounded-xl ${getThemeClasses(primaryColor, 'bg')} bg-opacity-10 dark:bg-opacity-20`}>
+                          <Icons.Cow className={`w-6 h-6 ${getThemeClasses(primaryColor, 'text')}`} />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 truncate">
+                            Histórico da Matriz
+                          </h2>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                            {matrizMap.get(matrizHistoricoId) || matrizHistoricoId}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleFecharHistoricoMatriz}
+                      className="ml-4 p-2.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-slate-800/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all hover:scale-105"
+                    >
+                      <Icons.X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleFecharHistoricoMatriz}
-                  className={`p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')}`}
-                >
-                  <Icons.X className="w-5 h-5" />
-                </button>
-              </div>
 
-              <div className="flex-1 overflow-auto p-4 sm:p-6">
-                {matrizHistorico.length === 0 ? (
-                  <p className="text-sm text-gray-600">
-                    Nenhum parto encontrado para esta matriz.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
-                            Período
-                          </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
-                            Fazenda
-                          </th>
-                          <th className="px-2 py-2 text-center font-medium text-gray-500  tracking-wider">
-                            Sexo
-                          </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
-                            Raça
-                          </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
-                            Brinco
-                          </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
-                            Data nasc.
-                          </th>
-                          <th className="px-2 py-2 text-left font-medium text-gray-500  tracking-wider">
-                            Data desmama
-                          </th>
-                          <th className="px-2 py-2 text-right font-medium text-gray-500  tracking-wider">
-                            Peso desmama
-                          </th>
-                          <th className="px-2 py-2 text-center font-medium text-gray-500  tracking-wider">
-                            Morto
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-100">
-                        {matrizHistorico.map((item) => (
-                          <tr key={item.id} className={item.morto ? 'bg-red-50' : ''}>
-                            <td className="px-2 py-1 whitespace-nowrap text-gray-900">
-                              {item.periodo}
-                            </td>
-                            <td className="px-2 py-1 whitespace-nowrap text-gray-700">
-                              {item.fazenda}
-                            </td>
-                            <td className="px-2 py-1 text-center">
-                              {item.sexo || '-'}
-                            </td>
-                            <td className="px-2 py-1 whitespace-nowrap">
-                              {item.raca || '-'}
-                            </td>
-                            <td className="px-2 py-1 whitespace-nowrap">
-                              {item.brinco || '-'}
-                            </td>
-                            <td className="px-2 py-1 whitespace-nowrap">
-                              {item.dataNascimento ? formatDate(item.dataNascimento) : '-'}
-                            </td>
-                            <td className="px-2 py-1 whitespace-nowrap">
-                              {item.dataDesmama ? formatDate(item.dataDesmama) : '-'}
-                            </td>
-                            <td className="px-2 py-1 text-right">
-                              {item.pesoDesmama ? `${item.pesoDesmama} kg` : '-'}
-                            </td>
-                            <td className="px-2 py-1 text-center">
-                              {item.morto ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold">
-                                  SIM
-                                </span>
-                              ) : (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full ${getPrimaryBadgeClass(primaryColor)} text-[10px] font-semibold`}>
-                                  NÃO
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {/* Resumo da Matriz - Movido para fora do header para não ser coberto pelas abas */}
+                {matrizResumo && (
+                  <div className="px-8 py-4 bg-white/40 dark:bg-slate-800/40 backdrop-blur-sm border-b border-gray-200/50 dark:border-slate-700/50">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl p-3 border border-white/50 dark:border-slate-700/50 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Partos</div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{matrizResumo.totalPartos}</div>
+                      </div>
+                      <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl p-3 border border-white/50 dark:border-slate-700/50 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Vivos</div>
+                        <div className={`text-2xl font-bold ${getThemeClasses(primaryColor, 'text')}`}>{matrizResumo.vivos}</div>
+                      </div>
+                      <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl p-3 border border-white/50 dark:border-slate-700/50 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Mortos</div>
+                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{matrizResumo.mortos}</div>
+                      </div>
+                      <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl p-3 border border-white/50 dark:border-slate-700/50 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Média Peso</div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                          {matrizResumo.mediaPeso.toFixed(2)} <span className="text-sm font-normal text-gray-500">kg</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
+
+              {/* Abas: Tabela / Timeline */}
+              <div className="border-b border-gray-200/50 dark:border-slate-700/50 bg-gray-50/50 dark:bg-slate-800/30">
+                <div className="flex gap-2 px-8">
+                  <button
+                    type="button"
+                    onClick={() => setAbaHistoricoMatriz('tabela')}
+                    className={`px-6 py-3.5 text-sm font-semibold rounded-t-xl transition-all relative ${
+                      abaHistoricoMatriz === 'tabela'
+                        ? `${getThemeClasses(primaryColor, 'bg')} ${getThemeClasses(primaryColor, 'text')} text-white dark:text-white shadow-md`
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icons.FileSpreadsheet className="w-4 h-4" />
+                      Tabela
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbaHistoricoMatriz('timeline')}
+                    className={`px-6 py-3.5 text-sm font-semibold rounded-t-xl transition-all relative ${
+                      abaHistoricoMatriz === 'timeline'
+                        ? `${getThemeClasses(primaryColor, 'bg')} ${getThemeClasses(primaryColor, 'text')} text-white dark:text-white shadow-md`
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icons.Calendar className="w-4 h-4" />
+                      Timeline
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 bg-gray-50/30 dark:bg-slate-900/50">
+                {matrizHistorico.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Icons.Info className="w-12 h-12 text-gray-400 dark:text-gray-500 mb-4" />
+                    <p className="text-base font-medium text-gray-600 dark:text-gray-400">
+                      Nenhum parto encontrado para esta matriz.
+                    </p>
+                  </div>
+                ) : abaHistoricoMatriz === 'timeline' ? (
+                  // Visualização Timeline
+                  <div className="space-y-6">
+                    {matrizHistorico.map((item) => {
+                      if (!item || !item.id) return null;
+                      const nascimentoCompleto = Array.isArray(nascimentosTodos) && nascimentosTodos.length > 0 
+                        ? nascimentosTodos.find(n => n && n.id === item.id) 
+                        : null;
+                      const desmamaCompleta = Array.isArray(desmamas) && desmamas.length > 0
+                        ? desmamas.find(d => d && d.nascimentoId === item.id)
+                        : null;
+                      if (!nascimentoCompleto) return null;
+
+                      return (
+                        <div key={item.id} className="bg-gradient-to-br from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between mb-5 pb-4 border-b border-gray-200 dark:border-slate-700">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1">
+                                {item.brinco ? `Brinco ${item.brinco}` : 'Animal sem brinco'}
+                              </h3>
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                <span className="font-medium">{item.periodo}</span>
+                                <span>•</span>
+                                <span>{item.fazenda}</span>
+                                <span>•</span>
+                                <span>{item.sexo || '-'}</span>
+                                <span>•</span>
+                                <span>{item.raca || '-'}</span>
+                              </div>
+                            </div>
+                            {item.morto && (
+                              <span className="ml-4 px-3 py-1.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold whitespace-nowrap">
+                                Morto
+                              </span>
+                            )}
+                          </div>
+                          <TimelineAnimal
+                            nascimento={nascimentoCompleto}
+                            desmama={desmamaCompleta}
+                            pesagens={item.pesagens || []}
+                            vacinacoes={item.vacinacoes || []}
+                            onEditNascimento={(id) => {
+                              handleFecharHistoricoMatriz();
+                              handleAbrirEdicao(id);
+                            }}
+                            onAddPesagem={(id) => {
+                              setPesagemNascimentoId(id);
+                              setPesagemEditando(null);
+                              setModalPesagemOpen(true);
+                            }}
+                            onEditPesagem={(pesagem) => {
+                              setPesagemEditando(pesagem);
+                              setPesagemNascimentoId(pesagem.nascimentoId);
+                              setModalPesagemOpen(true);
+                            }}
+                            onAddVacina={(id) => {
+                              setVacinaNascimentoId(id);
+                              setVacinaEditando(null);
+                              setModalVacinaOpen(true);
+                            }}
+                            onEditVacina={(vacina) => {
+                              setVacinaEditando(vacina);
+                              setVacinaNascimentoId(vacina.nascimentoId);
+                              setModalVacinaOpen(true);
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  // Visualização Cards
+                  <div className="space-y-4">
+                    {matrizHistorico.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className={`p-5 rounded-xl border-2 shadow-lg transition-all duration-200 hover:shadow-xl ${
+                          item.morto
+                            ? 'bg-red-50/70 dark:bg-red-950/30 border-red-500 dark:border-red-700'
+                            : 'bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border-gray-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {/* Header do Card */}
+                        <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200 dark:border-slate-700">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                Período: {item.periodo}
+                              </span>
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                                item.sexo === 'M' 
+                                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                  : item.sexo === 'F'
+                                  ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400'
+                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                              }`}>
+                                {item.sexo || '-'}
+                              </span>
+                              {item.morto && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-lg bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-xs font-bold">
+                                  MORTO
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {item.fazenda}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Grid de Informações */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                          {/* Raça */}
+                          <div>
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Raça</span>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-1">
+                              {item.raca || '-'}
+                            </p>
+                          </div>
+
+                          {/* Brinco */}
+                          <div>
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Brinco</span>
+                            <div className="mt-1">
+                              {item.brinco ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-lg bg-gray-100 dark:bg-slate-700 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                  {item.brinco}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Data Nascimento */}
+                          <div>
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Data Nascimento</span>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-1">
+                              {item.dataNascimento ? formatDate(item.dataNascimento) : <span className="text-gray-400">-</span>}
+                            </p>
+                          </div>
+
+                          {/* Data Desmama */}
+                          <div>
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Data Desmama</span>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-1">
+                              {item.dataDesmama ? formatDate(item.dataDesmama) : <span className="text-gray-400">-</span>}
+                            </p>
+                          </div>
+
+                          {/* Peso Desmama */}
+                          <div>
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Peso Desmama</span>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-1">
+                              {item.pesoDesmama ? (
+                                <>
+                                  {item.pesoDesmama} <span className="text-gray-500 dark:text-gray-400 text-xs">kg</span>
+                                </>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Ações - Pesagens e Vacinações */}
+                        <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-slate-700">
+                          {/* Pesagens */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pesagens:</span>
+                            {item.pesagens && item.pesagens.length > 0 ? (
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold ${getThemeClasses(primaryColor, 'bg')} ${getThemeClasses(primaryColor, 'text')} text-white dark:text-white`}>
+                                  {item.pesagens.length}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setPesagemNascimentoId(item.id);
+                                    setPesagemEditando(null);
+                                    setModalPesagemOpen(true);
+                                  }}
+                                  className={`p-2 rounded-lg ${getPrimaryActionButtonLightClass(primaryColor)} hover:opacity-90 transition-all hover:scale-110 shadow-sm`}
+                                  title={`Ver ${item.pesagens.length} pesagem(ns)`}
+                                >
+                                  <Icons.Eye className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : null}
+                            <button
+                              onClick={() => {
+                                setPesagemNascimentoId(item.id);
+                                setPesagemEditando(null);
+                                setModalPesagemOpen(true);
+                              }}
+                              className={`p-2 rounded-lg ${getPrimaryActionButtonLightClass(primaryColor)} hover:opacity-90 transition-all hover:scale-110 shadow-sm`}
+                              title="Adicionar pesagem"
+                            >
+                              <Icons.Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Vacinações */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Vacinações:</span>
+                            {item.vacinacoes && item.vacinacoes.length > 0 ? (
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold ${getThemeClasses(primaryColor, 'bg')} ${getThemeClasses(primaryColor, 'text')} text-white dark:text-white`}>
+                                  {item.vacinacoes.length}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setVacinaNascimentoId(item.id);
+                                    setVacinaEditando(null);
+                                    setModalVacinaOpen(true);
+                                  }}
+                                  className={`p-2 rounded-lg ${getPrimaryActionButtonLightClass(primaryColor)} hover:opacity-90 transition-all hover:scale-110 shadow-sm`}
+                                  title={`Ver ${item.vacinacoes.length} vacinação(ões)`}
+                                >
+                                  <Icons.Eye className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : null}
+                            <button
+                              onClick={() => {
+                                setVacinaNascimentoId(item.id);
+                                setVacinaEditando(null);
+                                setModalVacinaOpen(true);
+                              }}
+                              className={`p-2 rounded-lg ${getPrimaryActionButtonLightClass(primaryColor)} hover:opacity-90 transition-all hover:scale-110 shadow-sm`}
+                              title="Adicionar vacinação"
+                            >
+                              <Icons.Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
               </div>
             </div>
           </div>
-    </div>
-  );
-      })()}
+        </div>
+      )}
+
+      {/* Modal Pesagem */}
+      {pesagemNascimentoId && (
+        <PesagemModal
+          open={modalPesagemOpen}
+          mode={pesagemEditando ? 'edit' : 'create'}
+          nascimentoId={pesagemNascimentoId}
+          initialData={pesagemEditando}
+          onClose={() => {
+            setModalPesagemOpen(false);
+            setPesagemNascimentoId(null);
+            setPesagemEditando(null);
+          }}
+          onSaved={() => {
+            // Dados serão atualizados automaticamente pelo useLiveQuery
+          }}
+          onEditPesagem={(pesagem) => {
+            if (pesagem) {
+              setPesagemEditando(pesagem);
+              setPesagemNascimentoId(pesagem.nascimentoId);
+              setModalPesagemOpen(true);
+            } else {
+              // Voltar para modo create
+              setPesagemEditando(null);
+              // nascimentoId já está definido, não precisa alterar
+            }
+          }}
+          onDeletePesagem={(pesagem) => {
+            // Callback para exclusão da timeline (já implementado no modal)
+          }}
+        />
+      )}
+
+      {/* Modal Vacinação */}
+      {vacinaNascimentoId && (
+        <VacinaModal
+          open={modalVacinaOpen}
+          mode={vacinaEditando ? 'edit' : 'create'}
+          nascimentoId={vacinaNascimentoId}
+          initialData={vacinaEditando}
+          onClose={() => {
+            setModalVacinaOpen(false);
+            setVacinaNascimentoId(null);
+            setVacinaEditando(null);
+          }}
+          onSaved={() => {
+            // Dados serão atualizados automaticamente pelo useLiveQuery
+          }}
+          onEditVacina={(vacina) => {
+            if (vacina) {
+              setVacinaEditando(vacina);
+              setVacinaNascimentoId(vacina.nascimentoId);
+              setModalVacinaOpen(true);
+            } else {
+              // Voltar para modo create
+              setVacinaEditando(null);
+              // nascimentoId já está definido, não precisa alterar
+            }
+          }}
+          onDeleteVacina={(vacina) => {
+            // Callback para exclusão da timeline (já implementado no modal)
+          }}
+        />
+      )}
 
       {/* Modal Raça */}
       <ModalRaca 
         open={modalRacaOpen}
         onClose={() => setModalRacaOpen(false)}
         onRacaCadastrada={(racaNome) => {
-          if (modalEditarNascimentoOpen) {
-            handleRacaCadastradaEdicao(racaNome);
-          } else {
-            handleRacaCadastrada(racaNome);
-          }
+          // A raça será aplicada automaticamente pelo NascimentoModal via novaRacaSelecionada
+          setNovaRacaSelecionada(racaNome);
         }}
       />
 

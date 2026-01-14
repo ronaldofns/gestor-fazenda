@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType } from './models';
+import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType, SyncEvent, Pesagem, Vacina } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -15,6 +15,8 @@ class AppDB extends Dexie {
   categorias!: Dexie.Table<Categoria, string>;
   nascimentos!: Dexie.Table<Nascimento, string>;
   desmamas!: Dexie.Table<Desmama, string>;
+  pesagens!: Dexie.Table<Pesagem, string>; // Tabela de pesagens periódicas
+  vacinacoes!: Dexie.Table<Vacina, string>; // Tabela de vacinações
   usuarios!: Dexie.Table<Usuario, string>; // Tabela de usuários locais
   matrizes!: Dexie.Table<Matriz, string>;
   deletedRecords!: Dexie.Table<DeletedRecord, string>; // Tabela para rastrear exclusões
@@ -22,6 +24,8 @@ class AppDB extends Dexie {
   notificacoesLidas!: Dexie.Table<NotificacaoLida, string>; // Tabela para notificações marcadas como lidas
   alertSettings!: Dexie.Table<AlertSettingsDB, string>; // Tabela para configurações de alerta
   appSettings!: Dexie.Table<AppSettingsDB, string>; // Tabela para configurações do app
+  rolePermissions!: Dexie.Table<RolePermission, string>; // Tabela para permissões por role
+  syncEvents!: Dexie.Table<SyncEvent, string>; // Tabela para fila de eventos de sincronização
 
   constructor() {
     super('FazendaDB');
@@ -361,6 +365,111 @@ class AppDB extends Dexie {
           remoteId: null
         });
       }
+    });
+
+    // Versão 17: Adicionar campo intervaloSincronizacao nas configurações do app
+    this.version(17).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId'
+    }).upgrade(async (tx) => {
+      // Adicionar campo intervaloSincronizacao aos registros existentes
+      const existing = await tx.table('appSettings').get('app-settings-global');
+      if (existing) {
+        const updateData: any = {};
+        if (existing.intervaloSincronizacao === undefined || existing.intervaloSincronizacao === null) {
+          updateData.intervaloSincronizacao = 30; // 30 segundos padrão
+        }
+        if (Object.keys(updateData).length > 0) {
+          await tx.table('appSettings').update('app-settings-global', updateData);
+        }
+      }
+    });
+
+    // Versão 18: Adicionar tabela de fila de eventos de sincronização
+    this.version(18).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo]'
+    });
+
+    // Versão 19: Adicionar campos de lock (lockedBy, lockedByNome, lockedAt) nas tabelas principais
+    this.version(19).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo]'
+    });
+
+    // Versão 20: Adicionar tabela de pesagens periódicas
+    this.version(20).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      pesagens: 'id, nascimentoId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem]',
+      vacinacoes: 'id, nascimentoId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo]'
+    });
+
+    // Versão 21: Adicionar tabela de vacinações
+    this.version(21).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId',
+      pesagens: 'id, nascimentoId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem]',
+      vacinacoes: 'id, nascimentoId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced',
+      audits: 'id, entity, entityId, action, timestamp, userId',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo]'
     });
   }
 }

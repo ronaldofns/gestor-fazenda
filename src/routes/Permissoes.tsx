@@ -29,8 +29,19 @@ const PERMISSION_LABELS: Record<PermissionType, string> = {
   cadastrar_desmama: 'Cadastrar Desmama',
   editar_desmama: 'Editar Desmama',
   excluir_desmama: 'Excluir Desmama',
+  cadastrar_pesagem: 'Cadastrar Pesagem',
+  editar_pesagem: 'Editar Pesagem',
+  excluir_pesagem: 'Excluir Pesagem',
+  cadastrar_vacina: 'Cadastrar Vacinação',
+  editar_vacina: 'Editar Vacinação',
+  excluir_vacina: 'Excluir Vacinação',
   ver_dashboard: 'Ver Dashboard',
   ver_notificacoes: 'Ver Notificações',
+  ver_sincronizacao: 'Ver Sincronização',
+  ver_matrizes: 'Ver Matrizes',
+  ver_fazendas: 'Ver Fazendas',
+  ver_usuarios: 'Ver Usuários',
+  ver_planilha: 'Ver Nascimento/Desmama',
   exportar_dados: 'Exportar Dados',
   gerar_relatorios: 'Gerar Relatórios'
 };
@@ -40,7 +51,9 @@ const PERMISSION_GROUPS: Record<string, PermissionType[]> = {
   'Gerenciamento': ['gerenciar_usuarios', 'gerenciar_fazendas', 'gerenciar_matrizes', 'gerenciar_racas', 'gerenciar_categorias'],
   'Nascimentos': ['cadastrar_nascimento', 'editar_nascimento', 'excluir_nascimento'],
   'Desmamas': ['cadastrar_desmama', 'editar_desmama', 'excluir_desmama'],
-  'Visualização': ['ver_dashboard', 'ver_notificacoes']
+  'Pesagens': ['cadastrar_pesagem', 'editar_pesagem', 'excluir_pesagem'],
+  'Vacinações': ['cadastrar_vacina', 'editar_vacina', 'excluir_vacina'],
+  'Visualização': ['ver_dashboard', 'ver_notificacoes', 'ver_sincronizacao', 'ver_planilha', 'ver_matrizes', 'ver_fazendas', 'ver_usuarios']
 };
 
 export default function Permissoes() {
@@ -74,7 +87,8 @@ export default function Permissoes() {
     setSaving(true);
     try {
       await updatePermission(selectedRole, permission, newGranted);
-      await pushPending();
+      // Não sincronizar imediatamente - deixar para sincronização automática ou manual
+      // Isso melhora muito o desempenho
       showToast({
         type: 'success',
         title: 'Permissão atualizada',
@@ -118,6 +132,59 @@ export default function Permissoes() {
     }
   };
 
+  const handleSelectAll = async (granted: boolean) => {
+    setSaving(true);
+    try {
+      const allPerms: PermissionType[] = Object.values(PERMISSION_GROUPS).flat();
+      // Usar batch update para melhor performance
+      await Promise.all(
+        allPerms.map(permission => updatePermission(selectedRole, permission, granted))
+      );
+      // Sincronizar apenas uma vez após todas as atualizações
+      await pushPending();
+      showToast({
+        type: 'success',
+        title: granted ? 'Todas selecionadas' : 'Todas desselecionadas',
+        message: `Todas as permissões foram ${granted ? 'concedidas' : 'revogadas'} para ${ROLE_LABELS[selectedRole]}.`
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar permissões:', error);
+      showToast({
+        type: 'error',
+        title: 'Erro',
+        message: 'Não foi possível atualizar as permissões.'
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelectGroup = async (groupPermissions: PermissionType[], granted: boolean) => {
+    setSaving(true);
+    try {
+      // Atualizar todas as permissões do grupo em paralelo
+      await Promise.all(
+        groupPermissions.map(permission => updatePermission(selectedRole, permission, granted))
+      );
+      // Sincronizar apenas uma vez após todas as atualizações do grupo
+      await pushPending();
+      showToast({
+        type: 'success',
+        title: granted ? 'Grupo selecionado' : 'Grupo desselecionado',
+        message: `Todas as permissões do grupo foram ${granted ? 'concedidas' : 'revogadas'} para ${ROLE_LABELS[selectedRole]}.`
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar permissões do grupo:', error);
+      showToast({
+        type: 'error',
+        title: 'Erro',
+        message: 'Não foi possível atualizar as permissões do grupo.'
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6">
 
@@ -143,8 +210,26 @@ export default function Permissoes() {
         </div>
       </div>
 
-      {/* Botão Resetar */}
-      <div className="mb-6 flex justify-end">
+      {/* Botões de Ação Global */}
+      <div className="mb-6 flex flex-wrap gap-2 justify-between items-center">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => handleSelectAll(true)}
+            disabled={saving}
+            className={`px-4 py-2 ${getPrimaryBgClass(primaryColor)} hover:opacity-90 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+          >
+            <Icons.Check className="w-4 h-4" />
+            Selecionar Todas
+          </button>
+          <button
+            onClick={() => handleSelectAll(false)}
+            disabled={saving}
+            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Icons.X className="w-4 h-4" />
+            Desselecionar Todas
+          </button>
+        </div>
         <button
           onClick={handleResetRole}
           disabled={saving}
@@ -157,11 +242,46 @@ export default function Permissoes() {
 
       {/* Lista de Permissões por Grupo */}
       <div className="space-y-6">
-        {Object.entries(PERMISSION_GROUPS).map(([groupName, permissions]) => (
+        {Object.entries(PERMISSION_GROUPS).map(([groupName, permissions]) => {
+          const groupPermissions = permissions.map(p => permissionsMap.get(p));
+          const allGranted = groupPermissions.every(p => p?.granted === true);
+          const someGranted = groupPermissions.some(p => p?.granted === true);
+          
+          return (
           <div key={groupName} className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {groupName}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white">
+                {groupName}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleSelectGroup(permissions, true)}
+                  disabled={saving || allGranted}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ${
+                    allGranted
+                      ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-400'
+                      : `${getThemeClasses(primaryColor, 'bg')} text-white hover:opacity-90`
+                  }`}
+                  title="Selecionar todas do grupo"
+                >
+                  <Icons.Check className="w-3 h-3" />
+                  Todas
+                </button>
+                <button
+                  onClick={() => handleSelectGroup(permissions, false)}
+                  disabled={saving || !someGranted}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ${
+                    !someGranted
+                      ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-400'
+                      : 'bg-gray-600 hover:bg-gray-700 text-white'
+                  }`}
+                  title="Desselecionar todas do grupo"
+                >
+                  <Icons.X className="w-3 h-3" />
+                  Nenhuma
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
               {permissions.map((permission) => {
                 const perm = permissionsMap.get(permission);
@@ -189,7 +309,8 @@ export default function Permissoes() {
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

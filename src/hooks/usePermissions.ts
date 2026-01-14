@@ -124,18 +124,37 @@ export function usePermissions() {
         'cadastrar_desmama',
         'editar_desmama',
         'excluir_desmama',
+        'cadastrar_pesagem',
+        'editar_pesagem',
+        'excluir_pesagem',
+        'cadastrar_vacina',
+        'editar_vacina',
+        'excluir_vacina',
         'ver_dashboard',
         'ver_notificacoes',
+        'ver_sincronizacao',
+        'ver_planilha',
+        'ver_matrizes',
+        'ver_fazendas',
+        'ver_usuarios',
         'exportar_dados',
         'gerar_relatorios'
       ],
       gerente: [
         'ver_dashboard',
         'ver_notificacoes',
+        'ver_sincronizacao',
+        'ver_planilha',
+        'ver_matrizes',
+        'ver_fazendas',
         'cadastrar_nascimento',
         'editar_nascimento',
         'cadastrar_desmama',
         'editar_desmama',
+        'cadastrar_pesagem',
+        'editar_pesagem',
+        'cadastrar_vacina',
+        'editar_vacina',
         'gerenciar_matrizes',
         'exportar_dados',
         'gerar_relatorios'
@@ -143,12 +162,19 @@ export function usePermissions() {
       peao: [
         'ver_dashboard',
         'ver_notificacoes',
+        'ver_planilha',
+        'ver_matrizes',
         'cadastrar_nascimento',
-        'cadastrar_desmama'
+        'cadastrar_desmama',
+        'cadastrar_pesagem',
+        'cadastrar_vacina'
       ],
       visitante: [
         'ver_dashboard',
-        'ver_notificacoes'
+        'ver_notificacoes',
+        'ver_planilha',
+        'ver_matrizes',
+        'ver_fazendas'
       ]
     };
 
@@ -165,8 +191,19 @@ export function usePermissions() {
       'cadastrar_desmama',
       'editar_desmama',
       'excluir_desmama',
+      'cadastrar_pesagem',
+      'editar_pesagem',
+      'excluir_pesagem',
+      'cadastrar_vacina',
+      'editar_vacina',
+      'excluir_vacina',
       'ver_dashboard',
       'ver_notificacoes',
+      'ver_sincronizacao',
+      'ver_planilha',
+      'ver_matrizes',
+      'ver_fazendas',
+      'ver_usuarios',
       'exportar_dados',
       'gerar_relatorios'
     ];

@@ -195,7 +195,7 @@ export default function TopBar() {
   if (!user) return null;
 
   const IconComponent = metadata.icon ? Icons[metadata.icon] : Icons.LayoutDashboard;
-  const primaryColor = (draftAppSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (draftAppSettings?.primaryColor || 'gray') as ColorPaletteKey;
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-slate-700 shadow-sm">
@@ -414,92 +414,152 @@ export default function TopBar() {
 
       {/* Modal de Configurações */}
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-          <div className="border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+          {/* Header Moderno */}
+          <div className="bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 border-b border-gray-200 dark:border-slate-700 px-8 py-6 flex items-center justify-between flex-shrink-0">
             <div>
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Configurações</h3>
-              <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">Ajuste limites de alertas e timeout de inatividade.</p>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                <Icons.Settings className="w-5 h-5" />
+                Configurações
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1.5">Personalize alertas, sincronização e aparência do sistema</p>
             </div>
             <button
               onClick={() => setSettingsOpen(false)}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-all duration-200"
               aria-label="Fechar"
             >
               <Icons.X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="p-3 space-y-3 overflow-y-auto flex-1">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 ml-4 mr-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Meses sem desmama
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={36}
-                  value={draftSettings.limiteMesesDesmama}
-                  onChange={(e) =>
-                    setDraftSettings((prev: AlertSettings) => ({
-                      ...prev,
-                      limiteMesesDesmama: Number(e.target.value)
-                    }))
-                  }
-                  className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
-                />
+          <div className="p-8 space-y-6 overflow-y-auto flex-1">
+            {/* Card de Alertas */}
+            <div className="bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`p-2.5 rounded-lg bg-orange-100 dark:bg-orange-900/20 ${getThemeClasses(primaryColor, 'bg')}`}>
+                  <Icons.AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h4 className="text-base font-semibold text-gray-900 dark:text-slate-100">Configurações de Alertas</h4>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Defina limites e parâmetros para notificações</p>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Janela mortalidade (meses)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={24}
-                  value={draftSettings.janelaMesesMortalidade}
-                  onChange={(e) =>
-                    setDraftSettings((prev: AlertSettings) => ({
-                      ...prev,
-                      janelaMesesMortalidade: Number(e.target.value)
-                    }))
-                  }
-                  className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Limiar mortalidade (%)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={draftSettings.limiarMortalidade}
-                  onChange={(e) =>
-                    setDraftSettings((prev: AlertSettings) => ({
-                      ...prev,
-                      limiarMortalidade: Number(e.target.value)
-                    }))
-                  }
-                  className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    Meses sem desmama
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={36}
+                    value={draftSettings.limiteMesesDesmama}
+                    onChange={(e) =>
+                      setDraftSettings((prev: AlertSettings) => ({
+                        ...prev,
+                        limiteMesesDesmama: Number(e.target.value)
+                      }))
+                    }
+                    className={`w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:shadow-md transition-all ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    Janela mortalidade (meses)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={draftSettings.janelaMesesMortalidade}
+                    onChange={(e) =>
+                      setDraftSettings((prev: AlertSettings) => ({
+                        ...prev,
+                        janelaMesesMortalidade: Number(e.target.value)
+                      }))
+                    }
+                    className={`w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:shadow-md transition-all ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    Limiar mortalidade (%)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={draftSettings.limiarMortalidade}
+                    onChange={(e) =>
+                      setDraftSettings((prev: AlertSettings) => ({
+                        ...prev,
+                        limiarMortalidade: Number(e.target.value)
+                      }))
+                    }
+                    className={`w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:shadow-md transition-all ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Configurações do App */}
-            <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-4">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-3 ml-4">Aparência</h4>
+            {/* Card de Sincronização */}
+            <div className="bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`p-2.5 rounded-lg bg-green-100 dark:bg-green-900/20 ${getThemeClasses(primaryColor, 'bg')}`}>
+                  <Icons.RefreshCw className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h4 className="text-base font-semibold text-gray-900 dark:text-slate-100">Sincronização Automática</h4>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Configure a frequência de sincronização</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                  Intervalo de sincronização (segundos)
+                </label>
+                <input
+                  type="number"
+                  min={10}
+                  max={300}
+                  value={draftAppSettings?.intervaloSincronizacao ?? 30}
+                  onChange={(e) => {
+                    if (setDraftAppSettings) {
+                      setDraftAppSettings((prev: AppSettings) => ({
+                        ...prev,
+                        intervaloSincronizacao: Number(e.target.value)
+                      }));
+                    }
+                  }}
+                  className={`w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:shadow-md transition-all ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
+                />
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2 flex items-center gap-1">
+                  <Icons.Info className="w-3.5 h-3.5" />
+                  O sistema sincronizará automaticamente a cada {draftAppSettings?.intervaloSincronizacao ?? 30} segundos quando estiver online.
+                </p>
+              </div>
+            </div>
+
+            {/* Card de Aparência */}
+            <div className="bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`p-2.5 rounded-lg bg-purple-100 dark:bg-purple-900/20 ${getThemeClasses(primaryColor, 'bg')}`}>
+                  <Icons.Palette className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h4 className="text-base font-semibold text-gray-900 dark:text-slate-100">Aparência</h4>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Personalize cores e tema do sistema</p>
+                </div>
+              </div>
               
               {/* Seleção de Cor Primária */}
-              <div className="mb-4 ml-4 mr-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
                   Cor Primária do Tema
                 </label>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {Object.entries(COLOR_PALETTES).map(([key, palette]) => {
-                    const isSelected = draftAppSettings.primaryColor === key;
-                    // Mapear cores para valores hex reais do Tailwind
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                  {COLOR_PALETTES && Object.entries(COLOR_PALETTES).map(([key, palette]) => {
+                    const isSelected = ((draftAppSettings?.primaryColor) || 'gray') === key;
                     const colorMap: Record<string, string> = {
                       green: '#10b981',
                       blue: '#3b82f6',
@@ -513,70 +573,70 @@ export default function TopBar() {
                       <button
                         key={key}
                         type="button"
-                        onClick={() =>
-                          setDraftAppSettings((prev: AppSettings) => ({
-                            ...prev,
-                            primaryColor: key as ColorPaletteKey
-                          }))
-                        }
+                        onClick={() => {
+                          if (setDraftAppSettings) {
+                            setDraftAppSettings((prev: AppSettings) => ({
+                              ...prev,
+                              primaryColor: key as ColorPaletteKey
+                            }));
+                          }
+                        }}
                         className={`
-                          flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all
+                          relative flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all duration-200 transform
                           ${isSelected 
-                            ? 'border-gray-900 dark:border-slate-100 bg-gray-50 dark:bg-slate-800 shadow-md' 
-                            : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                            ? `border-${primaryColor}-500 dark:border-${primaryColor}-400 bg-${primaryColor}-50 dark:bg-${primaryColor}-900/20 shadow-lg scale-105` 
+                            : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:shadow-md hover:scale-102'
                           }
                         `}
                         title={palette.name}
                       >
                         <div 
-                          className="w-8 h-8 rounded-full shadow-sm"
+                          className={`w-10 h-10 rounded-full shadow-md transition-transform duration-200 ${isSelected ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-gray-500' : ''}`}
                           style={{ backgroundColor: colorMap[palette.value] || colorMap.green }}
                         />
-                        <span className="text-xs font-medium text-gray-700 dark:text-slate-300">
+                        <span className={`text-xs font-semibold transition-colors ${isSelected ? 'text-gray-900 dark:text-slate-100' : 'text-gray-600 dark:text-slate-400'}`}>
                           {palette.name}
                         </span>
                         {isSelected && (
-                          <Icons.Check className="w-4 h-4 text-gray-900 dark:text-slate-100" />
+                          <div className="absolute -top-1 -right-1 bg-gray-900 dark:bg-slate-100 rounded-full p-1 shadow-lg">
+                            <Icons.Check className="w-3 h-3 text-white dark:text-gray-900" />
+                          </div>
                         )}
                       </button>
                     );
                   })}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-                  Escolha a cor primária que será aplicada em botões, links e elementos destacados.
-                </p>
               </div>
 
               {/* Timeout de Inatividade */}
-              <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-4">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-3 ml-4">Timeout de Inatividade</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-1 gap-2 ml-4 mr-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      Tempo de inatividade (minutos)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={120}
-                      value={draftAppSettings.timeoutInatividade}
-                      onChange={(e) =>
-                        setDraftAppSettings((prev: AppSettings) => ({
-                          ...prev,
-                          timeoutInatividade: Number(e.target.value)
-                        }))
-                      }
-                      className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
-                    />
-                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      O sistema fará logout automático após {draftAppSettings.timeoutInatividade} minutos de inatividade.
-                    </p>
-                  </div>
-                </div>
+              <div className="pt-5 border-t border-gray-200 dark:border-slate-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                  Timeout de Inatividade (minutos)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={draftAppSettings?.timeoutInatividade ?? 15}
+                  onChange={(e) => {
+                    if (setDraftAppSettings) {
+                      setDraftAppSettings((prev: AppSettings) => ({
+                        ...prev,
+                        timeoutInatividade: Number(e.target.value)
+                      }));
+                    }
+                  }}
+                  className={`w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:shadow-md transition-all ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} dark:bg-slate-800 dark:text-slate-100`}
+                />
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2 flex items-center gap-1">
+                  <Icons.Info className="w-3.5 h-3.5" />
+                  Logout automático após {draftAppSettings?.timeoutInatividade ?? 15} minutos de inatividade.
+                </p>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-700 flex-shrink-0">
+            {/* Footer Moderno */}
+            <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-slate-700 flex-shrink-0 bg-gray-50/50 dark:bg-slate-900/50 -mx-8 -mb-8 px-8 pb-6">
               <button
                 type="button"
                 onClick={async () => {
@@ -600,7 +660,7 @@ export default function TopBar() {
                     });
                   }
                 }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                className="px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all duration-200"
               >
                 Restaurar padrão
               </button>
@@ -628,9 +688,9 @@ export default function TopBar() {
                   }
                   setSettingsOpen(false);
                 }}
-                className={`px-4 py-2 text-sm font-medium text-white ${getPrimaryButtonClass(primaryColor)} rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors`}
+                className={`px-6 py-2.5 text-sm font-semibold text-white ${getPrimaryButtonClass(primaryColor)} rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 hover:shadow-lg transform hover:scale-105 transition-all duration-200`}
               >
-                Salvar
+                Salvar alterações
               </button>
             </div>
           </div>

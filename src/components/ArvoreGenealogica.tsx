@@ -4,6 +4,9 @@ import { db } from '../db/dexieDB';
 import { Matriz } from '../db/models';
 import Modal from './Modal';
 import { Icons } from '../utils/iconMapping';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
+import { getThemeClasses } from '../utils/themeHelpers';
 
 interface NodeData {
   id: string;
@@ -37,6 +40,8 @@ export default function ArvoreGenealogica({
   onClose,
   onMatrizSelecionada
 }: ArvoreGenealogicaProps) {
+  const { appSettings } = useAppSettings();
+  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [buscaLinhagem, setBuscaLinhagem] = useState('');
   const [niveisExpandidos, setNiveisExpandidos] = useState<Set<number>>(new Set([0, 1, 2]));
   const [matrizes, setMatrizes] = useState<Matriz[]>([]);
@@ -380,13 +385,13 @@ export default function ArvoreGenealogica({
               value={buscaLinhagem}
               onChange={(e) => setBuscaLinhagem(e.target.value)}
               placeholder="Buscar por identificador, raça ou fazenda..."
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
             />
           </div>
           
           {resultadosBusca.length > 0 && (
-            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">
+            <div className={`mt-3 p-3 ${getThemeClasses(primaryColor, 'bg-light')} border ${getThemeClasses(primaryColor, 'border-light')} rounded-md`}>
+              <p className={`text-sm font-medium ${getThemeClasses(primaryColor, 'text')} mb-2`}>
                 Resultados da busca ({resultadosBusca.length}):
               </p>
               <div className="flex flex-wrap gap-2">
@@ -402,7 +407,7 @@ export default function ArvoreGenealogica({
                         setBuscaLinhagem('');
                       }
                     }}
-                    className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors"
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${getThemeClasses(primaryColor, 'bg-light')} ${getThemeClasses(primaryColor, 'text')} hover:opacity-90`}
                     title={`Clique para ver árvore de ${m.identificador}`}
                   >
                     {m.identificador} {m.raca && `(${m.raca})`}

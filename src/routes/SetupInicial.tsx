@@ -12,12 +12,12 @@ import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getThemeClasses, getPrimaryButtonClass, getPrimaryBgClass } from '../utils/themeHelpers';
 
 const schema = z.object({
-  nome: z.string().min(1, 'Nome é obrigatório'),
-  email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-  confirmarSenha: z.string()
+  nome: z.string().min(1, 'Informe o nome'),
+  email: z.string().min(1, 'Informe o email').email('Email inválido'),
+  senha: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres'),
+  confirmarSenha: z.string().min(1, 'Confirme a senha')
 }).refine((data) => data.senha === data.confirmarSenha, {
-  message: 'Senhas não coincidem',
+  message: 'As senhas não coincidem',
   path: ['confirmarSenha']
 });
 
@@ -169,11 +169,11 @@ export default function SetupInicial() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 px-4">
+    <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-from')} via-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 px-4`}>
       <div className="max-w-md w-full">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl shadow-lg mb-4">
+          <div className={`inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-to')} rounded-2xl shadow-lg mb-4`}>
             <Icons.UserPlus className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Configuração Inicial</h1>

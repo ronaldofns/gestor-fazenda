@@ -24,6 +24,7 @@ import {
   FaSun,            // Sun
   FaChevronLeft,    // ChevronLeft
   FaChevronRight,   // ChevronRight
+  FaChevronUp,      // ChevronUp / ArrowUp
   FaPlus,           // Plus
   FaEdit,           // Edit
   FaTrash,          // Trash2
@@ -52,7 +53,17 @@ import {
   FaCheckCircle,    // CheckCircle
   FaExclamationCircle, // AlertCircle / XCircle
   FaSort,           // ArrowUpDown (alternativa)
-  FaShieldAlt       // Shield
+  FaShieldAlt,      // Shield
+  FaSpinner,        // Loader2
+  FaBaby,           // Baby
+  FaBalanceScale,   // Scale
+  FaTag,            // Tag
+  FaFolder,         // Folder
+  FaClock,          // Clock
+  FaPalette,        // Palette
+  FaPaintBrush,      // Paintbrush (alternativa para Palette)
+  FaCheckSquare,     // CheckSquare
+  FaSquare           // Square
 } from 'react-icons/fa';
 
 // Font Awesome 6 (para ícones mais recentes)
@@ -68,6 +79,11 @@ import {
   MdBarChart,       // BarChart3
   MdWifiOff         // WifiOff
 } from 'react-icons/md';
+
+// Boxicons Solid (para ícones específicos)
+import {
+  BiSolidInjection  // Injection (vacinação)
+} from 'react-icons/bi';
 
 
 // Exportar mapeamento principal usando Font Awesome (mais completo)
@@ -90,6 +106,9 @@ export const Icons = {
   Sun: FaSun,
   ChevronLeft: FaChevronLeft,
   ChevronRight: FaChevronRight,
+  ChevronUp: FaChevronUp,
+  ArrowUp: FaChevronUp,
+  ArrowDown: FaChevronDown,
   
   // Ações
   Plus: FaPlus,
@@ -145,6 +164,17 @@ export const Icons = {
   ArrowUpDown: FaSort,
   FilePenLine: FaEdit, // Usando Edit como alternativa
   Shield: FaShieldAlt,
+  Injection: BiSolidInjection, // Ícone de vacinação/injeção
+  Loader2: FaSpinner,
+  Baby: FaBaby,
+  Scale: FaBalanceScale,
+  Tag: FaTag,
+  Folder: FaFolder,
+  Clock: FaClock,
+  Palette: FaPalette,
+  Paintbrush: FaPaintBrush,
+  CheckSquare: FaCheckSquare,
+  Square: FaSquare
 };
 
 // Tipo para garantir type-safety
