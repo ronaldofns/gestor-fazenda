@@ -63,7 +63,8 @@ import {
   FaPalette,        // Palette
   FaPaintBrush,      // Paintbrush (alternativa para Palette)
   FaCheckSquare,     // CheckSquare
-  FaSquare           // Square
+  FaSquare,          // Square
+  FaMapMarkerAlt     // MapPin
 } from 'react-icons/fa';
 
 // Font Awesome 6 (para ícones mais recentes)
@@ -174,7 +175,8 @@ export const Icons = {
   Palette: FaPalette,
   Paintbrush: FaPaintBrush,
   CheckSquare: FaCheckSquare,
-  Square: FaSquare
+  Square: FaSquare,
+  MapPin: FaMapMarkerAlt
 };
 
 // Tipo para garantir type-safety
