@@ -56,7 +56,7 @@ export default function Notificacoes() {
               <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Desmama atrasada</h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full">
+              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-600/90 dark:text-white font-medium rounded-full">
                 {notificacoes.desmamaAtrasada.length} pendência(s)
               </span>
               {notificacoes.desmamaAtrasada.length > 0 && (
@@ -79,7 +79,7 @@ export default function Notificacoes() {
           ) : (
             <div className="space-y-2 max-h-64 overflow-auto">
               {notificacoes.desmamaAtrasada.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-amber-100 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-900/30">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                       Matriz {item.matrizId} {item.brinco ? `• Brinco ${item.brinco}` : ''}
@@ -113,7 +113,7 @@ export default function Notificacoes() {
               <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade alta</h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full">
+              <span className="text-xs px-2 py-1 bg-red-100 text-red-800 dark:bg-red-600/90 dark:text-white font-medium rounded-full">
                 {notificacoes.mortalidadeAlta.length} alerta(s)
               </span>
               {notificacoes.mortalidadeAlta.length > 0 && (
@@ -136,7 +136,7 @@ export default function Notificacoes() {
           ) : (
             <div className="space-y-2 max-h-64 overflow-auto">
               {notificacoes.mortalidadeAlta.map((item) => (
-                <div key={item.fazendaId} className="flex items-center justify-between p-2 rounded-md border border-red-100 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
+                <div key={item.fazendaId} className="flex items-center justify-between p-2 rounded-md border border-red-200 bg-red-50 dark:border-red-600/50 dark:bg-red-900/30">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{item.fazenda}</p>
                     <p className="text-xs text-gray-600 dark:text-slate-400">
@@ -168,7 +168,7 @@ export default function Notificacoes() {
               <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Dados incompletos</h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200 rounded-full">
+              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-600/90 dark:text-white font-medium rounded-full">
                 {notificacoes.dadosIncompletos.length} registro(s)
               </span>
               {notificacoes.dadosIncompletos.length > 0 && (
@@ -232,7 +232,7 @@ export default function Notificacoes() {
               <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Matrizes sem cadastro</h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-200 rounded-full">
+              <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-600/90 dark:text-white font-medium rounded-full">
                 {notificacoes.matrizesSemCadastro.length} matriz(es)
               </span>
               {notificacoes.matrizesSemCadastro.length > 0 && (
@@ -255,7 +255,7 @@ export default function Notificacoes() {
           ) : (
             <div className="space-y-2 max-h-64 overflow-auto">
               {notificacoes.matrizesSemCadastro.map((item) => (
-                <div key={`${item.matrizId}-${item.fazendaId}`} className="flex items-center justify-between p-2 rounded-md border border-purple-100 bg-purple-50 dark:border-purple-500/30 dark:bg-purple-500/10">
+                <div key={`${item.matrizId}-${item.fazendaId}`} className="flex items-center justify-between p-2 rounded-md border border-purple-200 bg-purple-50 dark:border-purple-600/50 dark:bg-purple-900/30">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                       Matriz {item.matrizId}
@@ -350,7 +350,7 @@ export default function Notificacoes() {
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200 rounded-full">
+              <span className="text-xs px-2 py-1 bg-rose-100 text-rose-800 dark:bg-rose-600/90 dark:text-white font-medium rounded-full">
                 {notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length} alerta(s)
               </span>
               {(notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length) > 0 && (
@@ -376,7 +376,7 @@ export default function Notificacoes() {
           ) : (
             <div className="space-y-2 max-h-64 overflow-auto">
               {notificacoes.vacinasVencidas.map((item) => (
-                <div key={`vacina-vencida-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-rose-100 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10">
+                <div key={`vacina-vencida-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-rose-200 bg-rose-50 dark:border-rose-600/50 dark:bg-rose-900/30">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                       {item.vacina} {item.brinco ? `• Brinco ${item.brinco}` : ''}
@@ -403,7 +403,7 @@ export default function Notificacoes() {
                 </div>
               ))}
               {notificacoes.vacinasVencendo.map((item) => (
-                <div key={`vacina-vence-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-amber-100 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <div key={`vacina-vence-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-900/30">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                       {item.vacina} {item.brinco ? `• Brinco ${item.brinco}` : ''}
