@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { memo } from 'react';
 import useOnline from '../hooks/useOnline';
 
 interface SyncStatusProps {
   collapsed?: boolean;
 }
 
-export default function SyncStatus({ collapsed = false }: SyncStatusProps) {
+const SyncStatus = memo(function SyncStatus({ collapsed = false }: SyncStatusProps) {
   const online = useOnline();
   return (
     <div className="flex items-center gap-2 text-xs sm:text-sm whitespace-nowrap">
@@ -18,4 +18,6 @@ export default function SyncStatus({ collapsed = false }: SyncStatusProps) {
       {!collapsed && <span className={`${online ? 'text-green-700' : 'text-red-600'}`}>{online ? 'Online' : 'Offline'}</span>}
     </div>
   );
-}
+});
+
+export default SyncStatus;

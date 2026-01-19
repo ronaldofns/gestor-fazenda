@@ -61,6 +61,17 @@ export default function Sidebar() {
     }
   }, [sidebarCollapsed]);
   
+  // Escutar eventos de toggle do sidebar (atalho Ctrl+B)
+  useEffect(() => {
+    const handleSidebarToggle = (e: Event) => {
+      const customEvent = e as CustomEvent<{ collapsed: boolean }>;
+      setSidebarCollapsed(customEvent.detail.collapsed);
+    };
+    
+    window.addEventListener('sidebarToggle', handleSidebarToggle);
+    return () => window.removeEventListener('sidebarToggle', handleSidebarToggle);
+  }, []);
+  
   // Estado do modal de confirmação
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -146,11 +157,11 @@ export default function Sidebar() {
   };
 
   const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: Icons.LayoutDashboard },
-    { path: '/notificacoes', label: 'Notificações', icon: Icons.Bell, badge: notificacoes.total > 0 ? notificacoes.total : undefined },
-    { path: '/planilha', label: 'Nascimento/Desmama', icon: Icons.FileSpreadsheet },
-    { path: '/matrizes', label: 'Matrizes', icon: Icons.ListTree },
-    { path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 },
+    ...(hasPermission('ver_dashboard') ? [{ path: '/dashboard', label: 'Dashboard', icon: Icons.LayoutDashboard }] : []),
+    ...(hasPermission('ver_notificacoes') ? [{ path: '/notificacoes', label: 'Notificações', icon: Icons.Bell, badge: notificacoes.total > 0 ? notificacoes.total : undefined }] : []),
+    ...(hasPermission('ver_planilha') ? [{ path: '/planilha', label: 'Nascimento/Desmama', icon: Icons.FileSpreadsheet }] : []),
+    ...(hasPermission('ver_matrizes') ? [{ path: '/matrizes', label: 'Matrizes', icon: Icons.ListTree }] : []),
+    ...(hasPermission('ver_fazendas') ? [{ path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 }] : []),
     ...(hasPermission('ver_sincronizacao') ? [{ path: '/sincronizacao', label: 'Sincronização', icon: Icons.RefreshCw }] : []),
     ...(hasPermission('importar_planilha') ? [{ path: '/importar-planilha', label: 'Importar Planilha', icon: Icons.Upload }] : []),
     ...(hasPermission('gerenciar_usuarios') ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),

@@ -1,6 +1,4 @@
-import React from 'react';
-
-import { useEffect } from 'react';
+import React, { useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -9,7 +7,7 @@ interface ModalProps {
   onClose: () => void;
 }
 
-export default function Modal({ children, open, onClose }: ModalProps) {
+const Modal = memo(function Modal({ children, open, onClose }: ModalProps) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -36,4 +34,6 @@ export default function Modal({ children, open, onClose }: ModalProps) {
   );
 
   return createPortal(modalContent, document.body);
-}
+});
+
+export default Modal;

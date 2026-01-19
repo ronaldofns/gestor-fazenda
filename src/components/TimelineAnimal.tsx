@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
@@ -28,7 +28,8 @@ interface TimelineEvent {
   dados?: any;
 }
 
-export default function TimelineAnimal({
+// Memoizar o componente para evitar re-renders desnecessários
+const TimelineAnimal = memo(function TimelineAnimal({
   nascimento,
   desmama,
   pesagens,
@@ -340,4 +341,6 @@ export default function TimelineAnimal({
       </div>
     </div>
   );
-}
+});
+
+export default TimelineAnimal;

@@ -64,7 +64,11 @@ import {
   FaPaintBrush,      // Paintbrush (alternativa para Palette)
   FaCheckSquare,     // CheckSquare
   FaSquare,          // Square
-  FaMapMarkerAlt     // MapPin
+  FaMapMarkerAlt,    // MapPin
+  FaCompass,         // Navigation
+  FaKeyboard,        // Keyboard
+  FaBolt,            // Zap
+  FaDesktop          // Monitor
 } from 'react-icons/fa';
 
 // Font Awesome 6 (para ícones mais recentes)
@@ -176,7 +180,11 @@ export const Icons = {
   Paintbrush: FaPaintBrush,
   CheckSquare: FaCheckSquare,
   Square: FaSquare,
-  MapPin: FaMapMarkerAlt
+  MapPin: FaMapMarkerAlt,
+  Navigation: FaCompass,
+  Keyboard: FaKeyboard,
+  Zap: FaBolt,
+  Monitor: FaDesktop
 };
 
 // Tipo para garantir type-safety

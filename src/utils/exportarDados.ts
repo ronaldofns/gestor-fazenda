@@ -178,32 +178,66 @@ export async function exportarBackupCompleto() {
   try {
     const { db } = await import('../db/dexieDB');
     
-    // Buscar todos os dados
-    const [fazendas, racas, nascimentos, desmamas, usuarios] = await Promise.all([
+    // Buscar todos os dados de TODAS as tabelas
+    const [
+      fazendas,
+      racas,
+      categorias,
+      matrizes,
+      nascimentos,
+      desmamas,
+      pesagens,
+      vacinacoes,
+      usuarios,
+      rolePermissions,
+      alertSettings,
+      appSettings
+    ] = await Promise.all([
       db.fazendas.toArray(),
       db.racas.toArray(),
+      db.categorias.toArray(),
+      db.matrizes.toArray(),
       db.nascimentos.toArray(),
       db.desmamas.toArray(),
-      db.usuarios.toArray()
+      db.pesagens.toArray(),
+      db.vacinacoes.toArray(),
+      db.usuarios.toArray(),
+      db.rolePermissions.toArray(),
+      db.alertSettings.toArray(),
+      db.appSettings.toArray()
     ]);
     
     // Criar objeto de backup
     const backup = {
-      versao: '1.0',
+      versao: '2.0', // Versão atualizada com todas as tabelas
       dataBackup: new Date().toISOString(),
       dados: {
         fazendas,
         racas,
+        categorias,
+        matrizes,
         nascimentos,
         desmamas,
-        usuarios
+        pesagens,
+        vacinacoes,
+        usuarios,
+        rolePermissions,
+        alertSettings,
+        appSettings
       },
       metadados: {
         totalFazendas: fazendas.length,
         totalRacas: racas.length,
+        totalCategorias: categorias.length,
+        totalMatrizes: matrizes.length,
         totalNascimentos: nascimentos.length,
         totalDesmamas: desmamas.length,
-        totalUsuarios: usuarios.length
+        totalPesagens: pesagens.length,
+        totalVacinacoes: vacinacoes.length,
+        totalUsuarios: usuarios.length,
+        totalRolePermissions: rolePermissions.length,
+        totalAlertSettings: alertSettings.length,
+        totalAppSettings: appSettings.length
       }
     };
     
@@ -258,8 +292,12 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
     const existentesAntes = {
       fazendas: await db.fazendas.count(),
       racas: await db.racas.count(),
+      categorias: await db.categorias.count(),
+      matrizes: await db.matrizes.count(),
       nascimentos: await db.nascimentos.count(),
       desmamas: await db.desmamas.count(),
+      pesagens: await db.pesagens.count(),
+      vacinacoes: await db.vacinacoes.count(),
       usuarios: await db.usuarios.count()
     };
 
@@ -269,9 +307,16 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
     let importados = {
       fazendas: 0,
       racas: 0,
+      categorias: 0,
+      matrizes: 0,
       nascimentos: 0,
       desmamas: 0,
-      usuarios: 0
+      pesagens: 0,
+      vacinacoes: 0,
+      usuarios: 0,
+      rolePermissions: 0,
+      alertSettings: 0,
+      appSettings: 0
     };
 
     // Importar fazendas
@@ -292,6 +337,28 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
         if (!existe) {
           await db.racas.put(raca);
           importados.racas++;
+        }
+      }
+    }
+
+    // Importar categorias
+    if (Array.isArray(dados.categorias)) {
+      for (const categoria of dados.categorias) {
+        const existe = await db.categorias.get(categoria.id);
+        if (!existe) {
+          await db.categorias.put(categoria);
+          importados.categorias++;
+        }
+      }
+    }
+
+    // Importar matrizes
+    if (Array.isArray(dados.matrizes)) {
+      for (const matriz of dados.matrizes) {
+        const existe = await db.matrizes.get(matriz.id);
+        if (!existe) {
+          await db.matrizes.put(matriz);
+          importados.matrizes++;
         }
       }
     }
@@ -318,6 +385,28 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       }
     }
 
+    // Importar pesagens
+    if (Array.isArray(dados.pesagens)) {
+      for (const pesagem of dados.pesagens) {
+        const existe = await db.pesagens.get(pesagem.id);
+        if (!existe) {
+          await db.pesagens.put(pesagem);
+          importados.pesagens++;
+        }
+      }
+    }
+
+    // Importar vacinações
+    if (Array.isArray(dados.vacinacoes)) {
+      for (const vacinacao of dados.vacinacoes) {
+        const existe = await db.vacinacoes.get(vacinacao.id);
+        if (!existe) {
+          await db.vacinacoes.put(vacinacao);
+          importados.vacinacoes++;
+        }
+      }
+    }
+
     // Importar usuários (com cuidado - não sobrescrever admin atual)
     if (Array.isArray(dados.usuarios)) {
       for (const usuario of dados.usuarios) {
@@ -326,6 +415,36 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
           await db.usuarios.put(usuario);
           importados.usuarios++;
         }
+      }
+    }
+
+    // Importar rolePermissions
+    if (Array.isArray(dados.rolePermissions)) {
+      for (const perm of dados.rolePermissions) {
+        const existe = await db.rolePermissions.get(perm.id);
+        if (!existe) {
+          await db.rolePermissions.put(perm);
+          importados.rolePermissions++;
+        }
+      }
+    }
+
+    // Importar alertSettings
+    if (Array.isArray(dados.alertSettings)) {
+      for (const setting of dados.alertSettings) {
+        const existe = await db.alertSettings.get(setting.id);
+        if (!existe) {
+          await db.alertSettings.put(setting);
+          importados.alertSettings++;
+        }
+      }
+    }
+
+    // Importar appSettings (substituir se existir)
+    if (Array.isArray(dados.appSettings)) {
+      for (const setting of dados.appSettings) {
+        await db.appSettings.put(setting);
+        importados.appSettings++;
       }
     }
 

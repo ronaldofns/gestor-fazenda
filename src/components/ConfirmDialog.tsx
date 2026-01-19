@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -16,7 +16,7 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-export default function ConfirmDialog({
+const ConfirmDialog = memo(function ConfirmDialog({
   open,
   title,
   message,
@@ -109,5 +109,6 @@ export default function ConfirmDialog({
   );
 
   return createPortal(dialogContent, document.body);
-}
+});
 
+export default ConfirmDialog;

@@ -251,7 +251,7 @@ export default function TopBar() {
             {/* Dropdown de Fazendas */}
             {fazendaMenuOpen && (
               <div className="absolute right-0 mt-2 w-64 rounded-xl shadow-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 py-2 z-50 max-h-80 overflow-y-auto">
-                <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-700">
+                <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-50">
                   <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
                     Selecione a fazenda
                   </p>
@@ -291,15 +291,15 @@ export default function TopBar() {
                         setFazendaMenuOpen(false);
                         showToast({ message: `Visualizando: ${fazenda.nome}`, type: 'success' });
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors rounded-lg mx-1 ${
                         fazendaAtivaId === fazenda.id
                           ? `${getThemeClasses(primaryColor, 'bg-light')} ${getThemeClasses(primaryColor, 'text')}`
                           : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50'
                       }`}
                     >
-                      <Icons.MapPin className="w-4 h-4" />
+                      <Icons.MapPin className={`w-4 h-4 flex-shrink-0 ${fazendaAtivaId === fazenda.id ? '' : 'text-gray-500 dark:text-slate-400'}`} />
                       <span className="flex-1 text-left truncate">{fazenda.nome}</span>
-                      {fazendaAtivaId === fazenda.id && <Icons.Check className="w-4 h-4" />}
+                      {fazendaAtivaId === fazenda.id && <Icons.Check className="w-4 h-4 flex-shrink-0" />}
                     </button>
                   ))
                 )}
@@ -403,10 +403,24 @@ export default function TopBar() {
                       try {
                         const { exportarBackupCompleto } = await import('../utils/exportarDados');
                         const resultado = await exportarBackupCompleto();
+                        const totais = resultado.totalRegistros;
+                        const detalhes = [
+                          `Fazendas: ${totais.totalFazendas}`,
+                          `Raças: ${totais.totalRacas}`,
+                          `Categorias: ${totais.totalCategorias}`,
+                          `Matrizes: ${totais.totalMatrizes}`,
+                          `Nascimentos: ${totais.totalNascimentos}`,
+                          `Desmamas: ${totais.totalDesmamas}`,
+                          `Pesagens: ${totais.totalPesagens}`,
+                          `Vacinações: ${totais.totalVacinacoes}`,
+                          `Usuários: ${totais.totalUsuarios}`
+                        ].join('\n');
+                        
                         showToast({
                           type: 'success',
-                          title: 'Backup exportado',
-                          message: `Arquivo: ${resultado.nomeArquivo}\nFazendas: ${resultado.totalRegistros.totalFazendas}\nRaças: ${resultado.totalRegistros.totalRacas}\nNascimentos: ${resultado.totalRegistros.totalNascimentos}\nDesmamas: ${resultado.totalRegistros.totalDesmamas}\nUsuários: ${resultado.totalRegistros.totalUsuarios}`
+                          title: 'Backup exportado com sucesso!',
+                          message: `Arquivo: ${resultado.nomeArquivo}\n\n${detalhes}`,
+                          duration: 5000
                         });
                       } catch (error) {
                         console.error('Erro ao exportar backup:', error);
@@ -420,7 +434,67 @@ export default function TopBar() {
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors rounded-lg mx-1"
                   >
                     <Icons.Download className="w-4 h-4" />
-                    <span>Backup</span>
+                    <span>Exportar Backup</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      // Criar input file invisível
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = '.json';
+                      input.onchange = async (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (!file) return;
+
+                        try {
+                          const { importarBackup } = await import('../utils/exportarDados');
+                          const resultado = await importarBackup(file);
+                          
+                          if (resultado.sucesso) {
+                            const totais = resultado.totais?.importados;
+                            if (totais) {
+                              const detalhes = Object.entries(totais)
+                                .filter(([, value]) => (value as number) > 0)
+                                .map(([key, value]) => `${key}: ${value}`)
+                                .join('\n');
+                              
+                              showToast({
+                                type: 'success',
+                                title: 'Backup importado!',
+                                message: detalhes || resultado.mensagem,
+                                duration: 5000
+                              });
+                            } else {
+                              showToast({
+                                type: 'info',
+                                title: 'Backup processado',
+                                message: resultado.mensagem
+                              });
+                            }
+                          } else {
+                            showToast({
+                              type: 'error',
+                              title: 'Erro ao importar',
+                              message: resultado.mensagem
+                            });
+                          }
+                        } catch (error) {
+                          console.error('Erro ao importar backup:', error);
+                          showToast({
+                            type: 'error',
+                            title: 'Erro ao importar',
+                            message: 'Não foi possível importar o backup.'
+                          });
+                        }
+                      };
+                      input.click();
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors rounded-lg mx-1"
+                  >
+                    <Icons.Upload className="w-4 h-4" />
+                    <span>Importar Backup</span>
                   </button>
 
                   <button

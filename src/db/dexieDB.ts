@@ -471,6 +471,47 @@ class AppDB extends Dexie {
       appSettings: 'id, synced, remoteId',
       syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo]'
     });
+
+    // Versão 22: Otimizar índices compostos para melhor performance
+    this.version(22).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      // Adicionar índices compostos para queries frequentes
+      nascimentos: 'id, matrizId, fazendaId, [fazendaId+dataNascimento], [fazendaId+mes+ano], [fazendaId+synced], mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId, [nascimentoId+synced]',
+      pesagens: 'id, nascimentoId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced]',
+      vacinacoes: 'id, nascimentoId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]'
+    });
+
+    // Versão 23: Adicionar índice synced para matrizes e usuarios
+    this.version(23).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, [fazendaId+dataNascimento], [fazendaId+mes+ano], [fazendaId+synced], mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId, [nascimentoId+synced]',
+      pesagens: 'id, nascimentoId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced]',
+      vacinacoes: 'id, nascimentoId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, synced, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo, synced',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]'
+    });
   }
 }
 
