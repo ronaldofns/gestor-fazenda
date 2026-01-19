@@ -61,68 +61,69 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
-      <ToastContainer />
-      <SplashScreen />
-      <OfflineIndicator />
-      <InstallPrompt />
-      <PWAUpdatePrompt />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/setup" element={<SetupInicial />} />
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <div className="flex min-h-screen">
-                <Sidebar />
-                <div className={`flex-1 min-h-screen transition-all duration-300 flex flex-col ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
-                  <TopBar />
-                  <main className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-950">
-                    <Routes>
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/planilha" element={
-                        <ProtectedRoute requiredPermission="ver_planilha">
-                          <Home />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/matrizes" element={
-                        <ProtectedRoute requiredPermission="ver_matrizes">
-                          <Matrizes />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/notificacoes" element={<Notificacoes />} />
-                      <Route path="/desmama/:nascimentoId" element={<CadastroDesmama />} />
-                      <Route path="/fazendas" element={
-                        <ProtectedRoute requiredPermission="ver_fazendas">
-                          <ListaFazendas />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/importar-planilha" element={
-                        <ProtectedRoute requiredPermission="importar_dados">
-                          <ImportarPlanilha />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/usuarios" element={
-                        <ProtectedRoute requiredPermission="ver_usuarios">
-                          <ListaUsuarios />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/permissoes" element={
-                        <ProtectedRoute requiredRole="admin">
-                          <Permissoes />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/perfil" element={<Perfil />} />
-                      <Route path="/sincronizacao" element={<Sincronizacao />} />
-                    </Routes>
-                  </main>
+    <FazendaContextProvider>
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+        <ToastContainer />
+        <SplashScreen />
+        <OfflineIndicator />
+        <InstallPrompt />
+        <PWAUpdatePrompt />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/setup" element={<SetupInicial />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <div className="flex min-h-screen">
+                  <Sidebar />
+                  <div className={`flex-1 min-h-screen transition-all duration-300 flex flex-col ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+                    <TopBar />
+                    <main className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-950">
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/planilha" element={
+                          <ProtectedRoute requiredPermission="ver_planilha">
+                            <Home />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/matrizes" element={
+                          <ProtectedRoute requiredPermission="ver_matrizes">
+                            <Matrizes />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/notificacoes" element={<Notificacoes />} />
+                        <Route path="/desmama/:nascimentoId" element={<CadastroDesmama />} />
+                        <Route path="/fazendas" element={
+                          <ProtectedRoute requiredPermission="ver_fazendas">
+                            <ListaFazendas />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/importar-planilha" element={
+                          <ProtectedRoute requiredPermission="importar_dados">
+                            <ImportarPlanilha />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/usuarios" element={
+                          <ProtectedRoute requiredPermission="ver_usuarios">
+                            <ListaUsuarios />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/permissoes" element={
+                          <ProtectedRoute requiredRole="admin">
+                            <Permissoes />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/perfil" element={<Perfil />} />
+                        <Route path="/sincronizacao" element={<Sincronizacao />} />
+                      </Routes>
+                    </main>
+                  </div>
                 </div>
-              </div>
-            </ProtectedRoute>
-          }
-        />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </div>
     </FazendaContextProvider>

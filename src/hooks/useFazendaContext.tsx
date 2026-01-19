@@ -26,8 +26,10 @@ export function FazendaContextProvider({ children }: { children: ReactNode }) {
     setFazendaAtivaId(fazendaId);
   };
 
+  const value = { fazendaAtivaId, setFazendaAtiva };
+  
   return (
-    <FazendaContext.Provider value={{ fazendaAtivaId, setFazendaAtiva }}>
+    <FazendaContext.Provider value={value}>
       {children}
     </FazendaContext.Provider>
   );
