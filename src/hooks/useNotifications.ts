@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { useAlertSettings } from './useAlertSettings';
-import { useFazendaContext } from './useFazendaContext';
+import { useFazendaContext } from '../hooks/useFazendaContext';
 import { chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro, chavePesoForaPadrao, chaveVacina } from '../utils/notificacoesLidas';
 
 interface NotificacaoDesmama {

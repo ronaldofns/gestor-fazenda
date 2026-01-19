@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses, getTitleTextClass } from '../utils/themeHelpers';
+import { getPrimaryButtonClass, getThemeClasses, getTitleTextClass, getPrimaryBgClass } from '../utils/themeHelpers';
 import { showToast } from '../utils/toast';
 
 export default function PWAUpdatePrompt() {
