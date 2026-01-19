@@ -141,7 +141,12 @@ export function useNotifications(): Notificacoes {
 
   const matrizesEmNascimentos = useMemo(() => {
     const map = new Map<string, { fazendaId: string; count: number }>();
-    nascimentosTodosRaw.forEach((n) => {
+    // Filtrar por fazenda ativa antes de processar
+    const nascimentosFiltrados = fazendaAtivaId
+      ? nascimentosTodosRaw.filter(n => n.fazendaId === fazendaAtivaId)
+      : nascimentosTodosRaw;
+    
+    nascimentosFiltrados.forEach((n) => {
       if (!n.matrizId) return;
       const key = `${n.matrizId}|${n.fazendaId}`;
       const existing = map.get(key) || { fazendaId: n.fazendaId, count: 0 };
@@ -149,7 +154,7 @@ export function useNotifications(): Notificacoes {
       map.set(key, existing);
     });
     return map;
-  }, [nascimentosTodosRaw]);
+  }, [nascimentosTodosRaw, fazendaAtivaId]);
 
   const desmamaSet = useMemo(() => {
     const set = new Set<string>();
