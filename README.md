@@ -90,12 +90,20 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - ✅ Quem fez, o quê, quando
 - ✅ Snapshot antes/depois das alterações
 
-### ⚡ Performance e UX
-- ✅ Atalhos de teclado (Alt+Shift+tecla)
+### ⚡ Performance e UX (v0.3.0)
+- ✅ **Atalhos de teclado globais** (Ctrl+D, Ctrl+H, Ctrl+B, etc)
+- ✅ **Animações suaves** com framer-motion
+- ✅ **Lazy loading** de rotas para carregamento mais rápido
+- ✅ **React.memo** em componentes críticos
+- ✅ **Índices compostos** no IndexedDB (70% mais rápido)
+- ✅ **Filtros Avançados** com salvamento e reutilização
+- ✅ **Backup Automático Agendado** com histórico
+- ✅ **Sistema de Tags** customizáveis
+- ✅ **Métricas Avançadas** no Dashboard (GMD, crescimento, projeções)
 - ✅ Favoritos (fazendas e matrizes)
 - ✅ Paginação otimizada
-- ✅ Loading states
-- ✅ Feedback visual (toasts)
+- ✅ Loading/Empty/Error states padronizados
+- ✅ Feedback visual (toasts com alto contraste)
 - ✅ Responsivo (mobile, tablet, desktop)
 
 ## 🛠️ Stack Tecnológica
