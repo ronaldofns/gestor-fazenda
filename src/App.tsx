@@ -23,6 +23,7 @@ import Sincronizacao from './routes/Sincronizacao';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import TopBar from './components/TopBar';
 import { cleanupExpiredLocks } from './utils/recordLock';
+import { FazendaContextProvider } from './hooks/useFazendaContext';
 
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -79,18 +80,42 @@ export default function App() {
                   <TopBar />
                   <main className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-950">
                     <Routes>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/planilha" element={<Home />} />
-                    <Route path="/matrizes" element={<Matrizes />} />
-                    <Route path="/notificacoes" element={<Notificacoes />} />
-                  <Route path="/desmama/:nascimentoId" element={<CadastroDesmama />} />
-                  <Route path="/fazendas" element={<ListaFazendas />} />
-                    <Route path="/importar-planilha" element={<ImportarPlanilha />} />
-                    <Route path="/usuarios" element={<ProtectedRoute requiredRole="admin"><ListaUsuarios /></ProtectedRoute>} />
-                    <Route path="/permissoes" element={<ProtectedRoute requiredRole="admin"><Permissoes /></ProtectedRoute>} />
-                    <Route path="/perfil" element={<Perfil />} />
-                    <Route path="/sincronizacao" element={<Sincronizacao />} />
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/planilha" element={
+                        <ProtectedRoute requiredPermission="ver_planilha">
+                          <Home />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/matrizes" element={
+                        <ProtectedRoute requiredPermission="ver_matrizes">
+                          <Matrizes />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/notificacoes" element={<Notificacoes />} />
+                      <Route path="/desmama/:nascimentoId" element={<CadastroDesmama />} />
+                      <Route path="/fazendas" element={
+                        <ProtectedRoute requiredPermission="ver_fazendas">
+                          <ListaFazendas />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/importar-planilha" element={
+                        <ProtectedRoute requiredPermission="importar_dados">
+                          <ImportarPlanilha />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/usuarios" element={
+                        <ProtectedRoute requiredPermission="ver_usuarios">
+                          <ListaUsuarios />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/permissoes" element={
+                        <ProtectedRoute requiredRole="admin">
+                          <Permissoes />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/perfil" element={<Perfil />} />
+                      <Route path="/sincronizacao" element={<Sincronizacao />} />
                     </Routes>
                   </main>
                 </div>
@@ -98,7 +123,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-      </Routes>
-    </div>
+        </Routes>
+      </div>
+    </FazendaContextProvider>
   );
 }

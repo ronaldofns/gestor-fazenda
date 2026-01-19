@@ -134,26 +134,28 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 ## 🧱 PRIORIDADE 5 — Produto sério
 
 ### 1️⃣1️⃣ Backup Local
-**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Exportar dados para JSON
 - ✅ Exportar para CSV
 - ✅ Inclui todas as tabelas (fazendas, raças, nascimentos, desmamas, usuários)
 - ✅ Metadados (totais, data do backup)
-- ❌ **FALTA**: 
-  - Importar backup (restaurar)
+- ✅ Importar backup (restaurar)
+- ✅ Validação de estrutura do backup
+- ✅ Merge inteligente (não sobrescreve dados existentes)
 
-**Onde está**: `src/utils/exportarDados.ts` - `exportarBackupCompleto()`
+**Onde está**: `src/utils/exportarDados.ts` - `exportarBackupCompleto()`, `importarBackup()`
 
 ### 1️⃣2️⃣ Multi-fazenda
-**Status**: ⚠️ **PARCIAL**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Usuário pode ter `fazendaId` (opcional)
 - ✅ Sistema suporta múltiplas fazendas
-- ❌ **FALTA**: 
-  - Troca rápida de fazenda no topo
-  - Seleção de fazenda ativa
-  - Filtro automático por fazenda do usuário
+- ✅ Troca rápida de fazenda no TopBar
+- ✅ Seleção de fazenda ativa com persistência (localStorage)
+- ✅ Filtro automático por fazenda ativa em todas as páginas
+- ✅ Opção "Todas as Fazendas" para visualização completa
+- ✅ Contexto React para gerenciar fazenda ativa
 
-**Nota**: O sistema já suporta múltiplas fazendas, mas não há interface para trocar entre elas facilmente.
+**Onde está**: `src/hooks/useFazendaContext.ts`, `src/components/TopBar.tsx`
 
 ---
 
@@ -179,7 +181,7 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 
 ## 📋 Resumo do Status
 
-### ✅ Totalmente Implementado: 11 funcionalidades
+### ✅ Totalmente Implementado: 13 funcionalidades
 1. Centro de Sincronização
 2. Fila de Eventos Offline
 3. Lock de Registro
@@ -191,10 +193,8 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 9. Linha do Tempo do Animal
 10. Pesagens Periódicas
 11. Vacinação / Sanidade
-
-### ⚠️ Parcialmente Implementado: 2 funcionalidades
-1. Backup Local (falta importar/restaurar)
-2. Multi-fazenda (falta troca rápida)
+12. Backup Local (exportar/importar)
+13. Multi-fazenda com troca rápida
 
 ### ❌ Não Implementado: 1 funcionalidade
 1. Integração com Balança
@@ -217,16 +217,18 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 7. **Indicadores Avançados** ✅
 8. **Alertas Inteligentes** ✅
 
-### 🚧 Sprint 4 - Melhorias e Refinamentos (PRÓXIMAS)
-9. **Multi-fazenda** (troca rápida de contexto)
-10. **Importar Backup** (restaurar dados salvos)
-11. **Aplicar permissões nas rotas** (proteger acesso baseado em roles)
-12. **Otimizações de performance** (lazy loading, virtualization)
+### ✅ Sprint 4 - Melhorias e Refinamentos (CONCLUÍDA)
+9. **Multi-fazenda** ✅ (troca rápida de contexto com seletor no TopBar)
+10. **Importar Backup** ✅ (restaurar dados salvos com merge inteligente)
+11. **Aplicar permissões nas rotas** ✅ (proteção baseada em roles e permissões)
+12. **Filtro automático por fazenda** ✅ (Dashboard, Home, Matrizes, Notificações)
 
-### 🔮 Sprint 5 - Futuro
-13. **Integração com Balança** (Bluetooth/USB)
-14. **Modo offline aprimorado** (melhor feedback visual)
-15. **PWA avançado** (notificações push, background sync)
+### 🔮 Sprint 5 - Futuro (PRÓXIMAS)
+13. **Otimizações de performance** (lazy loading, virtualization em listas grandes)
+14. **Integração com Balança** (Bluetooth/USB)
+15. **Modo offline aprimorado** (melhor feedback visual, indicadores)
+16. **PWA avançado** (notificações push, background sync)
+17. **Análises avançadas** (relatórios personalizados, comparativos temporais)
 
 ---
 

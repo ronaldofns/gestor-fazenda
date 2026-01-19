@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../hooks/useAuth';
+import { useFazendaContext } from '../hooks/useFazendaContext';
+import { db } from '../db/dexieDB';
 import { Icons } from '../utils/iconMapping';
 import { showToast } from '../utils/toast';
 import { setGlobalSyncing, getGlobalSyncing } from './Sidebar';
@@ -66,7 +69,9 @@ export default function TopBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { fazendaAtivaId, setFazendaAtiva } = useFazendaContext();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [fazendaMenuOpen, setFazendaMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -81,8 +86,13 @@ export default function TopBar() {
     onConfirm: () => {}
   });
   const menuRef = useRef<HTMLDivElement>(null);
+  const fazendaMenuRef = useRef<HTMLDivElement>(null);
   const { draftSettings: draftAppSettings, setDraftSettings: setDraftAppSettings, saveSettings: saveAppSettings, resetSettings: resetAppSettings } = useAppSettings();
   const { draftSettings, setDraftSettings, saveSettings, resetSettings } = useAlertSettings();
+  
+  // Buscar fazendas disponíveis
+  const fazendas = useLiveQuery(() => db.fazendas.toArray(), []) || [];
+  const fazendaAtiva = fazendas.find(f => f.id === fazendaAtivaId);
 
   // Obter metadados da rota atual
   const currentRoute = location.pathname;
@@ -91,22 +101,25 @@ export default function TopBar() {
     subtitle: 'Sistema de Gestão de Rebanho'
   };
 
-  // Fechar menu ao clicar fora
+  // Fechar menus ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (fazendaMenuRef.current && !fazendaMenuRef.current.contains(event.target as Node)) {
+        setFazendaMenuOpen(false);
+      }
     };
 
-    if (userMenuOpen) {
+    if (userMenuOpen || fazendaMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [userMenuOpen]);
+  }, [userMenuOpen, fazendaMenuOpen]);
 
   // Obter iniciais do nome do usuário
   const getUserInitials = (name: string): string => {
@@ -219,6 +232,81 @@ export default function TopBar() {
 
         {/* Informações do Usuário (Direita) */}
         <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Seletor de Fazenda */}
+          <div className="relative" ref={fazendaMenuRef}>
+            <button
+              onClick={() => setFazendaMenuOpen(!fazendaMenuOpen)}
+              className={`flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl px-3 py-2 transition-all ${getThemeClasses(primaryColor, 'hover-bg-light')}`}
+              title="Selecionar fazenda"
+            >
+              <Icons.Building2 className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')}`} />
+              <span className="hidden md:block text-sm font-medium text-gray-700 dark:text-slate-300 truncate max-w-[120px]">
+                {fazendaAtiva ? fazendaAtiva.nome : 'Todas'}
+              </span>
+              <Icons.ChevronDown 
+                className={`w-3.5 h-3.5 text-gray-500 dark:text-slate-400 transition-transform ${fazendaMenuOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Dropdown de Fazendas */}
+            {fazendaMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-xl shadow-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 py-2 z-50 max-h-80 overflow-y-auto">
+                <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
+                    Selecione a fazenda
+                  </p>
+                </div>
+                
+                {/* Opção "Todas as Fazendas" */}
+                <button
+                  onClick={() => {
+                    setFazendaAtiva(null);
+                    setFazendaMenuOpen(false);
+                    showToast('Visualizando todas as fazendas', 'success');
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    !fazendaAtivaId 
+                      ? `${getThemeClasses(primaryColor, 'bg-light')} ${getThemeClasses(primaryColor, 'text')}`
+                      : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                  }`}
+                >
+                  <Icons.Building2 className="w-4 h-4" />
+                  <span className="flex-1 text-left">Todas as Fazendas</span>
+                  {!fazendaAtivaId && <Icons.Check className="w-4 h-4" />}
+                </button>
+
+                {/* Lista de Fazendas */}
+                {fazendas.length === 0 ? (
+                  <div className="px-4 py-6 text-center">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">
+                      Nenhuma fazenda cadastrada
+                    </p>
+                  </div>
+                ) : (
+                  fazendas.map((fazenda) => (
+                    <button
+                      key={fazenda.id}
+                      onClick={() => {
+                        setFazendaAtiva(fazenda.id);
+                        setFazendaMenuOpen(false);
+                        showToast(`Visualizando: ${fazenda.nome}`, 'success');
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
+                        fazendaAtivaId === fazenda.id
+                          ? `${getThemeClasses(primaryColor, 'bg-light')} ${getThemeClasses(primaryColor, 'text')}`
+                          : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <Icons.MapPin className="w-4 h-4" />
+                      <span className="flex-1 text-left truncate">{fazenda.nome}</span>
+                      {fazendaAtivaId === fazenda.id && <Icons.Check className="w-4 h-4" />}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Avatar e Menu do Usuário */}
           <div className="relative" ref={menuRef}>
             <button

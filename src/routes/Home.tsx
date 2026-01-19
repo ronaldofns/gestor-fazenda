@@ -24,6 +24,7 @@ import { registrarAudit } from '../utils/audit';
 import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
 import { useFavoritos } from '../hooks/useFavoritos';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { useFazendaContext } from '../hooks/useFazendaContext';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getThemeClasses, getTitleTextClass, getPrimaryBadgeClass, getPrimaryCardClass, getPrimaryActionButtonLightClass, getPrimaryBgClass, getCheckboxClass } from '../utils/themeHelpers';
 
@@ -98,6 +99,7 @@ type FormDataNascimento = z.infer<typeof schemaNascimento>;
 export default function Home() {
   useSync();
   const { user: currentUser } = useAuth();
+  const { fazendaAtivaId } = useFazendaContext();
   const { favoritos, isFavorito, toggleFavorito } = useFavoritos();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
@@ -262,17 +264,27 @@ export default function Home() {
     return [...fazendasRaw].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [fazendasRaw]);
 
-  // Selecionar primeira fazenda automaticamente APENAS na inicialização (se não vier na URL)
+  // Sincronizar filtro de fazenda com a fazenda ativa do contexto
+  useEffect(() => {
+    if (fazendaAtivaId) {
+      setFiltroFazenda(fazendaAtivaId);
+    } else {
+      // Se "Todas" estiver selecionado, limpar o filtro
+      setFiltroFazenda('');
+    }
+  }, [fazendaAtivaId]);
+
+  // Selecionar primeira fazenda automaticamente APENAS na inicialização (se não vier na URL e não houver fazenda ativa)
   useEffect(() => {
     if (autoFazendaSelecionadaRef.current) return;
-    if (!filtroFazendaFromUrl && Array.isArray(fazendas) && fazendas.length > 0 && filtroFazenda === '') {
+    if (!filtroFazendaFromUrl && !fazendaAtivaId && Array.isArray(fazendas) && fazendas.length > 0 && filtroFazenda === '') {
       const primeiraFazenda = fazendas[0];
       if (primeiraFazenda && primeiraFazenda.id) {
         setFiltroFazenda(primeiraFazenda.id);
       }
     }
     autoFazendaSelecionadaRef.current = true;
-  }, [fazendas, filtroFazendaFromUrl]);
+  }, [fazendas, filtroFazendaFromUrl, fazendaAtivaId]);
 
   // Resetar página quando filtros mudarem
   useEffect(() => {

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { useAlertSettings } from './useAlertSettings';
+import { useFazendaContext } from './useFazendaContext';
 import { chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro, chavePesoForaPadrao, chaveVacina } from '../utils/notificacoesLidas';
 
 interface NotificacaoDesmama {
@@ -92,6 +93,7 @@ function diffMeses(a: Date, b: Date) {
 }
 
 export function useNotifications(): Notificacoes {
+  const { fazendaAtivaId } = useFazendaContext();
   const nascimentosTodosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
   const pesagens = useLiveQuery(() => db.pesagens.toArray(), []) || [];
@@ -168,7 +170,12 @@ export function useNotifications(): Notificacoes {
     agora.setHours(0, 0, 0, 0);
     const { limiteMesesDesmama, janelaMesesMortalidade, limiarMortalidade } = alertSettings;
 
-    const desmamaAtrasada = nascimentosTodosRaw
+    // Filtrar nascimentos por fazenda ativa
+    const nascimentosFiltrados = fazendaAtivaId
+      ? nascimentosTodosRaw.filter(n => n.fazendaId === fazendaAtivaId)
+      : nascimentosTodosRaw;
+
+    const desmamaAtrasada = nascimentosFiltrados
       .filter((n) => {
         if (n.morto) return false;
         const dataNasc = parseDate(n.dataNascimento);
@@ -196,7 +203,7 @@ export function useNotifications(): Notificacoes {
     const dataLimite = new Date(agora.getFullYear(), agora.getMonth() - (janelaMesesMortalidade - 1), 1);
     const estatisticas = new Map<string, { vivos: number; mortos: number; nome: string }>();
 
-    nascimentosTodosRaw.forEach((n) => {
+    nascimentosFiltrados.forEach((n) => {
       const dataRef = parseDate(n.dataNascimento) || parseDate(n.createdAt);
       if (!dataRef) return;
       if (dataRef < dataLimite) return;
@@ -222,7 +229,7 @@ export function useNotifications(): Notificacoes {
       .sort((a, b) => b.taxa - a.taxa);
 
     // Dados incompletos: nascimentos sem informações importantes
-    const dadosIncompletos = nascimentosTodosRaw
+    const dadosIncompletos = nascimentosFiltrados
       .filter((n) => {
         if (n.morto) return false; // Ignorar mortos
         const problemas: string[] = [];
@@ -273,7 +280,7 @@ export function useNotifications(): Notificacoes {
       const map = new Map<string, { soma: number; count: number }>(); // chave: "idadeDias|raca"
       
       pesagens.forEach((pesagem) => {
-        const nascimento = nascimentosTodosRaw.find(n => n.id === pesagem.nascimentoId);
+        const nascimento = nascimentosFiltrados.find(n => n.id === pesagem.nascimentoId);
         if (!nascimento || !nascimento.dataNascimento) return;
         
         const dataNasc = parseDate(nascimento.dataNascimento);
@@ -299,7 +306,7 @@ export function useNotifications(): Notificacoes {
       return medias;
     })();
 
-    const pesoForaPadrao = nascimentosTodosRaw
+    const pesoForaPadrao = nascimentosFiltrados
       .filter((n) => {
         if (n.morto) return false;
         if (!n.dataNascimento) return false;
@@ -427,7 +434,7 @@ export function useNotifications(): Notificacoes {
         vacinasVencidas.length +
         vacinasVencendo.length
     };
-  }, [alertSettings, desmamaSet, fazendaMap, nascimentosTodosRaw, pesagens, vacinacoes, matrizSet, matrizesEmNascimentos, matrizMap, notificacoesLidasSet]);
+  }, [alertSettings, desmamaSet, fazendaMap, nascimentosTodosRaw, pesagens, vacinacoes, matrizSet, matrizesEmNascimentos, matrizMap, notificacoesLidasSet, fazendaAtivaId]);
 
   return notificacoes;
 }

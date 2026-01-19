@@ -5,6 +5,7 @@ import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
 import { useAlertSettings } from '../hooks/useAlertSettings';
 import { useNotifications } from '../hooks/useNotifications';
+import { useFazendaContext } from '../hooks/useFazendaContext';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
@@ -27,6 +28,7 @@ export default function Dashboard() {
   useSync();
   const { alertSettings } = useAlertSettings();
   const notificacoes = useNotifications();
+  const { fazendaAtivaId } = useFazendaContext();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   
@@ -90,12 +92,19 @@ export default function Dashboard() {
       }
     }
     
-    return Array.from(uniqueByUuid.values()).sort((a, b) => {
+    let resultado = Array.from(uniqueByUuid.values());
+    
+    // Aplicar filtro por fazenda ativa
+    if (fazendaAtivaId) {
+      resultado = resultado.filter(n => n.fazendaId === fazendaAtivaId);
+    }
+    
+    return resultado.sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return dateA - dateB;
     });
-  }, [nascimentosTodosRaw]);
+  }, [nascimentosTodosRaw, fazendaAtivaId]);
 
   // Mapas auxiliares
   const fazendaMap = useMemo(() => {

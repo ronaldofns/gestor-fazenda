@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db/dexieDB';
+import { useFazendaContext } from '../hooks/useFazendaContext';
 import { Icons } from '../utils/iconMapping';
 import MatrizModal from '../components/MatrizModal';
 import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
@@ -29,6 +30,7 @@ interface MatrizResumo {
 
 export default function Matrizes() {
   const navigate = useNavigate();
+  const { fazendaAtivaId } = useFazendaContext();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const nascimentosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
@@ -126,6 +128,9 @@ export default function Matrizes() {
 
     for (const n of nascimentosRaw) {
       if (!n.matrizId) continue;
+      
+      // Filtrar por fazenda ativa
+      if (fazendaAtivaId && n.fazendaId !== fazendaAtivaId) continue;
       
       // Buscar matriz cadastrada: primeiro por ID (UUID), depois por identificador
       let matrizCadastrada = matrizMap.byId.get(n.matrizId);
@@ -249,7 +254,7 @@ export default function Matrizes() {
       ultimoParto: m.ultimoParto,
       mediaPesoDesmama: m.countPeso > 0 ? m.somaPeso / m.countPeso : 0,
     }));
-  }, [nascimentosRaw, fazendaMap, desmamaMap, matrizMap]);
+  }, [nascimentosRaw, fazendaMap, desmamaMap, matrizMap, fazendaAtivaId]);
 
   const matrizesFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();

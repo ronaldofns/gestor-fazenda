@@ -234,7 +234,128 @@ export async function exportarBackupCompleto() {
     };
   } catch (error) {
     console.error('Erro ao exportar backup:', error);
-    throw new Error('Erro ao exportar backup. Tente novamente.');
+    throw new Error('Erro ao exportar backup completo. Tente novamente.');
+  }
+}
+
+/**
+ * Importa backup completo e restaura dados locais
+ */
+export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean; mensagem: string; totais?: any }> {
+  try {
+    // Ler conteúdo do arquivo
+    const conteudo = await arquivo.text();
+    const backup = JSON.parse(conteudo);
+
+    // Validar estrutura do backup
+    if (!backup.versao || !backup.dados) {
+      throw new Error('Arquivo de backup inválido ou corrompido');
+    }
+
+    const { db } = await import('../db/dexieDB');
+    
+    // Contar itens existentes antes da importação
+    const existentesAntes = {
+      fazendas: await db.fazendas.count(),
+      racas: await db.racas.count(),
+      nascimentos: await db.nascimentos.count(),
+      desmamas: await db.desmamas.count(),
+      usuarios: await db.usuarios.count()
+    };
+
+    // Importar dados (fazer merge, não substituir tudo)
+    const { dados } = backup;
+    
+    let importados = {
+      fazendas: 0,
+      racas: 0,
+      nascimentos: 0,
+      desmamas: 0,
+      usuarios: 0
+    };
+
+    // Importar fazendas
+    if (Array.isArray(dados.fazendas)) {
+      for (const fazenda of dados.fazendas) {
+        const existe = await db.fazendas.get(fazenda.id);
+        if (!existe) {
+          await db.fazendas.put(fazenda);
+          importados.fazendas++;
+        }
+      }
+    }
+
+    // Importar raças
+    if (Array.isArray(dados.racas)) {
+      for (const raca of dados.racas) {
+        const existe = await db.racas.get(raca.id);
+        if (!existe) {
+          await db.racas.put(raca);
+          importados.racas++;
+        }
+      }
+    }
+
+    // Importar nascimentos
+    if (Array.isArray(dados.nascimentos)) {
+      for (const nascimento of dados.nascimentos) {
+        const existe = await db.nascimentos.get(nascimento.id);
+        if (!existe) {
+          await db.nascimentos.put(nascimento);
+          importados.nascimentos++;
+        }
+      }
+    }
+
+    // Importar desmamas
+    if (Array.isArray(dados.desmamas)) {
+      for (const desmama of dados.desmamas) {
+        const existe = await db.desmamas.get(desmama.id);
+        if (!existe) {
+          await db.desmamas.put(desmama);
+          importados.desmamas++;
+        }
+      }
+    }
+
+    // Importar usuários (com cuidado - não sobrescrever admin atual)
+    if (Array.isArray(dados.usuarios)) {
+      for (const usuario of dados.usuarios) {
+        const existe = await db.usuarios.get(usuario.id);
+        if (!existe) {
+          await db.usuarios.put(usuario);
+          importados.usuarios++;
+        }
+      }
+    }
+
+    const totalImportado = Object.values(importados).reduce((acc, val) => acc + val, 0);
+    
+    if (totalImportado === 0) {
+      return {
+        sucesso: true,
+        mensagem: 'Backup válido, mas todos os dados já existem no sistema',
+        totais: { existentesAntes, importados }
+      };
+    }
+
+    return {
+      sucesso: true,
+      mensagem: `Backup importado com sucesso! ${totalImportado} registros adicionados`,
+      totais: { existentesAntes, importados }
+    };
+  } catch (error) {
+    console.error('Erro ao importar backup:', error);
+    if (error instanceof SyntaxError) {
+      return {
+        sucesso: false,
+        mensagem: 'Erro: Arquivo JSON inválido'
+      };
+    }
+    return {
+      sucesso: false,
+      mensagem: error instanceof Error ? error.message : 'Erro desconhecido ao importar backup'
+    };
   }
 }
 

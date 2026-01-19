@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import useOnline from '../hooks/useOnline';
@@ -10,6 +10,8 @@ import { syncAll } from '../api/syncService';
 import { showToast } from '../utils/toast';
 import { setGlobalSyncing, getGlobalSyncing } from '../components/Sidebar';
 import { getSyncQueueStats } from '../utils/syncEvents';
+import { exportarBackupCompleto, importarBackup } from '../utils/exportarDados';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface PendenciaTabela {
   nome: string;
@@ -41,6 +43,19 @@ export default function Sincronizacao() {
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [syncing, setSyncing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    open: false,
+    message: '',
+    onConfirm: () => {}
+  });
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_SYNC_LOGS);
@@ -447,6 +462,86 @@ export default function Sincronizacao() {
     }
   };
 
+  const handleExportarBackup = async () => {
+    try {
+      const resultado = await exportarBackupCompleto();
+      if (resultado && resultado.sucesso) {
+        showToast({
+          type: 'success',
+          title: 'Backup exportado',
+          message: `Arquivo: ${resultado.nomeArquivo}`
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro ao exportar backup:', error);
+      showToast({
+        type: 'error',
+        title: 'Erro ao exportar backup',
+        message: error.message
+      });
+    }
+  };
+
+  const handleImportarBackupClick = () => {
+    setConfirmDialog({
+      open: true,
+      title: 'Importar Backup',
+      message: 'A importação irá adicionar os dados do backup ao sistema. Dados existentes não serão sobrescritos. Deseja continuar?',
+      variant: 'warning',
+      onConfirm: () => {
+        setConfirmDialog({ open: false, message: '', onConfirm: () => {} });
+        fileInputRef.current?.click();
+      }
+    });
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const resultado = await importarBackup(file);
+      
+      if (resultado.sucesso) {
+        showToast({
+          type: 'success',
+          title: 'Backup importado',
+          message: resultado.mensagem
+        });
+        if (resultado.totais && resultado.totais.importados) {
+          const importados = resultado.totais.importados;
+          const detalhes = Object.entries(importados)
+            .filter(([_, qtd]) => (qtd as number) > 0)
+            .map(([tabela, qtd]) => `${tabela}: ${qtd}`)
+            .join(', ');
+          if (detalhes) {
+            console.log('Detalhes da importação:', detalhes);
+          }
+        }
+      } else {
+        showToast({
+          type: 'error',
+          title: 'Erro ao importar backup',
+          message: resultado.mensagem
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro ao importar backup:', error);
+      showToast({
+        type: 'error',
+        title: 'Erro ao importar backup',
+        message: error.message
+      });
+    } finally {
+      setImporting(false);
+      // Limpar input para permitir selecionar o mesmo arquivo novamente
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   // Escutar mudanças no estado global de sincronização
   useEffect(() => {
     const listener = (isSyncing: boolean) => {
@@ -571,8 +666,8 @@ export default function Sincronizacao() {
           </div>
         </div>
 
-        {/* Botão de Sincronização */}
-        <div className="flex items-center justify-center pt-3 border-t border-gray-200 dark:border-slate-700">
+        {/* Botão de Sincronização e Backup */}
+        <div className="flex items-center justify-center gap-3 flex-wrap pt-3 border-t border-gray-200 dark:border-slate-700">
           <button
             onClick={handleSync}
             disabled={!online || syncing}
@@ -593,8 +688,53 @@ export default function Sincronizacao() {
               </>
             )}
           </button>
+
+          <button
+            onClick={handleExportarBackup}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:scale-105 transition-transform"
+          >
+            <Icons.Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          <button
+            onClick={handleImportarBackupClick}
+            disabled={importing || syncing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:scale-105 transition-transform"
+          >
+            {importing ? (
+              <>
+                <Icons.Loader2 className="w-4 h-4 animate-spin" />
+                <span className="hidden sm:inline">Importando...</span>
+              </>
+            ) : (
+              <>
+                <Icons.Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Importar</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* Dialog de Confirmação */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ open: false, message: '', onConfirm: () => {} })}
+      />
 
       {/* Pendências por Tabela */}
       {totalPendencias > 0 && (
