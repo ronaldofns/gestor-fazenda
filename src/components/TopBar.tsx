@@ -262,7 +262,7 @@ export default function TopBar() {
                   onClick={() => {
                     setFazendaAtiva(null);
                     setFazendaMenuOpen(false);
-                    showToast('Visualizando todas as fazendas', 'success');
+                    showToast({ message: 'Visualizando todas as fazendas', type: 'success' });
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
                     !fazendaAtivaId 
@@ -289,7 +289,7 @@ export default function TopBar() {
                       onClick={() => {
                         setFazendaAtiva(fazenda.id);
                         setFazendaMenuOpen(false);
-                        showToast(`Visualizando: ${fazenda.nome}`, 'success');
+                        showToast({ message: `Visualizando: ${fazenda.nome}`, type: 'success' });
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
                         fazendaAtivaId === fazenda.id
