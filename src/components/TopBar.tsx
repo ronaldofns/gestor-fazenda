@@ -13,6 +13,8 @@ import { getThemeClasses, getTitleTextClass, getPrimaryButtonClass } from '../ut
 import { useAlertSettings, AlertSettings } from '../hooks/useAlertSettings';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
+import AutoBackupManager from './AutoBackupManager';
+import TagsManager from './TagsManager';
 
 // Mapeamento de rotas para títulos e subtítulos
 const routeMetadata: Record<string, { title: string; subtitle: string; icon?: keyof typeof Icons }> = {
@@ -305,6 +307,12 @@ export default function TopBar() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Componentes Avançados */}
+          <div className="hidden sm:flex items-center gap-2">
+            <AutoBackupManager />
+            <TagsManager compactMode buttonLabel="Tags" />
           </div>
 
           {/* Avatar e Menu do Usuário */}

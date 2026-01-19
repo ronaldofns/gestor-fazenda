@@ -23,6 +23,8 @@ import {
   Bar,
   Legend
 } from 'recharts';
+import { CustomTooltip, PercentageTooltip, ComparativeTooltip } from '../components/ChartTooltip';
+import { useAdvancedMetrics } from '../hooks/useAdvancedMetrics';
 
 export default function Dashboard() {
   useSync();
@@ -31,6 +33,9 @@ export default function Dashboard() {
   const { fazendaAtivaId } = useFazendaContext();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  
+  // Métricas avançadas
+  const metricasAvancadas = useAdvancedMetrics(fazendaAtivaId || undefined);
   
   // Detectar tema atual para ajustar cores dos gráficos
   const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
