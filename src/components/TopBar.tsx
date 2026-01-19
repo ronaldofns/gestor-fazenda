@@ -239,8 +239,8 @@ export default function TopBar() {
               className={`flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl px-3 py-2 transition-all ${getThemeClasses(primaryColor, 'hover-bg-light')}`}
               title="Selecionar fazenda"
             >
-              <Icons.Building2 className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')}`} />
-              <span className="hidden md:block text-sm font-medium text-gray-700 dark:text-slate-300 truncate max-w-[120px]">
+              <Icons.Building2 className={`w-4 h-4 flex-shrink-0 ${getThemeClasses(primaryColor, 'text')}`} />
+              <span className="hidden md:block text-sm font-medium text-gray-700 dark:text-slate-300 truncate max-w-[200px]">
                 {fazendaAtiva ? fazendaAtiva.nome : 'Todas'}
               </span>
               <Icons.ChevronDown 

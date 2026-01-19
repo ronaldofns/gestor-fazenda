@@ -18,21 +18,25 @@ export function ToastContainer() {
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
 
-  const typeStyles: Record<ToastType, { bg: string; icon: React.ReactNode }> = {
+  const typeStyles: Record<ToastType, { bg: string; text: string; icon: React.ReactNode }> = {
     success: {
-      bg: getPrimaryBgClass(primaryColor),
+      bg: 'bg-green-600 dark:bg-green-700',
+      text: 'text-white',
       icon: <Icons.CheckCircle className="w-5 h-5 text-white" />
     },
     error: {
-      bg: 'bg-red-600',
+      bg: 'bg-red-600 dark:bg-red-700',
+      text: 'text-white',
       icon: <Icons.XCircle className="w-5 h-5 text-white" />
     },
     warning: {
-      bg: 'bg-amber-600',
+      bg: 'bg-amber-600 dark:bg-amber-700',
+      text: 'text-white',
       icon: <Icons.AlertTriangle className="w-5 h-5 text-white" />
     },
     info: {
-      bg: getPrimaryBgClass(primaryColor),
+      bg: 'bg-blue-600 dark:bg-blue-700',
+      text: 'text-white',
       icon: <Icons.Info className="w-5 h-5 text-white" />
     }
   };
@@ -85,14 +89,14 @@ export function ToastContainer() {
         return (
           <div
             key={toast.id}
-            className={`${styles.bg} text-white shadow-lg rounded-lg px-4 py-3 flex items-start gap-3 animate-fade-in relative`}
+            className={`${styles.bg} ${styles.text} shadow-lg rounded-lg px-4 py-3 flex items-start gap-3 animate-fade-in relative`}
             onMouseEnter={() => clearTimer(toast.id)}
             onMouseLeave={() => scheduleRemoval(toast)}
           >
             <div className="mt-0.5 flex-shrink-0">{styles.icon}</div>
             <div className="flex-1 min-w-0">
-              {toast.title && <div className="font-semibold text-sm">{toast.title}</div>}
-              <div className="text-sm whitespace-pre-line">{toast.message}</div>
+              {toast.title && <div className="font-semibold text-sm text-white">{toast.title}</div>}
+              <div className="text-sm whitespace-pre-line text-white">{toast.message}</div>
             </div>
             <button
               onClick={() => removeToast(toast.id)}
