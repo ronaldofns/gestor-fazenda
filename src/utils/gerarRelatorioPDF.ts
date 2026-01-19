@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatDateBR } from './date';
 import { Nascimento } from '../db/models';
 import { Desmama } from '../db/models';
 
@@ -83,9 +84,7 @@ export function gerarRelatorioPDF(dados: DadosRelatorio, matrizMap?: Map<string,
   // Preparar dados da tabela
   const tableData = dados.nascimentos.map((n) => {
     const desmama = dados.desmamas.get(n.id);
-    const dataDesmama = desmama?.dataDesmama 
-      ? new Date(desmama.dataDesmama).toLocaleDateString('pt-BR')
-      : '';
+    const dataDesmama = desmama?.dataDesmama ? formatDateBR(desmama.dataDesmama) : '';
     
     // Truncar observações muito longas para evitar quebra de layout
     const obs = (n.obs || '').substring(0, 50);
@@ -593,7 +592,7 @@ export function gerarRelatorioDesmamaPDF(dados: DadosRelatorioDesmama, matrizMap
         d.fazenda,
         d.raca || '-',
         d.sexo || '-',
-        d.dataDesmama ? new Date(d.dataDesmama).toLocaleDateString('pt-BR') : '-',
+        d.dataDesmama ? formatDateBR(d.dataDesmama) : '-',
         d.pesoDesmama ? `${d.pesoDesmama.toFixed(2)} kg` : '-'
       ];
     });

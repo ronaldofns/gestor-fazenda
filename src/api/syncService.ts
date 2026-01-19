@@ -1,6 +1,7 @@
 import { db } from '../db/dexieDB';
 import { supabase } from './supabaseClient';
 import { processSyncQueue } from '../utils/syncEvents';
+import { formatDateBR } from '../utils/date';
 
 function toIsoDate(dateStr?: string | null) {
   if (!dateStr) return null;
@@ -1160,14 +1161,8 @@ export async function pullUpdates() {
         // Converter data_nascimento (ISO) para formato dd/mm/aaaa usado localmente
         let dataNascimentoBR: string | undefined = undefined;
         if (s.data_nascimento) {
-          try {
-            const d = new Date(s.data_nascimento);
-            if (!isNaN(d.getTime())) {
-              dataNascimentoBR = d.toLocaleDateString('pt-BR');
-            }
-          } catch {
-            // Se der erro, mantém undefined e evita quebrar
-          }
+          const formatted = formatDateBR(s.data_nascimento);
+          dataNascimentoBR = formatted || undefined;
         }
 
         // Usar categoria_uuid se disponível, senão usar categoria (compatibilidade com dados antigos)

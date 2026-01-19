@@ -4,21 +4,18 @@
 
 O sistema de controle de versão está integrado ao aplicativo e exibe a versão atual no **footer da sidebar**.
 
-### Onde a Versão é Definida
+### Onde a Versão é Definida (fonte única)
 
-A versão é definida em dois lugares:
+A versão é definida **apenas** em:
 
-1. **`package.json`** - Versão principal do projeto
+1. **`package.json`** - Versão principal do projeto (fonte única)
    ```json
    {
     "version": "0.2.0"
    }
    ```
 
-2. **`src/utils/version.ts`** - Arquivo de versão usado pela aplicação
-   ```typescript
-export const APP_VERSION = '0.2.0';
-   ```
+O valor é injetado no app via Vite e consumido em `src/utils/version.ts`.
 
 ### Onde a Versão é Exibida
 
@@ -36,16 +33,10 @@ A versão aparece no **footer da Sidebar**, logo abaixo do botão "Sair":
 }
 ```
 
-### 2. Atualizar `src/utils/version.ts`
-
-```typescript
-export const APP_VERSION = '0.2.0';  // Mesma versão do package.json
-```
-
-### 3. Fazer Commit e Push
+### 2. Fazer Commit e Push
 
 ```bash
-git add package.json src/utils/version.ts
+git add package.json
 git commit -m "chore: atualizar versão para 0.2.0"
 git push
 ```
@@ -97,7 +88,7 @@ A Vercel automaticamente:
 
 ## Dicas
 
-- ✅ **Sempre atualize ambos os arquivos** (`package.json` e `src/utils/version.ts`)
+- ✅ **Atualize apenas o `package.json`**
 - ✅ **Use commits descritivos** quando atualizar a versão
 - ✅ **Considere criar tags Git** para versões importantes
 - ✅ **Mantenha a versão sincronizada** entre os dois arquivos

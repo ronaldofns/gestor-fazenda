@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { db } from '../db/dexieDB';
 import useSync from '../hooks/useSync';
 import { useAlertSettings } from '../hooks/useAlertSettings';
+import { useNotifications } from '../hooks/useNotifications';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
@@ -25,6 +26,7 @@ import {
 export default function Dashboard() {
   useSync();
   const { alertSettings } = useAlertSettings();
+  const notificacoes = useNotifications();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   
@@ -408,92 +410,73 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
       <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
 
-        {/* Alertas */}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border border-amber-200 dark:border-amber-500/40">
-            <div className="flex items-center justify-between mb-3 gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <Icons.AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Desmama atrasada</h3>
-              </div>
-              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded-full whitespace-nowrap flex-shrink-0">
-                {alertSettings.limiteMesesDesmama}+ meses
-              </span>
-            </div>
-            {alertas.desmamaAtrasada.length === 0 ? (
-              <p className="text-sm text-gray-600 dark:text-slate-400">Nenhum bezerro pendente de desmama no limite configurado.</p>
-            ) : (
-              <div className="space-y-2 max-h-56 overflow-auto">
-                {alertas.desmamaAtrasada.map((item) => {
-                  const matrizIdentificador = matrizMap.get(item.matrizId) || item.matrizId;
-                  return (
-                    <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-amber-100 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                          Matriz {matrizIdentificador} {item.brinco ? `• Brinco ${item.brinco}` : ''}
-                        </p>
-                        <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                          Fazenda: {item.fazenda} • Nasc.: {item.dataNascimento || '-'}
-                        </p>
-                      </div>
-                      <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
-                        {item.meses} meses
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <div className="mt-2 flex justify-end">
-              <Link
-                to="/planilha"
-                className="text-xs font-semibold text-amber-700 hover:text-amber-900"
-              >
-                Ver na planilha
-              </Link>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border border-red-200 dark:border-red-500/40">
-            <div className="flex items-center justify-between mb-3 gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <Icons.AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-slate-100 truncate">Alerta: Mortalidade alta</h3>
-              </div>
-              <span className="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 rounded-full whitespace-nowrap flex-shrink-0">
-                Últimos {alertSettings.janelaMesesMortalidade} meses
-              </span>
-            </div>
-            {alertas.mortalidadeAlta.length === 0 ? (
-              <p className="text-sm text-gray-600 dark:text-slate-400">Nenhuma fazenda acima do limiar de {alertSettings.limiarMortalidade}% na janela.</p>
-            ) : (
-              <div className="space-y-2 max-h-56 overflow-auto">
-                {alertas.mortalidadeAlta.map((item) => (
-                  <div key={item.fazendaId} className="flex items-center justify-between p-2 rounded-md border border-red-100 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{item.fazenda}</p>
-                      <p className="text-xs text-gray-600 dark:text-slate-400">
-                        {item.mortos} mortos de {item.total} nascimentos
-                      </p>
-                    </div>
-                    <span className="text-xs font-semibold text-red-700 whitespace-nowrap">
-                      {item.taxa}%
-                    </span>
+        {/* Resumo de Alertas */}
+        {notificacoes.total > 0 && (
+          <div className="mb-6">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-100/70 dark:bg-amber-900/30">
+                    <Icons.Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      Resumo de Notificações
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {notificacoes.total} {notificacoes.total === 1 ? 'alerta pendente' : 'alertas pendentes'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  {notificacoes.desmamaAtrasada.length > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 flex items-center gap-1">
+                      <Icons.AlertTriangle className="w-3 h-3" />
+                      Desmama: {notificacoes.desmamaAtrasada.length}
+                    </span>
+                  )}
+                  {notificacoes.mortalidadeAlta.length > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 flex items-center gap-1">
+                      <Icons.AlertTriangle className="w-3 h-3" />
+                      Mortalidade: {notificacoes.mortalidadeAlta.length}
+                    </span>
+                  )}
+                  {notificacoes.pesoForaPadrao.length > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200 flex items-center gap-1">
+                      <Icons.Scale className="w-3 h-3" />
+                      Peso: {notificacoes.pesoForaPadrao.length}
+                    </span>
+                  )}
+                  {(notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length) > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200 flex items-center gap-1">
+                      <Icons.Injection className="w-3 h-3" />
+                      Vacinas: {notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length}
+                    </span>
+                  )}
+                  {notificacoes.dadosIncompletos.length > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200 flex items-center gap-1">
+                      <Icons.FileWarning className="w-3 h-3" />
+                      Dados: {notificacoes.dadosIncompletos.length}
+                    </span>
+                  )}
+                  {notificacoes.matrizesSemCadastro.length > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-200 flex items-center gap-1">
+                      <Icons.Cow className="w-3 h-3" />
+                      Matrizes: {notificacoes.matrizesSemCadastro.length}
+                    </span>
+                  )}
+                  <Link
+                    to="/notificacoes"
+                    className={`text-xs font-semibold px-4 py-1.5 rounded-full transition-colors flex items-center gap-1 ${getPrimaryBgClass(primaryColor)} text-white hover:opacity-90`}
+                  >
+                    <Icons.Eye className="w-3 h-3" />
+                    Ver todos
+                  </Link>
+                </div>
               </div>
-            )}
-            <div className="mt-2 flex justify-end">
-              <Link
-                to="/planilha"
-                className="text-xs font-semibold text-red-700 hover:text-red-900"
-              >
-                Ver na planilha
-              </Link>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Cards de Métricas Principais */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-6">

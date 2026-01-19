@@ -1217,11 +1217,22 @@ export default function Home() {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '';
-    try {
-      return new Date(dateStr).toLocaleDateString('pt-BR');
-    } catch {
+    // Se já está em DD/MM/YYYY, manter sem conversão (evita timezone)
+    if (dateStr.includes('/')) {
+      const [dia, mes, ano] = dateStr.split('/');
+      if (dia && mes && ano) {
+        return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${ano}`;
+      }
       return dateStr;
     }
+    // Se está em YYYY-MM-DD, converter para DD/MM/YYYY sem Date()
+    if (dateStr.includes('-')) {
+      const [ano, mes, dia] = dateStr.split('-');
+      if (ano && mes && dia) {
+        return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${ano}`;
+      }
+    }
+    return dateStr;
   };
 
   // Obter nome da fazenda selecionada

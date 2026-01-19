@@ -37,59 +37,66 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 ## 🐄 PRIORIDADE 2 — Funcionalidades que o produtor realmente usa
 
 ### 4️⃣ Linha do Tempo do Animal
-**Status**: ⚠️ **PARCIAL**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Histórico de partos por matriz (em `Home.tsx`)
 - ✅ Mostra nascimento, desmama, peso
 - ✅ Pesagens periódicas
 - ✅ Vacinações
-- ❌ **FALTA**: Timeline visual completa com:
+- ✅ Timeline visual completa com:
   - Observações/eventos
+  - Metadados completos (brinco, sexo, raça, lote, responsável)
   - Visualização consolidada em linha do tempo
 
-**Onde está**: `src/routes/Home.tsx` (modal de histórico de matriz)
+**Onde está**: `src/routes/Home.tsx` (modal de histórico), `src/components/TimelineAnimal.tsx`
 
 ### 5️⃣ Pesagens Periódicas
-**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Tabela de pesagens
 - ✅ Campos: peso, data, observação
-- ❌ Cálculo de ganho médio diário (GMD)
-- ❌ Alertas para animais fora do padrão
+- ✅ Cálculo de ganho médio diário (GMD)
+- ✅ Alertas para animais fora do padrão
+- ✅ Timeline de evolução do peso
+- ✅ Sincronização completa
 
 ### 6️⃣ Vacinação / Sanidade
-**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Tabela de vacinações
-- ✅ Campos: vacina, data, lote, responsável
+- ✅ Campos: vacina, data de aplicação, data de vencimento, lote, responsável
 - ✅ Histórico de sanidade
-- ❌ Alertas de vacinas vencidas
+- ✅ Alertas de vacinas vencidas
+- ✅ Alertas de vacinas vencendo em breve (30 dias)
+- ✅ Sincronização completa
 
 ---
 
 ## 📊 PRIORIDADE 3 — Inteligência (valor alto)
 
 ### 7️⃣ Indicadores Automáticos
-**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Taxa de desmama (%)
 - ✅ Taxa de mortalidade
 - ✅ Peso médio por raça
 - ✅ Nascimentos por mês/ano
-- ❌ **FALTA**: 
-  - Ganho médio diário (GMD) por lote
-  - Intervalo parto–parto
-  - Taxa de natalidade por matriz
+- ✅ Ganho médio diário (GMD) médio do rebanho
+- ✅ Intervalo parto–parto (média entre partos por matriz)
+- ✅ Gráficos interativos (nascimentos, mortalidade, comparativo por fazenda)
+- ✅ Distribuição por sexo
 
-**Onde está**: `src/routes/Dashboard.tsx`
+**Onde está**: `src/routes/Dashboard.tsx`, `src/utils/calcularGMD.ts`
 
 ### 8️⃣ Alertas Inteligentes
-**Status**: ✅ **IMPLEMENTADO (PARCIAL)**
+**Status**: ✅ **IMPLEMENTADO**
 - ✅ Bezerro sem desmama após X dias
 - ✅ Mortalidade alta por fazenda
-- ✅ Dados incompletos (matriz sem cadastro)
-- ❌ **FALTA**:
-  - Peso abaixo da média
-  - Animal sem movimentação há X dias
-  - Vacina vencida (quando implementar vacinação)
+- ✅ Dados incompletos (sem raça, sem data de nascimento)
+- ✅ Matrizes sem cadastro
+- ✅ Peso abaixo da média (15% abaixo do esperado por idade/raça)
+- ✅ Vacinas vencidas
+- ✅ Vacinas vencendo em breve (30 dias)
+- ✅ Resumo compacto no Dashboard
+- ✅ Detalhes completos em página dedicada
 
-**Onde está**: `src/hooks/useNotifications.ts`, `src/routes/Notificacoes.tsx`
+**Onde está**: `src/hooks/useNotifications.ts`, `src/routes/Notificacoes.tsx`, `src/routes/Dashboard.tsx`
 
 ---
 
@@ -172,49 +179,55 @@ Este documento lista as funcionalidades sugeridas e o status de implementação 
 
 ## 📋 Resumo do Status
 
-### ✅ Totalmente Implementado: 7 funcionalidades
+### ✅ Totalmente Implementado: 11 funcionalidades
 1. Centro de Sincronização
 2. Fila de Eventos Offline
 3. Lock de Registro
 4. Permissões Finas (RBAC)
 5. Auditoria
 6. Relatórios PDF
-7. Indicadores Automáticos (parcial - falta GMD e intervalo parto-parto)
+7. Indicadores Automáticos
+8. Alertas Inteligentes
+9. Linha do Tempo do Animal
+10. Pesagens Periódicas
+11. Vacinação / Sanidade
 
-### ⚠️ Parcialmente Implementado: 5 funcionalidades
-1. Linha do Tempo do Animal (falta timeline visual completa)
-2. Pesagens Periódicas (falta GMD e alertas)
-3. Vacinação / Sanidade (falta alertas de vencimento)
-4. Alertas Inteligentes (falta alguns tipos)
-5. Multi-fazenda (falta troca rápida)
+### ⚠️ Parcialmente Implementado: 2 funcionalidades
+1. Backup Local (falta importar/restaurar)
+2. Multi-fazenda (falta troca rápida)
 
-### ❌ Não Implementado: 2 funcionalidades
+### ❌ Não Implementado: 1 funcionalidade
 1. Integração com Balança
-2. Importar Backup (restaurar)
 
 ---
 
 ## 🎯 Funcionalidades Prioritárias para Implementar
 
-### Sprint 1 - Robustez
-1. **Centro de Sincronização** (tela dedicada) ✅
-2. **Fila de Eventos Offline** (tabela sync_events no IndexedDB) ✅
-3. **Lock de Registro** (campos locked_by, locked_at, TTL) ✅
+### ✅ Sprint 1 - Robustez (CONCLUÍDA)
+1. **Centro de Sincronização** ✅
+2. **Fila de Eventos Offline** ✅
+3. **Lock de Registro** ✅
 
-### Sprint 2 - Funcionalidades do Produtor
-4. **Linha do Tempo do Animal** (timeline visual completa)
-5. **Pesagens Periódicas** (GMD + alertas)
-6. **Vacinação / Sanidade** (alertas)
+### ✅ Sprint 2 - Funcionalidades do Produtor (CONCLUÍDA)
+4. **Linha do Tempo do Animal** ✅
+5. **Pesagens Periódicas** ✅
+6. **Vacinação / Sanidade** ✅
 
-### Sprint 3 - Melhorias
-7. **Indicadores Avançados** (GMD, intervalo parto-parto)
-8. **Alertas Adicionais** (peso abaixo da média, etc.)
-9. **Multi-fazenda** (troca rápida)
+### ✅ Sprint 3 - Inteligência (CONCLUÍDA)
+7. **Indicadores Avançados** ✅
+8. **Alertas Inteligentes** ✅
 
-### Sprint 4 - Futuro
-10. **Importar Backup** (restaurar dados)
-11. **Integração com Balança** (quando necessário)
+### 🚧 Sprint 4 - Melhorias e Refinamentos (PRÓXIMAS)
+9. **Multi-fazenda** (troca rápida de contexto)
+10. **Importar Backup** (restaurar dados salvos)
+11. **Aplicar permissões nas rotas** (proteger acesso baseado em roles)
+12. **Otimizações de performance** (lazy loading, virtualization)
+
+### 🔮 Sprint 5 - Futuro
+13. **Integração com Balança** (Bluetooth/USB)
+14. **Modo offline aprimorado** (melhor feedback visual)
+15. **PWA avançado** (notificações push, background sync)
 
 ---
 
-**Última atualização**: 14/01/2026
+**Última atualização**: 19/01/2026

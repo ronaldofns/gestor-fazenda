@@ -123,10 +123,14 @@ export default function HistoricoAlteracoes({
     if (value.includes('/')) {
       const [dia, mes, ano] = value.split('/');
       if (dia && mes && ano) {
-        const iso = `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
-        const d = new Date(iso);
+        const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
         return isNaN(d.getTime()) ? null : d;
       }
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [ano, mes, dia] = value.split('-');
+      const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
+      return isNaN(d.getTime()) ? null : d;
     }
     if (value.includes('-')) {
       const d = new Date(value);

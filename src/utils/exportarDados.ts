@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { Nascimento } from '../db/models';
 import { Desmama } from '../db/models';
+import { formatDateBR } from './date';
 
 interface DadosExportacao {
   nascimentos: Nascimento[];
@@ -27,14 +28,10 @@ export function exportarParaExcel(dados: DadosExportacao) {
         'Sexo': n.sexo || '',
         'Raça': n.raca || '',
         'Brinco': n.brincoNumero || '',
-        'Data Nascimento': n.dataNascimento 
-          ? new Date(n.dataNascimento).toLocaleDateString('pt-BR')
-          : '',
+        'Data Nascimento': n.dataNascimento ? formatDateBR(n.dataNascimento) : '',
         'Morto': n.morto ? 'X' : '',
         'Peso Desmama (kg)': desmama?.pesoDesmama || '',
-        'Data Desmama': desmama?.dataDesmama 
-          ? new Date(desmama.dataDesmama).toLocaleDateString('pt-BR')
-          : '',
+        'Data Desmama': desmama?.dataDesmama ? formatDateBR(desmama.dataDesmama) : '',
         'Observações': n.obs || ''
       };
     });
@@ -129,14 +126,10 @@ export function exportarParaCSV(dados: DadosExportacao) {
         n.sexo || '',
         n.raca || '',
         n.brincoNumero || '',
-        n.dataNascimento 
-          ? new Date(n.dataNascimento).toLocaleDateString('pt-BR')
-          : '',
+        n.dataNascimento ? formatDateBR(n.dataNascimento) : '',
         n.morto ? 'X' : '',
         desmama?.pesoDesmama?.toString() || '',
-        desmama?.dataDesmama 
-          ? new Date(desmama.dataDesmama).toLocaleDateString('pt-BR')
-          : '',
+        desmama?.dataDesmama ? formatDateBR(desmama.dataDesmama) : '',
         (n.obs || '').replace(/"/g, '""') // Escapar aspas duplas
       ];
     });

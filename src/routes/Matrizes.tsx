@@ -106,10 +106,14 @@ export default function Matrizes() {
     if (value.includes('/')) {
       const [dia, mes, ano] = value.split('/');
       if (dia && mes && ano) {
-        const iso = `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
-        const dParsed = new Date(iso);
+        const dParsed = new Date(Number(ano), Number(mes) - 1, Number(dia));
         if (!isNaN(dParsed.getTime())) return dParsed;
       }
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [ano, mes, dia] = value.split('-');
+      const dParsed = new Date(Number(ano), Number(mes) - 1, Number(dia));
+      if (!isNaN(dParsed.getTime())) return dParsed;
     }
     const d = new Date(value);
     return isNaN(d.getTime()) ? null : d;

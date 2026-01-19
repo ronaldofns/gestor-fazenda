@@ -1,7 +1,7 @@
-// Versão da aplicação - sincronizada com package.json
-export const APP_VERSION = '0.2.0';
+// Versão da aplicação (fonte única: package.json via Vite define)
+export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0';
 
-// Data da build (será substituída durante o build)
+// Data da build (definida no Vite config)
 export const BUILD_DATE = import.meta.env.VITE_BUILD_DATE || new Date().toISOString().split('T')[0];
 
 // Informações de versão

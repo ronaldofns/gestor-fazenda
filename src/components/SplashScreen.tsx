@@ -72,8 +72,17 @@ export default function SplashScreen() {
         </div>
         
         {/* Nome do App */}
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Gerenciador de Fazendas</h1>
-        <p className="text-gray-600 mb-8">Gestão inteligente do rebanho, mesmo offline.</p>
+<h1 className="text-3xl font-bold text-gray-900 mb-2">
+  Gerenciador de Fazendas
+</h1>
+
+<p className="text-gray-600 mb-1">
+  Controle completo do rebanho com tecnologia offline-first.
+</p>
+
+<p className="text-sm text-gray-500 mb-8">
+  Produtividade, indicadores e histórico sempre disponíveis, mesmo no campo.
+</p>
         
         {/* Loading Spinner */}
         <div className="flex justify-center">
