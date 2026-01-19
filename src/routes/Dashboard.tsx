@@ -439,37 +439,37 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {notificacoes.desmamaAtrasada.length > 0 && (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 flex items-center gap-1">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-600/90 dark:text-white font-medium flex items-center gap-1">
                       <Icons.AlertTriangle className="w-3 h-3" />
                       Desmama: {notificacoes.desmamaAtrasada.length}
                     </span>
                   )}
                   {notificacoes.mortalidadeAlta.length > 0 && (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200 flex items-center gap-1">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-800 dark:bg-red-600/90 dark:text-white font-medium flex items-center gap-1">
                       <Icons.AlertTriangle className="w-3 h-3" />
                       Mortalidade: {notificacoes.mortalidadeAlta.length}
                     </span>
                   )}
                   {notificacoes.pesoForaPadrao.length > 0 && (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200 flex items-center gap-1">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-600/90 dark:text-white font-medium flex items-center gap-1">
                       <Icons.Scale className="w-3 h-3" />
                       Peso: {notificacoes.pesoForaPadrao.length}
                     </span>
                   )}
                   {(notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length) > 0 && (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200 flex items-center gap-1">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-600/90 dark:text-white font-medium flex items-center gap-1">
                       <Icons.Injection className="w-3 h-3" />
                       Vacinas: {notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length}
                     </span>
                   )}
                   {notificacoes.dadosIncompletos.length > 0 && (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200 flex items-center gap-1">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-600/90 dark:text-white font-medium flex items-center gap-1">
                       <Icons.FileWarning className="w-3 h-3" />
                       Dados: {notificacoes.dadosIncompletos.length}
                     </span>
                   )}
                   {notificacoes.matrizesSemCadastro.length > 0 && (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-200 flex items-center gap-1">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-600/90 dark:text-white font-medium flex items-center gap-1">
                       <Icons.Cow className="w-3 h-3" />
                       Matrizes: {notificacoes.matrizesSemCadastro.length}
                     </span>
