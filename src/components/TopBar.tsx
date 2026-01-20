@@ -7,14 +7,10 @@ import { db } from '../db/dexieDB';
 import { Icons } from '../utils/iconMapping';
 import { showToast } from '../utils/toast';
 import { setGlobalSyncing, getGlobalSyncing } from './Sidebar';
-import { useAppSettings, AppSettings } from '../hooks/useAppSettings';
-import { COLOR_PALETTES, ColorPaletteKey } from '../hooks/useThemeColors';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getThemeClasses, getTitleTextClass, getPrimaryButtonClass } from '../utils/themeHelpers';
-import { useAlertSettings, AlertSettings } from '../hooks/useAlertSettings';
-import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
-import AutoBackupManager from './AutoBackupManager';
-import TagsManager from './TagsManager';
 
 // Mapeamento de rotas para títulos e subtítulos
 const routeMetadata: Record<string, { title: string; subtitle: string; icon?: keyof typeof Icons }> = {
@@ -74,7 +70,6 @@ export default function TopBar() {
   const { fazendaAtivaId, setFazendaAtiva } = useFazendaContext();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [fazendaMenuOpen, setFazendaMenuOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -309,12 +304,6 @@ export default function TopBar() {
             )}
           </div>
 
-          {/* Componentes Avançados */}
-          <div className="hidden sm:flex items-center gap-2">
-            <AutoBackupManager />
-            <TagsManager compactMode buttonLabel="Tags" />
-          </div>
-
           {/* Avatar e Menu do Usuário */}
           <div className="relative" ref={menuRef}>
             <button
@@ -386,7 +375,7 @@ export default function TopBar() {
                   <button
                     onClick={() => {
                       setUserMenuOpen(false);
-                      setSettingsOpen(true);
+                      navigate('/configuracoes');
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-lg mx-1"
                   >

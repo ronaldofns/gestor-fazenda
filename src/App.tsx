@@ -27,6 +27,7 @@ const ImportarPlanilha = lazy(() => import('./routes/ImportarPlanilha'));
 const ListaUsuarios = lazy(() => import('./routes/ListaUsuarios'));
 const Permissoes = lazy(() => import('./routes/Permissoes'));
 const Perfil = lazy(() => import('./routes/Perfil'));
+const Configuracoes = lazy(() => import('./routes/Configuracoes'));
 const Sincronizacao = lazy(() => import('./routes/Sincronizacao'));
 
 // Componente de loading para Suspense
@@ -150,6 +151,7 @@ export default function App() {
                               </ProtectedRoute>
                             } />
                             <Route path="/perfil" element={<Perfil />} />
+                            <Route path="/configuracoes" element={<Configuracoes />} />
                             <Route path="/sincronizacao" element={
                               <ProtectedRoute requiredPermission="ver_sincronizacao">
                                 <Sincronizacao />
