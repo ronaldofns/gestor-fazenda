@@ -316,11 +316,10 @@ export function useTags() {
   }, []);
 
   // Limpar todas as tags e atribuições
+  // NOTA: Esta função não mostra confirmação. O componente que a chama deve fazer isso.
   const clearAll = useCallback(() => {
-    if (window.confirm('Deseja excluir TODAS as tags e atribuições? Esta ação não pode ser desfeita!')) {
-      setTags([]);
-      setAssignments([]);
-    }
+    setTags([]);
+    setAssignments([]);
   }, []);
 
   // Estatísticas

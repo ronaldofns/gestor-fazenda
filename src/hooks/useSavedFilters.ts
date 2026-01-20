@@ -162,9 +162,7 @@ export function useSavedFilters(scope: string = 'global') {
 
   // Limpar todos os filtros
   const clearAllFilters = useCallback(() => {
-    if (window.confirm('Tem certeza que deseja excluir todos os filtros salvos?')) {
-      setSavedFilters([]);
-    }
+    setSavedFilters([]);
   }, []);
 
   // Exportar filtros

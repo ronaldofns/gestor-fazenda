@@ -9,23 +9,26 @@ export interface ComboboxOption {
   value: string;
 }
 
-export interface ComboboxProps {
-  value: string | number | undefined | null;
-  onChange: (value: string) => void;
-  options: string[] | ComboboxOption[];
+export interface ComboboxProps<T = any> {
+  value: T | string | number | undefined | null;
+  onChange: (value: T | string) => void;
+  options: string[] | ComboboxOption[] | T[];
   placeholder?: string;
   onAddNew?: () => void;
   addNewLabel?: string;
   className?: string;
   disabled?: boolean;
-  allowCustomValue?: boolean; // Permite valores que não estão na lista
+  allowCustomValue?: boolean;
+  // Props para objetos genéricos
+  getOptionLabel?: (option: T) => string;
+  getOptionValue?: (option: T) => string;
   // Props para favoritos
   favoritoTipo?: 'fazenda' | 'raca';
   isFavorito?: (value: string) => boolean;
   onToggleFavorito?: (value: string) => void;
 }
 
-function ComboboxComponent({
+function ComboboxComponent<T = any>({
   value,
   onChange,
   options,
@@ -35,15 +38,34 @@ function ComboboxComponent({
   className = "",
   disabled = false,
   allowCustomValue = true,
+  getOptionLabel,
+  getOptionValue,
   favoritoTipo,
   isFavorito,
   onToggleFavorito
-}: ComboboxProps) {
+}: ComboboxProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  
+  // Função helper para extrair label de uma opção
+  const extractLabel = (option: any): string => {
+    if (typeof option === 'string') return option;
+    if (getOptionLabel) return getOptionLabel(option);
+    if (option && typeof option === 'object' && 'label' in option) return option.label;
+    return String(option);
+  };
+  
+  // Função helper para extrair value de uma opção
+  const extractValue = (option: any): string => {
+    if (typeof option === 'string') return option;
+    if (getOptionValue) return getOptionValue(option);
+    if (option && typeof option === 'object' && 'value' in option) return String(option.value);
+    return String(option);
+  };
+  
   // Garantir que value seja sempre uma string
-  const valueStr = value != null ? String(value) : '';
+  const valueStr = value != null ? (typeof value === 'object' && value !== null ? extractLabel(value) : String(value)) : '';
   const [inputValue, setInputValue] = useState(valueStr);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,13 +75,14 @@ function ComboboxComponent({
   const [isPending, startTransition] = useTransition();
 
   // Normalizar opções para formato unificado
-  const normalizeOptions = (opts: string[] | ComboboxOption[]): ComboboxOption[] => {
-    return opts.map(opt => 
-      typeof opt === 'string' ? { label: opt, value: opt } : opt
-    );
+  const normalizeOptions = (opts: any[]): ComboboxOption[] => {
+    return opts.map(opt => ({
+      label: extractLabel(opt),
+      value: extractValue(opt)
+    }));
   };
 
-  const normalizedOptions = useMemo(() => normalizeOptions(options), [options]);
+  const normalizedOptions = useMemo(() => normalizeOptions(options), [options, getOptionLabel, getOptionValue]);
 
   // Função para encontrar o label baseado no value
   const getLabelFromValue = (val: string | number | undefined | null): string => {
@@ -150,7 +173,9 @@ function ComboboxComponent({
 
   const handleSelect = (option: ComboboxOption) => {
     setInputValue(option.label);
-    startTransition(() => onChange(option.value));
+    // Encontrar a opção original para passar para onChange
+    const originalOption = options.find(opt => extractValue(opt) === option.value);
+    startTransition(() => onChange(originalOption || option.value));
     setIsOpen(false);
     setHighlightedIndex(-1);
     inputRef.current?.blur();

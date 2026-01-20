@@ -182,8 +182,9 @@ export function useAutoBackup() {
 
     const checkAndBackup = () => {
       if (!nextBackupAt) {
-        // Primeiro backup
-        executeBackup();
+        // Se não há histórico, agendar próximo backup sem executar agora
+        const nextDate = new Date(Date.now() + settings.intervalMinutes * 60 * 1000);
+        setNextBackupAt(nextDate.toISOString());
         return;
       }
 
@@ -198,11 +199,14 @@ export function useAutoBackup() {
     // Verificar a cada minuto
     const interval = setInterval(checkAndBackup, 60 * 1000);
 
-    // Verificar imediatamente ao iniciar
-    checkAndBackup();
+    // Verificar pela primeira vez após 1 minuto (não imediatamente)
+    const initialCheck = setTimeout(checkAndBackup, 60 * 1000);
 
-    return () => clearInterval(interval);
-  }, [settings.enabled, nextBackupAt, executeBackup]);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(initialCheck);
+    };
+  }, [settings.enabled, nextBackupAt, executeBackup, settings.intervalMinutes]);
 
   // Atualizar configurações
   const updateSettings = useCallback((updates: Partial<AutoBackupSettings>) => {
@@ -216,10 +220,8 @@ export function useAutoBackup() {
 
   // Limpar histórico
   const clearHistory = useCallback(() => {
-    if (window.confirm('Deseja limpar todo o histórico de backups?')) {
-      setHistory([]);
-      showToast({ type: 'info', message: 'Histórico de backups limpo' });
-    }
+    setHistory([]);
+    showToast({ type: 'info', message: 'Histórico de backups limpo' });
   }, []);
 
   // Deletar item do histórico

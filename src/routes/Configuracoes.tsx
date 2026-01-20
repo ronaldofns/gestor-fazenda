@@ -274,7 +274,7 @@ export default function Configuracoes() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
                     Cor Principal do Sistema
                   </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                  <div className="flex flex-wrap gap-4">
                     {COLOR_PALETTES && Object.entries(COLOR_PALETTES).map(([key, palette]) => {
                       const isSelected = ((draftAppSettings?.primaryColor) || 'gray') === key;
                       const colorMap: Record<string, string> = {
@@ -299,15 +299,18 @@ export default function Configuracoes() {
                               }));
                             }
                           }}
-                          className={`relative p-4 rounded-lg border-2 transition-all ${
+                          className={`relative w-14 h-14 rounded-full border-4 transition-all transform hover:scale-110 ${
                             isSelected
-                              ? 'border-gray-900 dark:border-slate-100 shadow-lg scale-105'
-                              : 'border-gray-200 dark:border-slate-700 hover:border-gray-400 dark:hover:border-slate-500 hover:shadow-md'
+                              ? 'border-gray-900 dark:border-slate-100 shadow-xl scale-110'
+                              : 'border-gray-300 dark:border-slate-600 hover:border-gray-400 dark:hover:border-slate-500 hover:shadow-lg'
                           }`}
                           style={{ backgroundColor: colorMap[key] }}
+                          title={palette.name}
                         >
                           {isSelected && (
-                            <Icons.Check className="absolute top-1 right-1 w-4 h-4 text-white bg-black/30 rounded-full p-0.5" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Icons.Check className="w-6 h-6 text-white drop-shadow-lg" />
+                            </div>
                           )}
                           <span className="sr-only">{palette.name}</span>
                         </button>
@@ -390,7 +393,7 @@ export default function Configuracoes() {
                   <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
                     Configure backups automáticos em intervalos regulares
                   </p>
-                  <AutoBackupManager />
+                  <AutoBackupManager inline />
                 </div>
               </div>
             )}
@@ -418,7 +421,7 @@ export default function Configuracoes() {
                   </div>
                 </div>
 
-                <TagsManager />
+                <TagsManager inline />
               </div>
             )}
           </div>

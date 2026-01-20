@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Combobox, { ComboboxOption } from './Combobox';
+import TagSelector from './TagSelector';
 import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { Nascimento, Desmama } from '../db/models';
@@ -95,6 +96,7 @@ function NascimentoModalComponent({
   const [abaAtiva, setAbaAtiva] = useState<'nascimento' | 'desmama'>('nascimento');
   const inicializadoRef = useRef<string | false>(false);
   const internalMatrizInputRef = useRef<HTMLInputElement>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   
   // Criar ref unificado que funciona com ambos os tipos
   const matrizRef = useMemo(() => {
@@ -258,6 +260,18 @@ function NascimentoModalComponent({
         dataDesmama: desmamaEditando?.dataDesmama ? converterDataParaFormatoInput(desmamaEditando.dataDesmama) : '',
         pesoDesmama: desmamaEditando?.pesoDesmama ? desmamaEditando.pesoDesmama.toString() : ''
       });
+      
+      // Carregar tags do nascimento
+      db.tagAssignments
+        .where({ entityId: initialData.id, entityType: 'nascimento' })
+        .filter(a => !a.deletedAt)
+        .toArray()
+        .then(assignments => {
+          const tagIds = assignments.map(a => a.tagId);
+          setSelectedTagIds(tagIds);
+        })
+        .catch(err => console.error('Erro ao carregar tags:', err));
+      
       // Reset para aba de nascimento apenas quando o modal é aberto pela primeira vez
       // Não resetar se o usuário já selecionou uma aba manualmente
       // Usar uma chave única baseada no ID do registro para rastrear inicialização
@@ -443,6 +457,35 @@ function NascimentoModalComponent({
         await db.nascimentos.add(novoNascimento);
         console.log('Nascimento salvo com sucesso:', id);
 
+        // Salvar tags se houver
+        if (selectedTagIds.length > 0 && user) {
+          const tagAssignments = selectedTagIds.map(tagId => ({
+            id: uuid(),
+            entityId: id,
+            entityType: 'nascimento' as const,
+            tagId,
+            assignedBy: user.id,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            synced: false,
+            remoteId: null
+          }));
+          
+          await db.tagAssignments.bulkAdd(tagAssignments);
+          
+          // Atualizar contador de uso das tags
+          for (const tagId of selectedTagIds) {
+            const tag = await db.tags.get(tagId);
+            if (tag) {
+              await db.tags.update(tagId, {
+                usageCount: tag.usageCount + 1,
+                synced: false
+              });
+            }
+          }
+        }
+
         // Auditoria: criação de nascimento
         await registrarAudit({
           entity: 'nascimento',
@@ -455,7 +498,7 @@ function NascimentoModalComponent({
         });
 
         // Manter campos: Fazenda, Mês, Ano, Data de Nascimento, Raça, Tipo
-        // Limpar apenas: Matriz, Brinco, Sexo, Obs
+        // Limpar apenas: Matriz, Brinco, Sexo, Obs, Tags
         const currentValues = getValues();
         // Garantir que os valores sejam mantidos corretamente
         const valoresParaManter = {
@@ -473,6 +516,9 @@ function NascimentoModalComponent({
           dataDesmama: '',
           pesoDesmama: ''
         };
+        
+        // Limpar tags selecionadas
+        setSelectedTagIds([]);
         
         // Marcar que acabamos de salvar para evitar que o useEffect reset os valores
         acabouDeSalvarRef.current = true;
@@ -579,6 +625,64 @@ function NascimentoModalComponent({
         await db.nascimentos.update(initialData.id, updates);
 
         const depois = { ...initialData, ...updates };
+
+        // Atualizar tags se houver mudanças
+        if (user) {
+          // Obter tags atuais
+          const currentAssignments = await db.tagAssignments
+            .where({ entityId: initialData.id, entityType: 'nascimento' })
+            .toArray();
+          const currentTagIds = currentAssignments.map(a => a.tagId);
+
+          // Remover tags que não estão mais selecionadas
+          const tagsToRemove = currentTagIds.filter(id => !selectedTagIds.includes(id));
+          for (const assignment of currentAssignments) {
+            if (tagsToRemove.includes(assignment.tagId)) {
+              await db.tagAssignments.update(assignment.id, {
+                deletedAt: now,
+                synced: false
+              });
+              // Decrementar contador
+              const tag = await db.tags.get(assignment.tagId);
+              if (tag && tag.usageCount > 0) {
+                await db.tags.update(assignment.tagId, {
+                  usageCount: tag.usageCount - 1,
+                  synced: false
+                });
+              }
+            }
+          }
+
+          // Adicionar novas tags
+          const tagsToAdd = selectedTagIds.filter(id => !currentTagIds.includes(id));
+          if (tagsToAdd.length > 0) {
+            const newAssignments = tagsToAdd.map(tagId => ({
+              id: uuid(),
+              entityId: initialData.id,
+              entityType: 'nascimento' as const,
+              tagId,
+              assignedBy: user.id,
+              createdAt: now,
+              updatedAt: now,
+              deletedAt: null,
+              synced: false,
+              remoteId: null
+            }));
+            
+            await db.tagAssignments.bulkAdd(newAssignments);
+            
+            // Incrementar contador
+            for (const tagId of tagsToAdd) {
+              const tag = await db.tags.get(tagId);
+              if (tag) {
+                await db.tags.update(tagId, {
+                  usageCount: tag.usageCount + 1,
+                  synced: false
+                });
+              }
+            }
+          }
+        }
 
         // Auditoria: edição de nascimento
         await registrarAudit({
@@ -921,8 +1025,21 @@ function NascimentoModalComponent({
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Sexo *</label>
           <Combobox
-            value={watch('sexo') || ''}
-            onChange={(value) => setValue('sexo', value as 'M' | 'F', { shouldValidate: true })}
+            value={(() => {
+              const sexo = watch('sexo');
+              if (!sexo) return '';
+              if (typeof sexo === 'string') return sexo;
+              if (typeof sexo === 'object' && sexo !== null) {
+                const obj = sexo as Record<string, unknown>;
+                if ('value' in obj) return String(obj.value);
+              }
+              return String(sexo);
+            })()}
+            onChange={(value) => {
+              // Garantir que seja sempre uma string 'M' ou 'F'
+              const sexoValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+              setValue('sexo', sexoValue as 'M' | 'F', { shouldValidate: true });
+            }}
             options={[
               { label: 'Macho', value: 'M' },
               { label: 'Fêmea', value: 'F' }
@@ -938,8 +1055,21 @@ function NascimentoModalComponent({
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">Raça</label>
           <Combobox
-            value={watch('raca') || ''}
-            onChange={(value) => setValue('raca', value)}
+            value={(() => {
+              const raca = watch('raca');
+              if (!raca) return '';
+              if (typeof raca === 'string') return raca;
+              if (typeof raca === 'object' && raca !== null) {
+                const obj = raca as Record<string, unknown>;
+                if ('value' in obj) return String(obj.value);
+                if ('label' in obj) return String(obj.label);
+              }
+              return String(raca);
+            })()}
+            onChange={(value) => {
+              const racaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+              setValue('raca', racaValue);
+            }}
             options={racasOptions}
             placeholder="Digite ou selecione uma raça"
             onAddNew={onAddRaca}
@@ -983,7 +1113,15 @@ function NascimentoModalComponent({
         />
       </div>
 
-      <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-800/60 rounded-md">
+      {/* Tags */}
+      <TagSelector
+        selectedTagIds={selectedTagIds}
+        onChange={setSelectedTagIds}
+        entityType="nascimento"
+        disabled={isLocked}
+      />
+
+      <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-800/60 rounded-md mt-4">
         <input
           type="checkbox"
           id="morto-modal"

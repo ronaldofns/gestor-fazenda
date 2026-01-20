@@ -5,9 +5,15 @@ import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getThemeClasses, getPrimaryBadgeClass } from '../utils/themeHelpers';
 import Modal from './Modal';
+import ConfirmDialog from './ConfirmDialog';
+import Combobox from './Combobox';
 import { showToast } from '../utils/toast';
 
-const AutoBackupManager = memo(function AutoBackupManager() {
+interface AutoBackupManagerProps {
+  inline?: boolean;
+}
+
+const AutoBackupManager = memo(function AutoBackupManager({ inline = false }: AutoBackupManagerProps) {
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   
@@ -26,6 +32,19 @@ const AutoBackupManager = memo(function AutoBackupManager() {
   } = useAutoBackup();
 
   const [isOpen, setIsOpen] = useState(false);
+
+  // Confirm Dialog states
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -56,27 +75,9 @@ const AutoBackupManager = memo(function AutoBackupManager() {
     { value: 10080, label: 'Semanalmente' }
   ];
 
-  return (
-    <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="relative flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-gray-700 dark:text-slate-300"
-        title="Backup Automático"
-      >
-        <Icons.Save className="w-4 h-4" />
-        <span className="text-sm font-medium">Backup Auto</span>
-        {settings.enabled && (
-          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${getPrimaryBadgeClass(primaryColor)} animate-pulse`} />
-        )}
-      </button>
-
-      <Modal
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        title="Backup Automático"
-        size="xl"
-      >
-        <div className="space-y-6">
+  // Conteúdo reutilizável
+  const content = (
+    <div className="space-y-6">
           {/* Status e Configurações */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Card de Status */}
@@ -150,6 +151,21 @@ const AutoBackupManager = memo(function AutoBackupManager() {
             </div>
           </div>
 
+          {/* Diretório de Salvamento */}
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl">
+            <div className="flex items-start gap-3">
+              <Icons.Folder className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">
+                  Diretório de Salvamento
+                </h4>
+                <p className="text-xs text-blue-800 dark:text-blue-400">
+                  Os backups são salvos automaticamente na pasta <strong>Downloads</strong> do seu dispositivo (computador, tablet ou celular) com o formato: <code className="bg-blue-100 dark:bg-blue-900/40 px-1 py-0.5 rounded">backup_gestor_fazenda_YYYY-MM-DD.json</code>
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Configurações */}
           <div className="p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
             <h3 className="font-semibold text-gray-900 dark:text-slate-100 mb-4 flex items-center gap-2">
@@ -170,12 +186,14 @@ const AutoBackupManager = memo(function AutoBackupManager() {
                 </div>
                 <button
                   onClick={() => updateSettings({ enabled: !settings.enabled })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    settings.enabled ? getPrimaryBadgeClass(primaryColor) : 'bg-gray-200 dark:bg-slate-600'
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shadow-inner ${
+                    settings.enabled 
+                      ? `${getPrimaryButtonClass(primaryColor).replace('bg-', 'bg-').replace('hover:', '')} opacity-100` 
+                      : 'bg-gray-300 dark:bg-slate-600'
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
                       settings.enabled ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
@@ -187,18 +205,15 @@ const AutoBackupManager = memo(function AutoBackupManager() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                   Frequência
                 </label>
-                <select
-                  value={settings.intervalMinutes}
-                  onChange={(e) => updateSettings({ intervalMinutes: Number(e.target.value) })}
+                <Combobox
+                  value={intervalOptions.find(opt => opt.value === settings.intervalMinutes)}
+                  onChange={(option) => option && updateSettings({ intervalMinutes: option.value })}
+                  options={intervalOptions}
+                  getOptionLabel={(opt) => opt.label}
+                  getOptionValue={(opt) => opt.value.toString()}
+                  placeholder="Selecione a frequência"
                   disabled={!settings.enabled}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {intervalOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               {/* Notificações */}
@@ -250,30 +265,49 @@ const AutoBackupManager = memo(function AutoBackupManager() {
           {/* Ações */}
           <div className="flex items-center gap-3">
             <button
-              onClick={runManualBackup}
+              onClick={async () => {
+                const result = await runManualBackup();
+                if (result?.filePath) {
+                  showToast({
+                    type: 'success',
+                    title: 'Backup realizado',
+                    message: `Arquivo salvo em: ${result.filePath}`
+                  });
+                }
+              }}
               disabled={isRunning}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${getPrimaryButtonClass(primaryColor)} disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:shadow-lg ${getPrimaryButtonClass(primaryColor)} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {isRunning ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm font-medium">Criando Backup...</span>
+                  <span>Criando Backup...</span>
                 </>
               ) : (
                 <>
                   <Icons.Play className="w-4 h-4" />
-                  <span className="text-sm font-medium">Executar Backup Agora</span>
+                  <span>Executar Backup Agora</span>
                 </>
               )}
             </button>
 
             {history.length > 0 && (
               <button
-                onClick={clearHistory}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-gray-700 dark:text-slate-300"
+                onClick={() => {
+                  setConfirmDialog({
+                    open: true,
+                    title: 'Limpar Histórico',
+                    message: 'Deseja limpar todo o histórico de backups?',
+                    onConfirm: () => {
+                      clearHistory();
+                      setConfirmDialog({ open: false, title: '', message: '', onConfirm: () => {} });
+                    }
+                  });
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all text-gray-700 dark:text-slate-300"
               >
                 <Icons.Trash className="w-4 h-4" />
-                <span className="text-sm font-medium">Limpar Histórico</span>
+                <span>Limpar Histórico</span>
               </button>
             )}
           </div>
@@ -346,7 +380,47 @@ const AutoBackupManager = memo(function AutoBackupManager() {
             )}
           </div>
         </div>
+  );
+
+  // Modo inline - renderiza apenas o conteúdo
+  if (inline) {
+    return content;
+  }
+
+  // Modo padrão - botão + Modal
+  return (
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        className="relative flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-gray-700 dark:text-slate-300"
+        title="Backup Automático"
+      >
+        <Icons.Save className="w-4 h-4" />
+        <span className="text-sm font-medium">Backup Auto</span>
+        {settings.enabled && (
+          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${getPrimaryBadgeClass(primaryColor)} animate-pulse`} />
+        )}
+      </button>
+
+      <Modal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Backup Automático"
+        size="xl"
+      >
+        {content}
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant="warning"
+        confirmText="Limpar"
+        cancelText="Cancelar"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ open: false, title: '', message: '', onConfirm: () => {} })}
+      />
     </>
   );
 });

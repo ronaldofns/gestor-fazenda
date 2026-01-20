@@ -819,8 +819,8 @@ export async function pushPending() {
       const pendPermissoes = todasPermissoes.filter((p) => p.synced === false);
 
       if (pendPermissoes.length === 0) {
-        return; // Nada para sincronizar
-      }
+        console.log('ℹ️ Nenhuma permissão pendente para sincronizar');
+      } else {
 
       // Preparar dados para batch upsert
       const dadosParaUpsert = pendPermissoes.map(p => ({
@@ -889,8 +889,80 @@ export async function pushPending() {
         }
       }
     }
+    }
   } catch (err) {
     console.error('Erro geral ao fazer push de permissões:', err);
+  }
+
+  // Sincronizar tags (otimizado com batch upsert)
+  try {
+    if (db.tags) {
+      const todasTags = await db.tags.toArray();
+      const pendTags = todasTags.filter(t => t.synced === false); // Incluir deletadas também
+
+      if (pendTags.length > 0) {
+        
+        const dadosParaUpsert = pendTags.map(t => ({
+          id: t.id,
+          name: t.name,
+          color: t.color,
+          description: t.description || null,
+          category: t.category || null,
+          created_by: t.createdBy,
+          created_at: t.createdAt,
+          updated_at: t.updatedAt,
+          deleted_at: t.deletedAt || null,
+          usage_count: t.usageCount
+        }));
+
+        const { data, error } = await supabase
+          .from('tags')
+          .upsert(dadosParaUpsert, { onConflict: 'id' })
+          .select('id');
+
+        if (!error && data) {
+          await Promise.all(
+            pendTags.map(t => db.tags.update(t.id, { synced: true, remoteId: t.id }))
+          );
+        } else if (error) {
+          console.error('Erro ao sincronizar tags:', error);
+        }
+      }
+    }
+
+    // Sincronizar atribuições de tags
+    if (db.tagAssignments) {
+      const todasAssignments = await db.tagAssignments.toArray();
+      const pendAssignments = todasAssignments.filter(a => a.synced === false);
+
+      if (pendAssignments.length > 0) {
+        const dadosParaUpsert = pendAssignments.map(a => ({
+          id: a.id,
+          entity_id: a.entityId,
+          entity_type: a.entityType,
+          tag_id: a.tagId,
+          assigned_by: a.assignedBy,
+          created_at: a.createdAt,
+          updated_at: a.updatedAt,
+          deleted_at: a.deletedAt || null
+        }));
+
+        const { data, error } = await supabase
+          .from('tag_assignments')
+          .upsert(dadosParaUpsert, { onConflict: 'id' })
+          .select('id');
+
+        if (!error && data) {
+          await Promise.all(
+            pendAssignments.map(a => db.tagAssignments.update(a.id, { synced: true, remoteId: a.id }))
+          );
+        } else if (error) {
+          console.error('Erro ao sincronizar atribuições de tags:', error);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro geral ao sincronizar tags:', err);
   }
 }
 
@@ -1721,6 +1793,95 @@ export async function pullUpdates() {
     } else {
       console.error('Erro ao processar pull de vacinações:', err);
       // Não fazer throw para não quebrar a sincronização completa
+    }
+  }
+
+  // Buscar tags (incluir deletadas para sincronizar soft deletes)
+  try {
+    const { data: servTags, error: errorTags } = await supabase
+      .from('tags')
+      .select('*'); // Remover filtro de deleted_at para sincronizar exclusões
+      
+    if (errorTags) {
+      if (errorTags.code === 'PGRST205' || errorTags.code === '42P01' || errorTags.message?.includes('Could not find')) {
+        console.warn('Tabela tags não existe no servidor. Execute a migração 022_add_tags_system.sql no Supabase.');
+      } else {
+        console.error('Erro ao buscar tags do servidor:', errorTags);
+      }
+    } else if (servTags && servTags.length > 0) {
+      for (const s of servTags) {
+        if (!s.id) continue;
+        
+        const local = await db.tags.get(s.id);
+        if (!local) {
+          await db.tags.put({
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            description: s.description,
+            category: s.category,
+            createdBy: s.created_by,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            deletedAt: s.deleted_at,
+            usageCount: s.usage_count || 0,
+            synced: true,
+            remoteId: s.id
+          });
+        } else if (new Date(local.updatedAt) < new Date(s.updated_at)) {
+          await db.tags.update(s.id, {
+            name: s.name,
+            color: s.color,
+            description: s.description,
+            category: s.category,
+            updatedAt: s.updated_at,
+            deletedAt: s.deleted_at, // Sincronizar soft delete
+            usageCount: s.usage_count || 0,
+            synced: true
+          });
+        }
+      }
+    }
+
+    // Buscar atribuições de tags (incluir deletadas para sincronizar soft deletes)
+    const { data: servAssignments, error: errorAssignments } = await supabase
+      .from('tag_assignments')
+      .select('*'); // Remover filtro de deleted_at para sincronizar exclusões
+      
+    if (errorAssignments) {
+      if (errorAssignments.code !== 'PGRST205' && errorAssignments.code !== '42P01') {
+        console.error('Erro ao buscar atribuições de tags:', errorAssignments);
+      }
+    } else if (servAssignments && servAssignments.length > 0) {
+      for (const s of servAssignments) {
+        if (!s.id) continue;
+        
+        const local = await db.tagAssignments.get(s.id);
+        if (!local) {
+          await db.tagAssignments.put({
+            id: s.id,
+            entityId: s.entity_id,
+            entityType: s.entity_type,
+            tagId: s.tag_id,
+            assignedBy: s.assigned_by,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            deletedAt: s.deleted_at,
+            synced: true,
+            remoteId: s.id
+          });
+        } else if (new Date(local.updatedAt) < new Date(s.updated_at)) {
+          await db.tagAssignments.update(s.id, {
+            updatedAt: s.updated_at,
+            deletedAt: s.deleted_at,
+            synced: true
+          });
+        }
+      }
+    }
+  } catch (err: any) {
+    if (err?.code !== 'PGRST205' && err?.code !== '42P01') {
+      console.error('Erro ao processar tags:', err);
     }
   }
 

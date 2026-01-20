@@ -252,8 +252,20 @@ export default function UsuarioModal({
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Role *</label>
           <Combobox
-            value={watch('role') || ''}
-            onChange={(value) => startTransition(() => setValue('role', value as UserRole))}
+            value={(() => {
+              const role = watch('role');
+              if (!role) return '';
+              if (typeof role === 'string') return role;
+              if (typeof role === 'object' && role !== null) {
+                const obj = role as Record<string, unknown>;
+                if ('value' in obj) return String(obj.value);
+              }
+              return String(role);
+            })()}
+            onChange={(value) => {
+              const roleValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+              startTransition(() => setValue('role', roleValue as UserRole));
+            }}
             options={Object.entries(ROLE_LABELS).map(([value, label]) => ({ label, value }))}
             allowCustomValue={false}
           />
@@ -265,8 +277,20 @@ export default function UsuarioModal({
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda</label>
           <Combobox
-            value={watch('fazendaId') || ''}
-            onChange={(value) => startTransition(() => setValue('fazendaId', value))}
+            value={(() => {
+              const fazendaId = watch('fazendaId');
+              if (!fazendaId) return '';
+              if (typeof fazendaId === 'string') return fazendaId;
+              if (typeof fazendaId === 'object' && fazendaId !== null) {
+                const obj = fazendaId as Record<string, unknown>;
+                if ('value' in obj) return String(obj.value);
+              }
+              return String(fazendaId);
+            })()}
+            onChange={(value) => {
+              const fazendaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+              startTransition(() => setValue('fazendaId', fazendaValue));
+            }}
             options={[
               { label: 'Nenhuma', value: '' },
               ...fazendaOptions

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Combobox, { ComboboxOption } from './Combobox';
+import TagSelector from './TagSelector';
 import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { Matriz } from '../db/models';
@@ -62,6 +63,7 @@ export default function MatrizModal({
   const [, startTransition] = useTransition();
   const [modalCategoriaOpen, setModalCategoriaOpen] = useState(false);
   const [modalRacaOpen, setModalRacaOpen] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   // Carregar categorias do banco
   const categoriasRaw = useLiveQuery(() => db.categorias.toArray(), []) || [];
@@ -125,6 +127,17 @@ export default function MatrizModal({
         ativo: initialData.ativo,
         obs: ''
       });
+      
+      // Carregar tags da matriz
+      db.tagAssignments
+        .where({ entityId: initialData.id, entityType: 'matriz' })
+        .filter(a => !a.deletedAt)
+        .toArray()
+        .then(assignments => {
+          const tagIds = assignments.map(a => a.tagId);
+          setSelectedTagIds(tagIds);
+        })
+        .catch(err => console.error('Erro ao carregar tags da matriz:', err));
     } else if (mode === 'create' && open) {
       // Se não houver categorias, criar as padrão
       if (categorias.length === 0) {
@@ -228,6 +241,61 @@ export default function MatrizModal({
           synced: false
         });
         
+        // Atualizar tags
+        if (user) {
+          const currentAssignments = await db.tagAssignments
+            .where({ entityId: initialData.id, entityType: 'matriz' })
+            .toArray();
+          const currentTagIds = currentAssignments.map(a => a.tagId);
+
+          // Remover tags desmarcadas
+          const tagsToRemove = currentTagIds.filter(id => !selectedTagIds.includes(id));
+          for (const assignment of currentAssignments) {
+            if (tagsToRemove.includes(assignment.tagId)) {
+              await db.tagAssignments.update(assignment.id, {
+                deletedAt: now,
+                synced: false
+              });
+              const tag = await db.tags.get(assignment.tagId);
+              if (tag && tag.usageCount > 0) {
+                await db.tags.update(assignment.tagId, {
+                  usageCount: tag.usageCount - 1,
+                  synced: false
+                });
+              }
+            }
+          }
+
+          // Adicionar novas tags
+          const tagsToAdd = selectedTagIds.filter(id => !currentTagIds.includes(id));
+          if (tagsToAdd.length > 0) {
+            const newAssignments = tagsToAdd.map(tagId => ({
+              id: uuid(),
+              entityId: initialData.id,
+              entityType: 'matriz' as const,
+              tagId,
+              assignedBy: user.id,
+              createdAt: now,
+              updatedAt: now,
+              deletedAt: null,
+              synced: false,
+              remoteId: null
+            }));
+            
+            await db.tagAssignments.bulkAdd(newAssignments);
+            
+            for (const tagId of tagsToAdd) {
+              const tag = await db.tags.get(tagId);
+              if (tag) {
+                await db.tags.update(tagId, {
+                  usageCount: tag.usageCount + 1,
+                  synced: false
+                });
+              }
+            }
+          }
+        }
+        
         // Buscar estado atualizado
         const depois = await db.matrizes.get(initialData.id);
         
@@ -254,6 +322,34 @@ export default function MatrizModal({
         };
         
         await db.matrizes.add(novaMatriz);
+        
+        // Salvar tags
+        if (selectedTagIds.length > 0 && user) {
+          const tagAssignments = selectedTagIds.map(tagId => ({
+            id: uuid(),
+            entityId: newId,
+            entityType: 'matriz' as const,
+            tagId,
+            assignedBy: user.id,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            synced: false,
+            remoteId: null
+          }));
+          
+          await db.tagAssignments.bulkAdd(tagAssignments);
+          
+          for (const tagId of selectedTagIds) {
+            const tag = await db.tags.get(tagId);
+            if (tag) {
+              await db.tags.update(tagId, {
+                usageCount: tag.usageCount + 1,
+                synced: false
+              });
+            }
+          }
+        }
         
         // Registrar auditoria
         await registrarAudit({
@@ -306,8 +402,20 @@ export default function MatrizModal({
             Fazenda *
           </label>
           <Combobox
-            value={watch('fazendaId') || ''}
-            onChange={(value) => startTransition(() => setValue('fazendaId', value))}
+            value={(() => {
+              const fazendaId = watch('fazendaId');
+              if (!fazendaId) return '';
+              if (typeof fazendaId === 'string') return fazendaId;
+              if (typeof fazendaId === 'object' && fazendaId !== null) {
+                const obj = fazendaId as Record<string, unknown>;
+                if ('value' in obj) return String(obj.value);
+              }
+              return String(fazendaId);
+            })()}
+            onChange={(value) => {
+              const fazendaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+              startTransition(() => setValue('fazendaId', fazendaValue));
+            }}
             options={fazendaOptions}
             placeholder="Selecione a fazenda"
             allowCustomValue={false}
@@ -322,8 +430,20 @@ export default function MatrizModal({
             Categoria *
           </label>
           <Combobox
-            value={watch('categoriaId') || ''}
-            onChange={(value) => startTransition(() => setValue('categoriaId', value))}
+            value={(() => {
+              const categoriaId = watch('categoriaId');
+              if (!categoriaId) return '';
+              if (typeof categoriaId === 'string') return categoriaId;
+              if (typeof categoriaId === 'object' && categoriaId !== null) {
+                const obj = categoriaId as Record<string, unknown>;
+                if ('value' in obj) return String(obj.value);
+              }
+              return String(categoriaId);
+            })()}
+            onChange={(value) => {
+              const categoriaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+              startTransition(() => setValue('categoriaId', categoriaValue));
+            }}
             options={categoriaOptions}
             placeholder="Selecione a categoria"
             allowCustomValue={false}
@@ -340,8 +460,21 @@ export default function MatrizModal({
             Raça
           </label>
           <Combobox
-            value={watch('raca') || ''}
-            onChange={(value) => startTransition(() => setValue('raca', value))}
+            value={(() => {
+              const raca = watch('raca');
+              if (!raca) return '';
+              if (typeof raca === 'string') return raca;
+              if (typeof raca === 'object' && raca !== null) {
+                const obj = raca as Record<string, unknown>;
+                if ('value' in obj) return String(obj.value);
+                if ('label' in obj) return String(obj.label);
+              }
+              return String(raca);
+            })()}
+            onChange={(value) => {
+              const racaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+              startTransition(() => setValue('raca', racaValue));
+            }}
             options={racaOptions}
             placeholder="Digite ou selecione uma raça"
             allowCustomValue={true}
@@ -408,6 +541,14 @@ export default function MatrizModal({
           </label>
         </div>
       </div>
+
+      {/* Tags */}
+      <TagSelector
+        selectedTagIds={selectedTagIds}
+        onChange={setSelectedTagIds}
+        entityType="matriz"
+        disabled={isSubmitting}
+      />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">

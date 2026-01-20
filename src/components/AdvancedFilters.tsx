@@ -5,6 +5,7 @@ import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
 import Modal from './Modal';
+import ConfirmDialog from './ConfirmDialog';
 import { showToast } from '../utils/toast';
 
 interface AdvancedFiltersProps {
@@ -76,6 +77,19 @@ const AdvancedFilters = memo(function AdvancedFilters({
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [filterName, setFilterName] = useState('');
   const [filterDescription, setFilterDescription] = useState('');
+
+  // Confirm Dialog states
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   // Adicionar nova condição
   const addCondition = () => {
@@ -427,10 +441,16 @@ const AdvancedFilters = memo(function AdvancedFilters({
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm('Deseja excluir este filtro?')) {
-                              deleteFilter(filter.id);
-                              showToast({ type: 'success', message: 'Filtro excluído' });
-                            }
+                            setConfirmDialog({
+                              open: true,
+                              title: 'Excluir Filtro',
+                              message: 'Deseja excluir este filtro?',
+                              onConfirm: () => {
+                                deleteFilter(filter.id);
+                                showToast({ type: 'success', message: 'Filtro excluído' });
+                                setConfirmDialog({ open: false, title: '', message: '', onConfirm: () => {} });
+                              }
+                            });
                           }}
                           className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-red-600 dark:text-red-400"
                           title="Excluir"
@@ -532,6 +552,17 @@ const AdvancedFilters = memo(function AdvancedFilters({
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant="danger"
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ open: false, title: '', message: '', onConfirm: () => {} })}
+      />
     </>
   );
 });

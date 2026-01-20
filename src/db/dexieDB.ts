@@ -9,6 +9,34 @@ interface DeletedRecord {
   synced: boolean; // Se a exclusão foi sincronizada com o servidor
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+  category?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+  usageCount: number;
+  synced: boolean;
+  remoteId?: string | null;
+}
+
+export interface TagAssignment {
+  id: string;
+  entityId: string;
+  entityType: 'nascimento' | 'matriz' | 'fazenda';
+  tagId: string;
+  assignedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+  synced: boolean;
+  remoteId?: string | null;
+}
+
 class AppDB extends Dexie {
   fazendas!: Dexie.Table<Fazenda, string>;
   racas!: Dexie.Table<Raca, string>;
@@ -26,6 +54,8 @@ class AppDB extends Dexie {
   appSettings!: Dexie.Table<AppSettingsDB, string>; // Tabela para configurações do app
   rolePermissions!: Dexie.Table<RolePermission, string>; // Tabela para permissões por role
   syncEvents!: Dexie.Table<SyncEvent, string>; // Tabela para fila de eventos de sincronização
+  tags!: Dexie.Table<Tag, string>; // Tabela de tags customizáveis
+  tagAssignments!: Dexie.Table<TagAssignment, string>; // Tabela de atribuições de tags
 
   constructor() {
     super('FazendaDB');
@@ -511,6 +541,28 @@ class AppDB extends Dexie {
       rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
       appSettings: 'id, synced, remoteId',
       syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]'
+    });
+
+    // Versão 24: Adicionar tabelas de tags
+    this.version(24).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, [fazendaId+dataNascimento], [fazendaId+mes+ano], [fazendaId+synced], mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, dataDesmama, synced, remoteId, [nascimentoId+synced]',
+      pesagens: 'id, nascimentoId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced]',
+      vacinacoes: 'id, nascimentoId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, synced, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo, synced',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]',
+      tags: 'id, name, category, createdBy, synced, remoteId, [createdBy+synced], usageCount',
+      tagAssignments: 'id, entityId, entityType, tagId, [entityId+entityType], [entityType+tagId], [tagId+entityId], assignedBy, synced, remoteId, [synced+entityType]'
     });
   }
 }

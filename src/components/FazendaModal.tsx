@@ -6,12 +6,14 @@ import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { Fazenda } from '../db/models';
 import Modal from './Modal';
+import TagSelector from './TagSelector';
 import { showToast } from '../utils/toast';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass } from '../utils/themeHelpers';
 import { getThemeClasses } from '../utils/themeHelpers';
+import { useAuth } from '../hooks/useAuth';
 
 type Mode = 'create' | 'edit';
 
@@ -39,7 +41,9 @@ export default function FazendaModal({
 }: FazendaModalProps) {
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   const titulo = mode === 'create' ? 'Nova Fazenda' : 'Editar Fazenda';
 
@@ -63,11 +67,23 @@ export default function FazendaModal({
         nome: initialData.nome,
         logoUrl: initialData.logoUrl || ''
       });
+      
+      // Carregar tags da fazenda
+      db.tagAssignments
+        .where({ entityId: initialData.id, entityType: 'fazenda' })
+        .filter(a => !a.deletedAt)
+        .toArray()
+        .then(assignments => {
+          const tagIds = assignments.map(a => a.tagId);
+          setSelectedTagIds(tagIds);
+        })
+        .catch(err => console.error('Erro ao carregar tags da fazenda:', err));
     } else if (mode === 'create' && open) {
       reset({
         nome: '',
         logoUrl: ''
       });
+      setSelectedTagIds([]);
     }
   }, [mode, initialData, reset, open]);
 
@@ -91,6 +107,60 @@ export default function FazendaModal({
           updatedAt: now,
           synced: false
         });
+        
+        // Atualizar tags
+        if (user) {
+          const currentAssignments = await db.tagAssignments
+            .where({ entityId: initialData.id, entityType: 'fazenda' })
+            .toArray();
+          const currentTagIds = currentAssignments.map(a => a.tagId);
+
+          const tagsToRemove = currentTagIds.filter(id => !selectedTagIds.includes(id));
+          for (const assignment of currentAssignments) {
+            if (tagsToRemove.includes(assignment.tagId)) {
+              await db.tagAssignments.update(assignment.id, {
+                deletedAt: now,
+                synced: false
+              });
+              const tag = await db.tags.get(assignment.tagId);
+              if (tag && tag.usageCount > 0) {
+                await db.tags.update(assignment.tagId, {
+                  usageCount: tag.usageCount - 1,
+                  synced: false
+                });
+              }
+            }
+          }
+
+          const tagsToAdd = selectedTagIds.filter(id => !currentTagIds.includes(id));
+          if (tagsToAdd.length > 0) {
+            const newAssignments = tagsToAdd.map(tagId => ({
+              id: uuid(),
+              entityId: initialData.id,
+              entityType: 'fazenda' as const,
+              tagId,
+              assignedBy: user.id,
+              createdAt: now,
+              updatedAt: now,
+              deletedAt: null,
+              synced: false,
+              remoteId: null
+            }));
+            
+            await db.tagAssignments.bulkAdd(newAssignments);
+            
+            for (const tagId of tagsToAdd) {
+              const tag = await db.tags.get(tagId);
+              if (tag) {
+                await db.tags.update(tagId, {
+                  usageCount: tag.usageCount + 1,
+                  synced: false
+                });
+              }
+            }
+          }
+        }
+        
         showToast({ type: 'success', title: 'Fazenda atualizada', message: values.nome });
       } else if (mode === 'create') {
         const newId = uuid();
@@ -102,6 +172,35 @@ export default function FazendaModal({
           updatedAt: now,
           synced: false
         });
+        
+        // Salvar tags
+        if (selectedTagIds.length > 0 && user) {
+          const tagAssignments = selectedTagIds.map(tagId => ({
+            id: uuid(),
+            entityId: newId,
+            entityType: 'fazenda' as const,
+            tagId,
+            assignedBy: user.id,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            synced: false,
+            remoteId: null
+          }));
+          
+          await db.tagAssignments.bulkAdd(tagAssignments);
+          
+          for (const tagId of selectedTagIds) {
+            const tag = await db.tags.get(tagId);
+            if (tag) {
+              await db.tags.update(tagId, {
+                usageCount: tag.usageCount + 1,
+                synced: false
+              });
+            }
+          }
+        }
+        
         showToast({ type: 'success', title: 'Fazenda cadastrada', message: values.nome });
       }
 
@@ -144,6 +243,14 @@ export default function FazendaModal({
           {...register('logoUrl')}
         />
       </div>
+
+      {/* Tags */}
+      <TagSelector
+        selectedTagIds={selectedTagIds}
+        onChange={setSelectedTagIds}
+        entityType="fazenda"
+        disabled={isSubmitting}
+      />
 
       <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
         <button

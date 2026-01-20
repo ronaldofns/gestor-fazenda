@@ -8,6 +8,7 @@ import { pushPending } from '../api/syncService';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryBgClass, getThemeClasses } from '../utils/themeHelpers';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
@@ -64,6 +65,19 @@ export default function Permissoes() {
   const [selectedRole, setSelectedRole] = useState<UserRole>('admin');
   const [saving, setSaving] = useState(false);
 
+  // Confirm Dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
   // Verificar se o usuário é admin
   if (!isAdmin()) {
     return (
@@ -107,29 +121,33 @@ export default function Permissoes() {
   };
 
   const handleResetRole = async () => {
-    if (!confirm(`Deseja realmente resetar todas as permissões de ${ROLE_LABELS[selectedRole]} para os valores padrão?`)) {
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await resetRolePermissions(selectedRole);
-      await pushPending();
-      showToast({
-        type: 'success',
-        title: 'Permissões resetadas',
-        message: `Permissões de ${ROLE_LABELS[selectedRole]} foram resetadas para os valores padrão.`
-      });
-    } catch (error) {
-      console.error('Erro ao resetar permissões:', error);
-      showToast({
-        type: 'error',
-        title: 'Erro',
-        message: 'Não foi possível resetar as permissões.'
-      });
-    } finally {
-      setSaving(false);
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Resetar Permissões',
+      message: `Deseja realmente resetar todas as permissões de ${ROLE_LABELS[selectedRole]} para os valores padrão?`,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          await resetRolePermissions(selectedRole);
+          await pushPending();
+          showToast({
+            type: 'success',
+            title: 'Permissões resetadas',
+            message: `Permissões de ${ROLE_LABELS[selectedRole]} foram resetadas para os valores padrão.`
+          });
+        } catch (error) {
+          console.error('Erro ao resetar permissões:', error);
+          showToast({
+            type: 'error',
+            title: 'Erro',
+            message: 'Não foi possível resetar as permissões.'
+          });
+        } finally {
+          setSaving(false);
+          setConfirmDialog({ open: false, title: '', message: '', onConfirm: () => {} });
+        }
+      }
+    });
   };
 
   const handleSelectAll = async (granted: boolean) => {
@@ -312,6 +330,17 @@ export default function Permissoes() {
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant="warning"
+        confirmText="Resetar"
+        cancelText="Cancelar"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ open: false, title: '', message: '', onConfirm: () => {} })}
+      />
     </div>
   );
 }
