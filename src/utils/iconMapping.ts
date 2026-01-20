@@ -68,7 +68,12 @@ import {
   FaCompass,         // Navigation
   FaKeyboard,        // Keyboard
   FaBolt,            // Zap
-  FaDesktop          // Monitor
+  FaDesktop,         // Monitor
+  FaSave,            // Save
+  FaPlay,            // Play
+  FaInbox,           // Inbox
+  FaChartBar,        // BarChart / Activity
+  FaSearch           // Search
 } from 'react-icons/fa';
 
 // Font Awesome 6 (para ícones mais recentes)
@@ -119,11 +124,16 @@ export const Icons = {
   Plus: FaPlus,
   Edit: FaEdit,
   Trash2: FaTrash,
+  Trash: FaTrash,
   History: FaHistory,
+  Save: FaSave,
+  Play: FaPlay,
   
   // Gráficos e Estatísticas
   TrendingUp: FaChartLine,
   BarChart3: MdBarChart,
+  BarChart: FaChartBar,
+  Activity: FaChartBar,
   
   // Gênero
   Mars: FaMars,
@@ -184,7 +194,9 @@ export const Icons = {
   Navigation: FaCompass,
   Keyboard: FaKeyboard,
   Zap: FaBolt,
-  Monitor: FaDesktop
+  Monitor: FaDesktop,
+  Inbox: FaInbox,
+  Search: FaSearch
 };
 
 // Tipo para garantir type-safety

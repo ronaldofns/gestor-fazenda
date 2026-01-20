@@ -210,8 +210,8 @@ export function useAdvancedMetrics(fazendaId?: string): AdvancedMetrics {
       const pesagensAnimal = pesagens.filter(p => p.nascimentoId === n.id);
       if (pesagensAnimal.length < 2) return;
 
-      const gmdAnimal = calcularGMDAcumulado(n, pesagensAnimal);
-      if (gmdAnimal > 0) {
+      const gmdAnimal = calcularGMDAcumulado(pesagensAnimal, n.pesoNascimento, n.dataNascimento);
+      if (gmdAnimal && gmdAnimal > 0) {
         gmds.push(gmdAnimal);
 
         // Por categoria
@@ -244,8 +244,8 @@ export function useAdvancedMetrics(fazendaId?: string): AdvancedMetrics {
       const pesagensAnimal = pesagens.filter(p => p.nascimentoId === n.id);
       if (pesagensAnimal.length < 2) return;
 
-      const gmdAnimal = calcularGMDAcumulado(n, pesagensAnimal);
-      if (gmdAnimal > 0) {
+      const gmdAnimal = calcularGMDAcumulado(pesagensAnimal, n.pesoNascimento, n.dataNascimento);
+      if (gmdAnimal && gmdAnimal > 0) {
         if (dataNasc >= tresMesesAtras) {
           gmdsRecentes.push(gmdAnimal);
         } else {
@@ -321,8 +321,8 @@ export function useAdvancedMetrics(fazendaId?: string): AdvancedMetrics {
       nascimentosMes.forEach(n => {
         const pesagensAnimal = pesagens.filter(p => p.nascimentoId === n.id);
         if (pesagensAnimal.length >= 2) {
-          const gmdAnimal = calcularGMDAcumulado(n, pesagensAnimal);
-          if (gmdAnimal > 0) gmdsMes.push(gmdAnimal);
+          const gmdAnimal = calcularGMDAcumulado(pesagensAnimal, n.pesoNascimento, n.dataNascimento);
+          if (gmdAnimal && gmdAnimal > 0) gmdsMes.push(gmdAnimal);
         }
       });
       const gmdMedio = gmdsMes.length > 0
