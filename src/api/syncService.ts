@@ -819,7 +819,7 @@ export async function pushPending() {
       const pendPermissoes = todasPermissoes.filter((p) => p.synced === false);
 
       if (pendPermissoes.length === 0) {
-        console.log('ℹ️ Nenhuma permissão pendente para sincronizar');
+        // Sem permissões pendentes
       } else {
 
       // Preparar dados para batch upsert
