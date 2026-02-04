@@ -963,9 +963,9 @@ export default function Animais() {
             <button
               type="button"
               onClick={() => setFiltrosAbertos((v) => !v)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-md hover:shadow-lg transition-all border border-amber-600/50 dark:bg-amber-600 dark:hover:bg-amber-700 dark:border-amber-700/50"
             >
-              <Icons.Filter className="w-4 h-4 shrink-0 text-gray-500 dark:text-slate-400" />
+              <Icons.Filter className="w-4 h-4 shrink-0" />
               <span>{filtrosAbertos ? 'Ocultar filtros' : 'Mostrar filtros'}</span>
               <Icons.ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-200 ${filtrosAbertos ? 'rotate-180' : ''}`} />
             </button>
