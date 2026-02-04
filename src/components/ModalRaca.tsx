@@ -4,12 +4,13 @@ import { uuid } from '../utils/uuid';
 import { showToast } from '../utils/toast';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
+import Input from './Input';
 
 interface ModalRacaProps {
   open: boolean;
   onClose: () => void;
-  onRacaCadastrada: (racaNome: string) => void;
+  onRacaCadastrada: (racaId: string, racaNome: string) => void;
 }
 
 export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRacaProps) {
@@ -28,15 +29,16 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
     try {
       const id = uuid();
       const now = new Date().toISOString();
+      const nomeFinal = nomeRaca.trim().toUpperCase();
       await db.racas.add({
         id,
-        nome: nomeRaca.trim().toUpperCase(),
+        nome: nomeFinal,
         createdAt: now,
         updatedAt: now,
-        synced: false, // Marcar como não sincronizado
+        synced: false,
         remoteId: null
       });
-      onRacaCadastrada(nomeRaca.trim().toUpperCase());
+      onRacaCadastrada(id, nomeFinal);
       setNomeRaca('');
       onClose();
     } catch (error) {
@@ -56,14 +58,12 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
           </h3>
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Nome da Raça *
-              </label>
-              <input
+              <Input
+                label="Nome da Raça"
                 type="text"
+                required
                 value={nomeRaca}
                 onChange={(e) => setNomeRaca(e.target.value)}
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                 placeholder="Ex: ANGUS, NELORE"
                 autoFocus
                 disabled={salvando}

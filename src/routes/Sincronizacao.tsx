@@ -3,10 +3,11 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import useOnline from '../hooks/useOnline';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { usePermissions } from '../hooks/usePermissions';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getPrimaryCardClass, getTitleTextClass } from '../utils/themeHelpers';
 import { Icons } from '../utils/iconMapping';
-import { syncAll } from '../api/syncService';
+import { syncAll, SyncProgress, SyncStats } from '../api/syncService';
 import { showToast } from '../utils/toast';
 import { setGlobalSyncing, getGlobalSyncing } from '../components/Sidebar';
 import { getSyncQueueStats } from '../utils/syncEvents';
@@ -41,10 +42,14 @@ const MAX_LOGS = 20;
 export default function Sincronizacao() {
   const online = useOnline();
   const { appSettings } = useAppSettings();
+  const { hasPermission } = usePermissions();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const podeExportarDados = hasPermission('exportar_dados');
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title?: string;
@@ -66,7 +71,13 @@ export default function Sincronizacao() {
   });
 
   // Buscar pendências de cada tabela
+  // Pausar queries durante sincronização para melhorar performance
   const todasTabelas = useLiveQuery(async () => {
+    // Se estiver sincronizando, retornar dados em cache ou vazio para não competir por recursos
+    if (syncing) {
+      return [];
+    }
+    
     const pendencias: PendenciaTabela[] = [];
 
     try {
@@ -323,7 +334,11 @@ export default function Sincronizacao() {
   }, [todasTabelas]);
 
   // Estatísticas da fila de eventos
+  // Pausar durante sincronização para melhorar performance
   const filaStats = useLiveQuery(async () => {
+    if (syncing) {
+      return null; // Pausar durante sincronização
+    }
     try {
       if (db.syncEvents) {
         return await getSyncQueueStats();
@@ -333,10 +348,14 @@ export default function Sincronizacao() {
       console.error('Erro ao buscar estatísticas da fila:', err);
       return null;
     }
-  }, []);
+  }, [syncing]);
 
   // Eventos pendentes da fila
+  // Pausar durante sincronização para melhorar performance
   const eventosPendentes = useLiveQuery(async () => {
+    if (syncing) {
+      return []; // Pausar durante sincronização
+    }
     try {
       if (db.syncEvents) {
         const todosEventos = await db.syncEvents.toArray();
@@ -350,7 +369,7 @@ export default function Sincronizacao() {
       console.error('Erro ao buscar eventos pendentes:', err);
       return [];
     }
-  }, []);
+  }, [syncing]);
 
   const [ultimoSync, setUltimoSync] = useState<Date | null>(() => {
     try {
@@ -364,19 +383,41 @@ export default function Sincronizacao() {
   // Escutar eventos de sincronização completada (manual ou automática)
   useEffect(() => {
     const handleSyncCompleted = (e: Event) => {
-      const customEvent = e as CustomEvent<{ timestamp: string; success: boolean }>;
+      const customEvent = e as CustomEvent<{ timestamp: string; success: boolean; stats?: SyncStats }>;
       if (customEvent.detail.success) {
         const timestamp = new Date(customEvent.detail.timestamp);
         setUltimoSync(timestamp);
         // Atualizar localStorage também
         localStorage.setItem(STORAGE_KEY_LAST_SYNC, timestamp.toISOString());
+        
+        // Armazenar estatísticas
+        if (customEvent.detail.stats) {
+          setSyncStats(customEvent.detail.stats);
+        }
       }
+      
+      // Limpar progresso quando sincronização terminar
+      setSyncProgress(null);
     };
 
     window.addEventListener('syncCompleted', handleSyncCompleted);
     
     return () => {
       window.removeEventListener('syncCompleted', handleSyncCompleted);
+    };
+  }, []);
+
+  // Escutar eventos de progresso de sincronização
+  useEffect(() => {
+    const handleSyncProgress = (e: Event) => {
+      const customEvent = e as CustomEvent<SyncProgress>;
+      setSyncProgress(customEvent.detail);
+    };
+
+    window.addEventListener('syncProgress', handleSyncProgress);
+    
+    return () => {
+      window.removeEventListener('syncProgress', handleSyncProgress);
     };
   }, []);
 
@@ -418,27 +459,59 @@ export default function Sincronizacao() {
 
     setSyncing(true);
     setGlobalSyncing(true);
-    const inicio = new Date();
+
+    // Criar promise para capturar estatísticas do evento syncCompleted
+    const syncCompletedPromise = new Promise<{ stats?: SyncStats }>((resolve) => {
+      const handler = (e: Event) => {
+        const customEvent = e as CustomEvent<{ timestamp: string; success: boolean; stats?: SyncStats }>;
+        window.removeEventListener('syncCompleted', handler);
+        resolve({ stats: customEvent.detail.stats });
+      };
+      window.addEventListener('syncCompleted', handler);
+    });
 
     try {
+      // Usar syncAll diretamente (mesmo código que sidebar e topbar)
       await syncAll();
       
+      // Aguardar evento com estatísticas
+      const { stats } = await syncCompletedPromise;
+      
       const fim = new Date();
-      const duracao = ((fim.getTime() - inicio.getTime()) / 1000).toFixed(1);
       
       // Atualizar último sync (já foi salvo pelo syncAll, mas atualizamos o estado local)
       setUltimoSync(fim);
       
+      // Calcular total de registros e duração das estatísticas
+      let totalRegistros = 0;
+      let duracaoReal = '0.0';
+      
+      if (stats && stats.duration) {
+        duracaoReal = (stats.duration / 1000).toFixed(1);
+        totalRegistros = Object.values(stats.steps).reduce(
+          (sum, step) => sum + step.recordsProcessed,
+          0
+        );
+      }
+      
+      const detalhesLog = totalRegistros > 0 
+        ? `Sincronização concluída em ${duracaoReal}s (${totalRegistros} registros)`
+        : `Sincronização concluída em ${duracaoReal}s`;
+      
       adicionarLog({
         timestamp: fim.toISOString(),
         sucesso: true,
-        detalhes: `Sincronização concluída em ${duracao}s`
+        detalhes: detalhesLog
       });
+
+      const mensagemToast = totalRegistros > 0
+        ? `${totalRegistros} registros sincronizados em ${duracaoReal}s.`
+        : `Todos os dados foram sincronizados com sucesso em ${duracaoReal}s.`;
 
       showToast({
         type: 'success',
         title: 'Sincronização concluída',
-        message: `Todos os dados foram sincronizados com sucesso em ${duracao}s.`
+        message: mensagemToast
       });
     } catch (error: any) {
       const fim = new Date();
@@ -463,6 +536,10 @@ export default function Sincronizacao() {
   };
 
   const handleExportarBackup = async () => {
+    if (!podeExportarDados) {
+      showToast({ type: 'error', title: 'Sem permissão', message: 'Você não tem permissão para exportar dados.' });
+      return;
+    }
     try {
       const resultado = await exportarBackupCompleto();
       if (resultado && resultado.sucesso) {
@@ -689,6 +766,7 @@ export default function Sincronizacao() {
             )}
           </button>
 
+          {podeExportarDados && (
           <button
             onClick={handleExportarBackup}
             disabled={syncing}
@@ -697,6 +775,7 @@ export default function Sincronizacao() {
             <Icons.Download className="w-4 h-4" />
             <span className="hidden sm:inline">Exportar</span>
           </button>
+          )}
 
           <input
             ref={fileInputRef}
@@ -725,6 +804,35 @@ export default function Sincronizacao() {
           </button>
         </div>
       </div>
+
+      {/* Indicador de Progresso de Sincronização */}
+      {syncProgress && (
+        <div className={`${getPrimaryCardClass(primaryColor)} p-6 mb-6 border-l-4 border-blue-500`}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Icons.RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+              <div>
+                <h3 className="font-semibold text-gray-800 dark:text-white">
+                  {syncProgress.message}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Etapa {syncProgress.current} de {syncProgress.total}
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+              {Math.round((syncProgress.current / syncProgress.total) * 100)}%
+            </span>
+          </div>
+          {/* Barra de Progresso */}
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Dialog de Confirmação */}
       <ConfirmDialog

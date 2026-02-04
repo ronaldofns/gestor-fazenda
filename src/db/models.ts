@@ -60,7 +60,8 @@ export interface Nascimento {
 
 export interface Desmama {
   id: string;
-  nascimentoId: string;
+  nascimentoId?: string; // Mantido para compatibilidade com sistema antigo (será removido)
+  animalId?: string; // FK para animais (novo sistema - será obrigatório)
   dataDesmama?: string;
   pesoDesmama?: number;
   lockedBy?: string | null; // ID do usuário que está editando
@@ -74,7 +75,8 @@ export interface Desmama {
 
 export interface Pesagem {
   id: string;
-  nascimentoId: string; // ID do nascimento (animal)
+  nascimentoId?: string; // Mantido para compatibilidade com sistema antigo (será removido)
+  animalId?: string; // FK para animais (novo sistema - será obrigatório)
   dataPesagem: string; // Data da pesagem (YYYY-MM-DD)
   peso: number; // Peso em kg
   observacao?: string; // Observações sobre a pesagem
@@ -89,7 +91,8 @@ export interface Pesagem {
 
 export interface Vacina {
   id: string;
-  nascimentoId: string; // ID do nascimento (animal)
+  nascimentoId?: string; // Mantido para compatibilidade com sistema antigo (será removido)
+  animalId?: string; // FK para animais (novo sistema - será obrigatório)
   vacina: string; // Nome da vacina
   dataAplicacao: string; // Data da aplicação (YYYY-MM-DD)
   dataVencimento?: string; // Data de vencimento/revacinação (YYYY-MM-DD)
@@ -143,7 +146,7 @@ export interface Usuario {
   remoteId?: number | null; // ID remoto no Supabase
 }
 
-export type AuditEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario' | 'pesagem' | 'vacina';
+export type AuditEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario' | 'pesagem' | 'vacina' | 'animal' | 'tipoAnimal' | 'statusAnimal' | 'origem' | 'genealogia';
 
 export type AuditAction = 'create' | 'update' | 'delete';
 
@@ -164,7 +167,8 @@ export interface AuditLog {
 
 export interface NotificacaoLida {
   id: string; // Chave única da notificação (ex: "desmama-{id}", "mortalidade-{fazendaId}")
-  tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina';
+  tipo: 'desmama_atrasada' | 'matriz_improdutiva' | 'peso_critico' | 'vacinas_vencidas' | 'mortalidade_alta' | 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina';
+  usuarioId: string; // ID do usuário que marcou como lido
   marcadaEm: string; // ISO string
   synced: boolean; // Se foi sincronizado com o servidor
   remoteId?: number | null; // ID remoto no Supabase
@@ -186,23 +190,23 @@ export interface AppSettingsDB {
   timeoutInatividade: number; // Tempo de inatividade em minutos antes de fazer logout (padrão: 15)
   intervaloSincronizacao: number; // Intervalo de sincronização automática em segundos (padrão: 30)
   primaryColor?: string; // Cor primária do tema (padrão: 'green')
+  allowBrowserNotifications?: boolean; // Permitir notificações no navegador (PWA)
+  modoCurral?: boolean; // Modo Campo/Curral: UI simplificada, fonte maior, alto contraste (v0.4)
   createdAt: string;
   updatedAt: string;
   synced: boolean; // Se foi sincronizado com o servidor
   remoteId?: number | null; // ID remoto no Supabase
 }
 
-// Tipos de permissões disponíveis no sistema
+// Tipos de permissões disponíveis no sistema (alinhado às funcionalidades atuais)
 export type PermissionType = 
-  | 'importar_planilha'
   | 'gerenciar_usuarios'
   | 'gerenciar_fazendas'
-  | 'gerenciar_matrizes'
   | 'gerenciar_racas'
   | 'gerenciar_categorias'
-  | 'cadastrar_nascimento'
-  | 'editar_nascimento'
-  | 'excluir_nascimento'
+  | 'cadastrar_animal'
+  | 'editar_animal'
+  | 'excluir_animal'
   | 'cadastrar_desmama'
   | 'editar_desmama'
   | 'excluir_desmama'
@@ -216,7 +220,6 @@ export type PermissionType =
   | 'ver_notificacoes'
   | 'ver_sincronizacao'
   | 'ver_planilha'
-  | 'ver_matrizes'
   | 'ver_fazendas'
   | 'ver_usuarios'
   | 'exportar_dados'
@@ -253,4 +256,132 @@ export interface SyncEvent {
   createdAt: string; // Data de criação do evento
   updatedAt: string; // Data da última atualização
   remoteId?: number | null; // ID remoto no Supabase (se sincronizado)
+}
+
+// ========================================
+// NOVO SISTEMA DE ANIMAIS
+// ========================================
+
+export interface TipoAnimal {
+  id: string;
+  nome: string; // Bezerro, Novilha, Vaca, Touro, Garrote, Boi, etc.
+  descricao?: string;
+  ordem?: number; // Para ordenação customizada
+  ativo: boolean;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+export interface StatusAnimal {
+  id: string;
+  nome: string; // Ativo, Vendido, Morto, Transferido, Doente, Quarentena, etc.
+  cor?: string; // Cor para identificação visual
+  descricao?: string;
+  ordem?: number;
+  ativo: boolean;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+export interface Origem {
+  id: string;
+  nome: string; // Nascido na Fazenda, Comprado, Transferido, Doado, etc.
+  descricao?: string;
+  ordem?: number;
+  ativo: boolean;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+export interface Animal {
+  id: string; // UUID (chave primária)
+  brinco: string; // Número do brinco (identificador visual)
+  nome?: string; // Nome do animal (opcional)
+  
+  // Classificação
+  tipoId: string; // FK para tipos_animal (Bezerro, Novilha, Vaca, etc.)
+  racaId?: string; // FK para racas
+  sexo: 'M' | 'F';
+  statusId: string; // FK para status_animal (Ativo, Vendido, etc.)
+  
+  // Datas
+  dataNascimento: string;
+  dataCadastro: string; // Quando foi cadastrado no sistema
+  dataEntrada?: string; // Quando entrou na fazenda (se comprado/transferido)
+  dataSaida?: string; // Quando saiu (venda/morte/transferência)
+  
+  // Origem e Proprietário
+  origemId: string; // FK para origens
+  fazendaId: string; // Fazenda atual (proprietário)
+  fazendaOrigemId?: string; // Fazenda de origem (se transferido)
+  proprietarioAnterior?: string; // Nome do proprietário anterior
+  
+  // Genealogia (IDs de outros animais)
+  matrizId?: string; // ID da mãe (FK para animais)
+  reprodutorId?: string; // ID do pai (FK para animais)
+  
+  // Financeiro
+  valorCompra?: number;
+  valorVenda?: number;
+  
+  // Físico
+  pelagem?: string; // Cor/pelagem
+  pesoAtual?: number; // Último peso registrado
+  
+  // Agrupamento
+  lote?: string;
+  categoria?: string; // Categoria personalizada
+  
+  // Observações
+  obs?: string;
+  
+  // Sistema
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+export interface Genealogia {
+  id: string;
+  animalId: string; // FK para animais (animal em questão)
+  matrizId?: string; // FK para animais (mãe)
+  tipoMatrizId?: string; // FK para tipos_animal (Tipo da matriz/mãe)
+  reprodutorId?: string; // FK para animais (pai)
+  avoMaterna?: string; // FK para animais (avó materna)
+  avoPaterna?: string; // FK para animais (avó paterna)
+  avoPaternoMaterno?: string; // FK para animais (avô materno)
+  avoPaternoPatro?: string; // FK para animais (avô paterno)
+  geracoes: number; // Número de gerações registradas
+  observacoes?: string;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
 }

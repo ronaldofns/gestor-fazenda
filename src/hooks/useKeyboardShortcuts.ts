@@ -7,11 +7,10 @@ import { useAuth } from './useAuth';
  *
  * Combinações (Alt + Shift + tecla):
  * - D: Dashboard
- * - P: Nascimento/Desmama
- * - M: Matrizes
+ * - P: Animais
+ * - M: Animais
  * - N: Notificações
  * - F: Fazendas
- * - I: Importar Planilha
  * - U: Usuários (somente admin)
  */
 export function useKeyboardShortcuts() {
@@ -41,12 +40,9 @@ export function useKeyboardShortcuts() {
           navigate('/dashboard');
           break;
         case 'p':
-          event.preventDefault();
-          navigate('/planilha');
-          break;
         case 'm':
           event.preventDefault();
-          navigate('/matrizes');
+          navigate('/animais');
           break;
         case 'n':
           event.preventDefault();
@@ -55,10 +51,6 @@ export function useKeyboardShortcuts() {
         case 'f':
           event.preventDefault();
           navigate('/fazendas');
-          break;
-        case 'i':
-          event.preventDefault();
-          navigate('/importar-planilha');
           break;
         case 'u':
           if (!isAdmin()) return;

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Tags - Gestor Fazenda</title>
+    <script type="module">
+        // Importar Dexie dinamicamente
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/dexie@3/dist/dexie.js';
+        script.onload = async () => {
+            // Abrir banco IndexedDB
+            const db = new Dexie('gestor-fazenda-db');
+            db.version(24).stores({
+                tags: 'id, name, category, createdBy, deletedAt',
+                tagAssignments: 'id, [entityType+entityId], tagId, entityId, entityType, deletedAt'
+            });
+
+            console.log('🔍 DIAGNÓSTICO DE TAGS');
+            
+            // 1. Listar todas as tags
+            const allTags = await db.tags.toArray();
+            console.log('\n📋 TODAS AS TAGS:');
+            console.table(allTags.map(t => ({
+                id: t.id,
+                nome: t.name,
+                usageCount: t.usageCount,
+                deletedAt: t.deletedAt || 'null'
+            })));
+
+            // 2. Listar todos os assignments
+            const allAssignments = await db.tagAssignments.toArray();
+            console.log('\n📌 TODOS OS ASSIGNMENTS:');
+            console.table(allAssignments.map(a => ({
+                id: a.id,
+                tagId: a.tagId.substring(0, 8) + '...',
+                entityType: a.entityType,
+                entityId: a.entityId,
+                deletedAt: a.deletedAt || 'null'
+            })));
+
+            // 3. Procurar duplicatas
+            const duplicates = allAssignments.reduce((acc, curr) => {
+                const key = `${curr.entityType}-${curr.entityId}-${curr.tagId}`;
+                if (!curr.deletedAt) {
+                    acc[key] = (acc[key] || 0) + 1;
+                }
+                return acc;
+            }, {});
+
+            const hasDuplicates = Object.entries(duplicates).filter(([_, count]) => count > 1);
+            
+            if (hasDuplicates.length > 0) {
+                console.error('\n❌ DUPLICATAS ENCONTRADAS:');
+                console.table(hasDuplicates.map(([key, count]) => {
+                    const [entityType, entityId, tagId] = key.split('-');
+                    return { entityType, entityId, tagId: tagId.substring(0, 8) + '...', count };
+                }));
+            } else {
+                console.log('\n✅ NENHUMA DUPLICATA ENCONTRADA');
+            }
+
+            // 4. Verificar tag "Leite" especificamente
+            const tagLeite = allTags.find(t => t.name === 'Leite');
+            if (tagLeite) {
+                console.log('\n🏷️ TAG "LEITE":');
+                console.log('usageCount no banco:', tagLeite.usageCount);
+                
+                const assignmentsLeite = allAssignments.filter(a => 
+                    a.tagId === tagLeite.id && !a.deletedAt
+                );
+                console.log('Assignments reais:', assignmentsLeite.length);
+                console.log('Assignments:');
+                console.table(assignmentsLeite.map(a => ({
+                    entityType: a.entityType,
+                    entityId: a.entityId
+                })));
+            }
+
+            // 5. Mostrar resultado final
+            document.getElementById('output').innerHTML = `
+                <h2>Diagnóstico Completo</h2>
+                <p><strong>Total de Tags:</strong> ${allTags.length}</p>
+                <p><strong>Total de Assignments:</strong> ${allAssignments.length}</p>
+                <p><strong>Duplicatas:</strong> ${hasDuplicates.length > 0 ? '❌ SIM' : '✅ NÃO'}</p>
+                <p style="color: ${hasDuplicates.length > 0 ? 'red' : 'green'};">
+                    ${hasDuplicates.length > 0 
+                        ? 'ENCONTRADAS ' + hasDuplicates.length + ' DUPLICATAS!' 
+                        : 'Nenhuma duplicata encontrada'}
+                </p>
+                <p><em>Veja o console (F12) para detalhes completos</em></p>
+            `;
+        };
+        document.head.appendChild(script);
+    </script>
+    <style>
+        body { font-family: system-ui; max-width: 800px; margin: 40px auto; padding: 20px; }
+        h1 { color: #2563eb; }
+        #output { background: #f3f4f6; padding: 20px; border-radius: 8px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug de Tags - Gestor Fazenda</h1>
+    <p>Abrindo banco IndexedDB e verificando duplicatas...</p>
+    <div id="output">Carregando...</div>
+</body>
+</html>

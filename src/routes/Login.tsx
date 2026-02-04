@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Icons } from '../utils/iconMapping';
+import { t } from '../i18n/pt-BR';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../db/dexieDB';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -19,7 +20,8 @@ export default function Login() {
   const [verificandoUsuarios, setVerificandoUsuarios] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
   const [temUsuarios, setTemUsuarios] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm();
+  const isDev = import.meta.env?.DEV === true || import.meta.env?.MODE === 'development';
 
   // Sincronizar usuários do Supabase antes de verificar
   useEffect(() => {
@@ -84,6 +86,12 @@ export default function Login() {
       setLoading(false);
     }
   }
+
+  async function handleAcessoRapidoDev() {
+    setValue('email', 'ronaldofnsdeveloper@gmail.com');
+    setValue('password', '123456');
+    await onSubmit({ email: 'ronaldofnsdeveloper@gmail.com', password: '123456' });
+  }
   
   if (authLoading || verificandoUsuarios) {
     return (
@@ -91,12 +99,12 @@ export default function Login() {
         <div className="text-center">
           <div className={`w-12 h-12 border-4 ${getThemeClasses(primaryColor, 'border')} border-t-transparent rounded-full animate-spin mx-auto mb-4`}></div>
           <div className="text-gray-500 dark:text-slate-400">
-            {sincronizando ? 'Sincronizando usuários...' : 'Carregando...'}
+            {sincronizando ? t('login.syncUsers') : t('common.loading')}
           </div>
           {sincronizando && (
             <div className={`mt-4 flex items-center justify-center gap-2 text-sm ${getThemeClasses(primaryColor, 'text')}`}>
               <Icons.RefreshCw className="w-4 h-4 animate-spin" />
-              <span>Buscando usuários do servidor</span>
+              <span>{t('login.fetchingUsers')}</span>
             </div>
           )}
         </div>
@@ -123,8 +131,8 @@ export default function Login() {
 
         {/* Card de Login */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-slate-800">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6 text-center">Entrar</h2>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6 text-center">{t('login.title')}</h2>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" aria-label={t('login.formLabel')}>
             {error && (
               <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-md">
                 <p className="text-red-700 text-sm font-medium">{error}</p>
@@ -132,7 +140,7 @@ export default function Login() {
             )}
             
             <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Email</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">{t('login.email')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Icons.Mail className={`h-5 w-5 ${getThemeClasses(primaryColor, 'text')}`} />
@@ -140,8 +148,8 @@ export default function Login() {
                 <input 
                   type="email"
                   className={`w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`} 
-                  placeholder="seu@email.com" 
-                  {...register('email', { required: 'Email é obrigatório' })} 
+                  placeholder={t('login.emailPlaceholder')} 
+                  {...register('email', { required: t('login.emailRequired') })} 
                 />
               </div>
               {errors.email && (
@@ -150,7 +158,7 @@ export default function Login() {
             </div>
             
             <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Senha</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">{t('login.password')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Icons.Lock className={`h-5 w-5 ${getThemeClasses(primaryColor, 'text')}`} />
@@ -158,8 +166,8 @@ export default function Login() {
                 <input 
                   type="password"
                   className={`w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} transition-colors`} 
-                  placeholder="Sua senha" 
-                  {...register('password', { required: 'Senha é obrigatória' })} 
+                  placeholder={t('login.passwordPlaceholder')} 
+                  {...register('password', { required: t('login.passwordRequired') })} 
                 />
               </div>
               {errors.password && (
@@ -167,8 +175,9 @@ export default function Login() {
               )}
             </div>
             
-            <button 
-              type="submit" 
+            <button
+              type="submit"
+              aria-label={t('login.submit')} 
               disabled={loading}
               className={`w-full px-4 py-3 ${getPrimaryButtonClass(primaryColor)} text-white font-semibold rounded-lg focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-offset-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
             >
@@ -187,6 +196,19 @@ export default function Login() {
                 </>
               )}
             </button>
+
+            {isDev && (
+              <button
+                type="button"
+                onClick={handleAcessoRapidoDev}
+                disabled={loading}
+                className="w-full mt-2 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                title="DEBUG: preenche e envia credenciais de desenvolvimento"
+              >
+                <Icons.Zap className="w-4 h-4" />
+                {t('login.devQuickAccess')}
+              </button>
+            )}
           </form>
           
           {!temUsuarios && (

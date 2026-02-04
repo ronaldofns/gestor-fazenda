@@ -7,12 +7,16 @@ export interface AppSettings {
   timeoutInatividade: number; // Tempo de inatividade em minutos antes de fazer logout
   intervaloSincronizacao: number; // Intervalo de sincronização automática em segundos
   primaryColor: ColorPaletteKey; // Cor primária do tema
+  allowBrowserNotifications: boolean; // Permitir notificações no navegador (PWA)
+  modoCurral: boolean; // Modo Campo/Curral: fonte maior, alto contraste (v0.4)
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   timeoutInatividade: 15, // 15 minutos padrão
   intervaloSincronizacao: 30, // 30 segundos padrão
-  primaryColor: 'gray' // Cinza padrão
+  primaryColor: 'gray', // Cinza padrão
+  allowBrowserNotifications: false,
+  modoCurral: false
 };
 
 const EVENT_NAME = 'appSettingsUpdated';
@@ -27,17 +31,19 @@ function normalizeSettings(settings?: Partial<AppSettings>): AppSettings {
   return {
     timeoutInatividade: clampNumber(
       settings?.timeoutInatividade ?? DEFAULT_APP_SETTINGS.timeoutInatividade,
-      1, // Mínimo 1 minuto
-      120, // Máximo 120 minutos (2 horas)
+      1,
+      120,
       DEFAULT_APP_SETTINGS.timeoutInatividade
     ),
     intervaloSincronizacao: clampNumber(
       settings?.intervaloSincronizacao ?? DEFAULT_APP_SETTINGS.intervaloSincronizacao,
-      10, // Mínimo 10 segundos
-      300, // Máximo 300 segundos (5 minutos)
+      10,
+      300,
       DEFAULT_APP_SETTINGS.intervaloSincronizacao
     ),
-    primaryColor: (settings?.primaryColor || DEFAULT_APP_SETTINGS.primaryColor) as ColorPaletteKey
+    primaryColor: (settings?.primaryColor || DEFAULT_APP_SETTINGS.primaryColor) as ColorPaletteKey,
+    allowBrowserNotifications: settings?.allowBrowserNotifications ?? DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+    modoCurral: settings?.modoCurral ?? DEFAULT_APP_SETTINGS.modoCurral
   };
 }
 
@@ -71,7 +77,9 @@ export function useAppSettings() {
           const settings = {
             timeoutInatividade: dbSettings.timeoutInatividade,
             intervaloSincronizacao: dbSettings.intervaloSincronizacao ?? DEFAULT_APP_SETTINGS.intervaloSincronizacao,
-            primaryColor: dbSettings.primaryColor || DEFAULT_APP_SETTINGS.primaryColor
+            primaryColor: dbSettings.primaryColor || DEFAULT_APP_SETTINGS.primaryColor,
+            allowBrowserNotifications: dbSettings.allowBrowserNotifications ?? DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+            modoCurral: dbSettings.modoCurral ?? DEFAULT_APP_SETTINGS.modoCurral
           };
           applySettings(normalizeSettings(settings));
           return;
@@ -103,9 +111,11 @@ export function useAppSettings() {
     return () => window.removeEventListener(EVENT_NAME, handler);
   }, [applySettings]);
 
-  const saveSettings = useCallback(async () => {
-    const normalized = normalizeSettings(draftSettings);
+  const saveSettings = useCallback(async (override?: Partial<AppSettings>) => {
+    const toSave = override ? { ...draftSettings, ...override } : draftSettings;
+    const normalized = normalizeSettings(toSave);
     applySettings(normalized);
+    setDraftSettings({ ...normalized });
     
     // Salvar no IndexedDB para sincronização
     try {
@@ -117,8 +127,10 @@ export function useAppSettings() {
           timeoutInatividade: normalized.timeoutInatividade,
           intervaloSincronizacao: normalized.intervaloSincronizacao,
           primaryColor: normalized.primaryColor,
+          allowBrowserNotifications: normalized.allowBrowserNotifications,
+          modoCurral: normalized.modoCurral,
           updatedAt: now,
-          synced: false // Marcar como não sincronizado para fazer push
+          synced: false
         });
       } else {
         await db.appSettings.add({
@@ -126,6 +138,8 @@ export function useAppSettings() {
           timeoutInatividade: normalized.timeoutInatividade,
           intervaloSincronizacao: normalized.intervaloSincronizacao,
           primaryColor: normalized.primaryColor,
+          allowBrowserNotifications: normalized.allowBrowserNotifications,
+          modoCurral: normalized.modoCurral,
           createdAt: now,
           updatedAt: now,
           synced: false,
@@ -153,8 +167,10 @@ export function useAppSettings() {
           timeoutInatividade: DEFAULT_APP_SETTINGS.timeoutInatividade,
           intervaloSincronizacao: DEFAULT_APP_SETTINGS.intervaloSincronizacao,
           primaryColor: DEFAULT_APP_SETTINGS.primaryColor,
+          allowBrowserNotifications: DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+          modoCurral: DEFAULT_APP_SETTINGS.modoCurral,
           updatedAt: now,
-          synced: false // Marcar como não sincronizado para fazer push
+          synced: false
         });
       } else {
         await db.appSettings.add({
@@ -162,6 +178,8 @@ export function useAppSettings() {
           timeoutInatividade: DEFAULT_APP_SETTINGS.timeoutInatividade,
           intervaloSincronizacao: DEFAULT_APP_SETTINGS.intervaloSincronizacao,
           primaryColor: DEFAULT_APP_SETTINGS.primaryColor,
+          allowBrowserNotifications: DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+          modoCurral: DEFAULT_APP_SETTINGS.modoCurral,
           createdAt: now,
           updatedAt: now,
           synced: false,

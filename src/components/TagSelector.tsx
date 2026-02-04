@@ -9,7 +9,7 @@ import { getPrimaryButtonClass } from '../utils/themeHelpers';
 interface TagSelectorProps {
   selectedTagIds: string[];
   onChange: (tagIds: string[]) => void;
-  entityType: 'nascimento' | 'matriz' | 'fazenda';
+  entityType: 'nascimento' | 'matriz' | 'fazenda' | 'animal';
   disabled?: boolean;
   label?: string;
 }

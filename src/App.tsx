@@ -9,6 +9,8 @@ import PWAUpdatePrompt from './components/PWAUpdatePrompt';
 import { ToastContainer } from './components/Toast';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
+import useOnline from './hooks/useOnline';
+import { useAppSettings } from './hooks/useAppSettings';
 import TopBar from './components/TopBar';
 import { cleanupExpiredLocks } from './utils/recordLock';
 import { FazendaContextProvider } from './hooks/useFazendaContext';
@@ -18,17 +20,16 @@ import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
 const Login = lazy(() => import('./routes/Login'));
 const SetupInicial = lazy(() => import('./routes/SetupInicial'));
 const Dashboard = lazy(() => import('./routes/Dashboard'));
-const Home = lazy(() => import('./routes/Home'));
-const Matrizes = lazy(() => import('./routes/Matrizes'));
 const Notificacoes = lazy(() => import('./routes/Notificacoes'));
-const CadastroDesmama = lazy(() => import('./routes/CadastroDesmama'));
 const ListaFazendas = lazy(() => import('./routes/ListaFazendas'));
-const ImportarPlanilha = lazy(() => import('./routes/ImportarPlanilha'));
 const ListaUsuarios = lazy(() => import('./routes/ListaUsuarios'));
 const Permissoes = lazy(() => import('./routes/Permissoes'));
 const Perfil = lazy(() => import('./routes/Perfil'));
 const Configuracoes = lazy(() => import('./routes/Configuracoes'));
 const Sincronizacao = lazy(() => import('./routes/Sincronizacao'));
+const Animais = lazy(() => import('./routes/Animais'));
+const PendenciasCurral = lazy(() => import('./routes/PendenciasCurral'));
+const Relatorios = lazy(() => import('./routes/Relatorios'));
 
 // Componente de loading para Suspense
 function RouteLoader() {
@@ -56,6 +57,8 @@ export default function App() {
   
   // Hook para atalhos globais de teclado
   useGlobalShortcuts();
+  const online = useOnline();
+  const { appSettings } = useAppSettings();
 
   // Limpar locks expirados ao iniciar o app e periodicamente
   useEffect(() => {
@@ -97,7 +100,7 @@ export default function App() {
               path="/*"
               element={
                 <ProtectedRoute>
-                  <div className="flex min-h-screen">
+                  <div className={`flex min-h-screen transition-[padding] ${!online ? 'pt-12' : ''} ${appSettings.modoCurral ? 'mode-curral' : ''}`}>
                     <Sidebar />
                     <div className={`flex-1 min-h-screen transition-all duration-300 flex flex-col ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
                       <TopBar />
@@ -110,14 +113,17 @@ export default function App() {
                                 <Dashboard />
                               </ProtectedRoute>
                             } />
-                            <Route path="/planilha" element={
+                            <Route path="/planilha" element={<Navigate to="/animais" replace />} />
+                            <Route path="/matrizes" element={<Navigate to="/animais" replace />} />
+                            <Route path="/desmama/:nascimentoId" element={<Navigate to="/animais" replace />} />
+                            <Route path="/animais" element={
                               <ProtectedRoute requiredPermission="ver_planilha">
-                                <Home />
+                                <Animais />
                               </ProtectedRoute>
                             } />
-                            <Route path="/matrizes" element={
-                              <ProtectedRoute requiredPermission="ver_matrizes">
-                                <Matrizes />
+                            <Route path="/pendencias-curral" element={
+                              <ProtectedRoute requiredPermission="ver_planilha">
+                                <PendenciasCurral />
                               </ProtectedRoute>
                             } />
                             <Route path="/notificacoes" element={
@@ -125,19 +131,9 @@ export default function App() {
                                 <Notificacoes />
                               </ProtectedRoute>
                             } />
-                            <Route path="/desmama/:nascimentoId" element={
-                              <ProtectedRoute requiredPermission={["cadastrar_desmama", "editar_desmama"]}>
-                                <CadastroDesmama />
-                              </ProtectedRoute>
-                            } />
                             <Route path="/fazendas" element={
                               <ProtectedRoute requiredPermission="ver_fazendas">
                                 <ListaFazendas />
-                              </ProtectedRoute>
-                            } />
-                            <Route path="/importar-planilha" element={
-                              <ProtectedRoute requiredPermission="importar_planilha">
-                                <ImportarPlanilha />
                               </ProtectedRoute>
                             } />
                             <Route path="/usuarios" element={
@@ -148,6 +144,11 @@ export default function App() {
                             <Route path="/permissoes" element={
                               <ProtectedRoute requiredRole="admin">
                                 <Permissoes />
+                              </ProtectedRoute>
+                            } />
+                            <Route path="/relatorios" element={
+                              <ProtectedRoute requiredPermission="gerar_relatorios">
+                                <Relatorios />
                               </ProtectedRoute>
                             } />
                             <Route path="/perfil" element={<Perfil />} />

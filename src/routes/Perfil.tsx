@@ -10,6 +10,7 @@ import { FaSpinner, FaClock, FaSave, FaBuilding } from 'react-icons/fa';
 import { db } from '../db/dexieDB';
 import { Fazenda } from '../db/models';
 import { getPrimaryBgClass } from '../utils/themeHelpers';
+import Input from '../components/Input';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
@@ -235,19 +236,21 @@ export default function Perfil() {
             <div className="space-y-4">
               {/* Nome */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Nome
-                </label>
                 {editing ? (
-                  <input
+                  <Input
+                    label="Nome"
                     type="text"
                     value={formData.nome}
                     onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
-                    className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
                     placeholder="Seu nome completo"
                   />
                 ) : (
-                  <p className="text-sm text-gray-900 dark:text-slate-100 py-2">{user.nome}</p>
+                  <>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                      Nome
+                    </label>
+                    <p className="text-sm text-gray-900 dark:text-slate-100 py-2">{user.nome}</p>
+                  </>
                 )}
               </div>
 
@@ -353,47 +356,32 @@ export default function Perfil() {
             </p>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Senha Atual
-                </label>
-                <input
-                  type="password"
-                  value={formData.senhaAtual}
-                  onChange={(e) => setFormData(prev => ({ ...prev, senhaAtual: e.target.value }))}
-                  disabled={!editing}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder="Digite sua senha atual"
-                />
-              </div>
+              <Input
+                label="Senha Atual"
+                type="password"
+                value={formData.senhaAtual}
+                onChange={(e) => setFormData(prev => ({ ...prev, senhaAtual: e.target.value }))}
+                disabled={!editing}
+                placeholder="Digite sua senha atual"
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Nova Senha
-                </label>
-                <input
-                  type="password"
-                  value={formData.novaSenha}
-                  onChange={(e) => setFormData(prev => ({ ...prev, novaSenha: e.target.value }))}
-                  disabled={!editing}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder="Mínimo 6 caracteres"
-                />
-              </div>
+              <Input
+                label="Nova Senha"
+                type="password"
+                value={formData.novaSenha}
+                onChange={(e) => setFormData(prev => ({ ...prev, novaSenha: e.target.value }))}
+                disabled={!editing}
+                placeholder="Mínimo 6 caracteres"
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Confirmar Nova Senha
-                </label>
-                <input
-                  type="password"
-                  value={formData.confirmarSenha}
-                  onChange={(e) => setFormData(prev => ({ ...prev, confirmarSenha: e.target.value }))}
-                  disabled={!editing}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder="Confirme a nova senha"
-                />
-              </div>
+              <Input
+                label="Confirmar Nova Senha"
+                type="password"
+                value={formData.confirmarSenha}
+                onChange={(e) => setFormData(prev => ({ ...prev, confirmarSenha: e.target.value }))}
+                disabled={!editing}
+                placeholder="Confirme a nova senha"
+              />
             </div>
           </div>
         </div>

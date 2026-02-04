@@ -10,56 +10,70 @@ export default function OfflineIndicator() {
   const [previousOnline, setPreviousOnline] = useState(online);
   const timeoutRef = useRef<number | null>(null);
 
-  // Contar registros pendentes de sincronização
+  // Contar registros pendentes de sincronização (tabelas em uso)
   const pendingCount = useLiveQuery(async () => {
     try {
-      const [nascimentos, desmamas, pesagens, vacinacoes, matrizes, fazendas, racas, categorias, usuarios] = await Promise.all([
-        db.nascimentos.where('synced').equals(0).count(),
-        db.desmamas.where('synced').equals(0).count(),
-        db.pesagens.where('synced').equals(0).count(),
-        db.vacinacoes.where('synced').equals(0).count(),
-        db.matrizes.where('synced').equals(0).count(),
-        db.fazendas.where('synced').equals(0).count(),
-        db.racas.where('synced').equals(0).count(),
-        db.categorias.where('synced').equals(0).count(),
-        db.usuarios.where('synced').equals(0).count()
+      const count = (arr: { synced?: boolean }[]) => arr.filter((x) => !x.synced).length;
+      const [a, d, p, v, f, r, c, u, del, rp] = await Promise.all([
+        (db.animais?.toArray() ?? Promise.resolve([])).then(count),
+        (db.desmamas?.toArray() ?? Promise.resolve([])).then(count),
+        (db.pesagens?.toArray() ?? Promise.resolve([])).then(count),
+        (db.vacinacoes?.toArray() ?? Promise.resolve([])).then(count),
+        (db.fazendas?.toArray() ?? Promise.resolve([])).then(count),
+        (db.racas?.toArray() ?? Promise.resolve([])).then(count),
+        (db.categorias?.toArray() ?? Promise.resolve([])).then(count),
+        (db.usuarios?.toArray() ?? Promise.resolve([])).then(count),
+        (db.deletedRecords?.toArray() ?? Promise.resolve([])).then(count),
+        (db.rolePermissions?.toArray() ?? Promise.resolve([])).then(count)
       ]);
-      return nascimentos + desmamas + pesagens + vacinacoes + matrizes + fazendas + racas + categorias + usuarios;
+      return a + d + p + v + f + r + c + u + del + rp;
     } catch {
       return 0;
     }
-  }, []) || 0;
+  }, []) ?? 0;
 
   useEffect(() => {
     // Detectar mudança de status
     if (online !== previousOnline) {
-      // Limpar timeout anterior
+      // Limpar timeout anterior (só ao iniciar nova transição, não no cleanup)
       if (timeoutRef.current) {
         window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
 
       // Exibir toast temporário na mudança de status
       setShowToast(true);
       timeoutRef.current = window.setTimeout(() => {
         setShowToast(false);
+        timeoutRef.current = null;
       }, 4000);
 
       setPreviousOnline(online);
     }
-
-    return () => {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
-    };
+    // Não limpar o timeout no cleanup: quando setPreviousOnline(online) roda, o efeito
+    // é reexecutado e o cleanup acabaria cancelando o timeout que esconde o toast,
+    // deixando a mensagem travada na tela.
   }, [online, previousOnline]);
 
   return (
     <>
+      {/* Barra fixa no topo quando offline (item 15 - modo offline aprimorado) */}
+      {!online && (
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-500 dark:bg-amber-600 text-white text-center py-2 px-4 text-sm font-medium shadow-md flex items-center justify-center gap-2">
+          <Icons.WifiOff className="w-4 h-4 shrink-0" />
+          <span>Você está offline. Alterações serão salvas localmente e sincronizadas quando a conexão voltar.</span>
+          {pendingCount > 0 && (
+            <span className="bg-amber-600 dark:bg-amber-700 px-2 py-0.5 rounded-full text-xs tabular-nums">
+              {pendingCount} pendente{pendingCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Toast temporário na mudança de status */}
       {showToast && (
         <div
-          className={`fixed top-20 left-1/2 -translate-x-1/2 z-[60] transition-all duration-300 ${
+          className={`fixed top-20 left-1/2 -translate-x-1/2 z-[61] transition-all duration-300 ${
             showToast ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
@@ -77,7 +91,7 @@ export default function OfflineIndicator() {
                   <div className="font-semibold">Conexão restaurada</div>
                   {pendingCount > 0 && (
                     <div className="text-xs opacity-90 mt-0.5">
-                      {pendingCount} registro(s) pendente(s) de sincronização
+                      {pendingCount} registro(s) pendente(s). Vá em Sincronização para enviar.
                     </div>
                   )}
                 </div>
@@ -86,9 +100,9 @@ export default function OfflineIndicator() {
               <>
                 <Icons.WifiOff className="w-5 h-5" />
                 <div>
-                  <div className="font-semibold">Modo Offline</div>
+                  <div className="font-semibold">Modo Offline ativado</div>
                   <div className="text-xs opacity-90 mt-0.5">
-                    Seus dados serão salvos localmente
+                    Seus dados serão salvos localmente e sincronizados quando voltar online.
                   </div>
                 </div>
               </>
@@ -97,20 +111,14 @@ export default function OfflineIndicator() {
         </div>
       )}
 
-      {/* Indicador persistente quando offline */}
+      {/* Indicador persistente no rodapé quando offline (reduzido; barra no topo é o destaque) */}
       {!online && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[55] animate-fade-in">
           <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 text-xs font-medium shadow-lg border border-amber-200 dark:border-amber-700">
-            <div className="relative flex">
-              <Icons.WifiOff className="w-3.5 h-3.5" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-pulse"></span>
-            </div>
+            <Icons.WifiOff className="w-3.5 h-3.5" />
             <span>Offline</span>
             {pendingCount > 0 && (
-              <>
-                <span className="text-amber-400 dark:text-amber-500">•</span>
-                <span className="tabular-nums">{pendingCount} pendente(s)</span>
-              </>
+              <span className="tabular-nums">({pendingCount} pend.)</span>
             )}
           </div>
         </div>

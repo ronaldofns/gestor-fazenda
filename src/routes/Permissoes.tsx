@@ -18,15 +18,13 @@ const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 const PERMISSION_LABELS: Record<PermissionType, string> = {
-  importar_planilha: 'Importar Planilha',
   gerenciar_usuarios: 'Gerenciar Usuários',
   gerenciar_fazendas: 'Gerenciar Fazendas',
-  gerenciar_matrizes: 'Gerenciar Matrizes',
   gerenciar_racas: 'Gerenciar Raças',
   gerenciar_categorias: 'Gerenciar Categorias',
-  cadastrar_nascimento: 'Cadastrar Nascimento',
-  editar_nascimento: 'Editar Nascimento',
-  excluir_nascimento: 'Excluir Nascimento',
+  cadastrar_animal: 'Cadastrar Animal',
+  editar_animal: 'Editar Animal',
+  excluir_animal: 'Excluir Animal',
   cadastrar_desmama: 'Cadastrar Desmama',
   editar_desmama: 'Editar Desmama',
   excluir_desmama: 'Excluir Desmama',
@@ -39,22 +37,21 @@ const PERMISSION_LABELS: Record<PermissionType, string> = {
   ver_dashboard: 'Ver Dashboard',
   ver_notificacoes: 'Ver Notificações',
   ver_sincronizacao: 'Ver Sincronização',
-  ver_matrizes: 'Ver Matrizes',
   ver_fazendas: 'Ver Fazendas',
   ver_usuarios: 'Ver Usuários',
-  ver_planilha: 'Ver Nascimento/Desmama',
+  ver_planilha: 'Ver Animais',
   exportar_dados: 'Exportar Dados',
   gerar_relatorios: 'Gerar Relatórios'
 };
 
 const PERMISSION_GROUPS: Record<string, PermissionType[]> = {
-  'Importação e Dados': ['importar_planilha', 'exportar_dados', 'gerar_relatorios'],
-  'Gerenciamento': ['gerenciar_usuarios', 'gerenciar_fazendas', 'gerenciar_matrizes', 'gerenciar_racas', 'gerenciar_categorias'],
-  'Nascimentos': ['cadastrar_nascimento', 'editar_nascimento', 'excluir_nascimento'],
+  'Visualização': ['ver_dashboard', 'ver_notificacoes', 'ver_sincronizacao', 'ver_planilha', 'ver_fazendas', 'ver_usuarios'],
+  'Gerenciamento': ['gerenciar_usuarios', 'gerenciar_fazendas', 'gerenciar_racas', 'gerenciar_categorias'],
+  'Animais': ['cadastrar_animal', 'editar_animal', 'excluir_animal'],
   'Desmamas': ['cadastrar_desmama', 'editar_desmama', 'excluir_desmama'],
   'Pesagens': ['cadastrar_pesagem', 'editar_pesagem', 'excluir_pesagem'],
   'Vacinações': ['cadastrar_vacina', 'editar_vacina', 'excluir_vacina'],
-  'Visualização': ['ver_dashboard', 'ver_notificacoes', 'ver_sincronizacao', 'ver_planilha', 'ver_matrizes', 'ver_fazendas', 'ver_usuarios']
+  'Dados e Relatórios': ['exportar_dados', 'gerar_relatorios']
 };
 
 export default function Permissoes() {
@@ -106,7 +103,7 @@ export default function Permissoes() {
       showToast({
         type: 'success',
         title: 'Permissão atualizada',
-        message: `Permissão "${PERMISSION_LABELS[permission]}" ${newGranted ? 'concedida' : 'revogada'} para ${ROLE_LABELS[selectedRole]}.`
+        message: `Permissão "${PERMISSION_LABELS[permission]}" ${newGranted ? 'incluída' : 'removida'} para ${ROLE_LABELS[selectedRole]}.`
       });
     } catch (error) {
       console.error('Erro ao atualizar permissão:', error);
@@ -162,8 +159,8 @@ export default function Permissoes() {
       await pushPending();
       showToast({
         type: 'success',
-        title: granted ? 'Todas selecionadas' : 'Todas desselecionadas',
-        message: `Todas as permissões foram ${granted ? 'concedidas' : 'revogadas'} para ${ROLE_LABELS[selectedRole]}.`
+        title: granted ? 'Todas incluídas' : 'Todas removidas',
+        message: `Todas as permissões foram ${granted ? 'incluídas' : 'removidas'} para ${ROLE_LABELS[selectedRole]}.`
       });
     } catch (error) {
       console.error('Erro ao atualizar permissões:', error);
@@ -188,8 +185,8 @@ export default function Permissoes() {
       await pushPending();
       showToast({
         type: 'success',
-        title: granted ? 'Grupo selecionado' : 'Grupo desselecionado',
-        message: `Todas as permissões do grupo foram ${granted ? 'concedidas' : 'revogadas'} para ${ROLE_LABELS[selectedRole]}.`
+        title: granted ? 'Grupo incluído' : 'Grupo removido',
+        message: `Todas as permissões do grupo foram ${granted ? 'incluídas' : 'removidas'} para ${ROLE_LABELS[selectedRole]}.`
       });
     } catch (error) {
       console.error('Erro ao atualizar permissões do grupo:', error);
@@ -228,7 +225,7 @@ export default function Permissoes() {
         </div>
       </div>
 
-      {/* Botões de Ação Global */}
+      {/* Botões de Ação Global: Incluir e Remover */}
       <div className="mb-6 flex flex-wrap gap-2 justify-between items-center">
         <div className="flex flex-wrap gap-2">
           <button
@@ -237,7 +234,7 @@ export default function Permissoes() {
             className={`px-4 py-2 ${getPrimaryBgClass(primaryColor)} hover:opacity-90 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
           >
             <Icons.Check className="w-4 h-4" />
-            Selecionar Todas
+            Incluir Todas
           </button>
           <button
             onClick={() => handleSelectAll(false)}
@@ -245,7 +242,7 @@ export default function Permissoes() {
             className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <Icons.X className="w-4 h-4" />
-            Desselecionar Todas
+            Remover Todas
           </button>
         </div>
         <button
@@ -280,10 +277,10 @@ export default function Permissoes() {
                       ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-400'
                       : `${getThemeClasses(primaryColor, 'bg')} text-white hover:opacity-90`
                   }`}
-                  title="Selecionar todas do grupo"
+                  title="Incluir todas do grupo"
                 >
                   <Icons.Check className="w-3 h-3" />
-                  Todas
+                  Incluir
                 </button>
                 <button
                   onClick={() => handleSelectGroup(permissions, false)}
@@ -293,10 +290,10 @@ export default function Permissoes() {
                       ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-400'
                       : 'bg-gray-600 hover:bg-gray-700 text-white'
                   }`}
-                  title="Desselecionar todas do grupo"
+                  title="Remover todas do grupo"
                 >
                   <Icons.X className="w-3 h-3" />
-                  Nenhuma
+                  Remover
                 </button>
               </div>
             </div>
@@ -306,23 +303,42 @@ export default function Permissoes() {
                 const granted = perm?.granted ?? false;
 
                 return (
-                  <label
+                  <div
                     key={permission}
-                    className="flex items-center justify-between p-3 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-3 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors gap-2"
                   >
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                    <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">
                       {PERMISSION_LABELS[permission]}
                     </span>
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => !granted && handleTogglePermission(permission)}
+                        disabled={saving || granted}
+                        className={`px-2 py-1 text-xs font-medium rounded ${granted ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-400 cursor-default' : `${getThemeClasses(primaryColor, 'bg')} text-white hover:opacity-90`} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title="Incluir permissão"
+                      >
+                        Incluir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => granted && handleTogglePermission(permission)}
+                        disabled={saving || !granted}
+                        className={`px-2 py-1 text-xs font-medium rounded ${!granted ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-400 cursor-default' : 'bg-gray-600 hover:bg-gray-700 text-white'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title="Remover permissão"
+                      >
+                        Remover
+                      </button>
                       <input
                         type="checkbox"
                         checked={granted}
                         onChange={() => handleTogglePermission(permission)}
                         disabled={saving}
                         className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')} rounded ${getThemeClasses(primaryColor, 'ring')} focus:ring-2`}
+                        title={granted ? 'Remover permissão' : 'Incluir permissão'}
                       />
                     </div>
-                  </label>
+                  </div>
                 );
               })}
             </div>

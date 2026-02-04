@@ -201,20 +201,16 @@ const AutoBackupManager = memo(function AutoBackupManager({ inline = false }: Au
               </div>
 
               {/* Intervalo */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                  Frequência
-                </label>
-                <Combobox
-                  value={intervalOptions.find(opt => opt.value === settings.intervalMinutes)}
-                  onChange={(option) => option && updateSettings({ intervalMinutes: option.value })}
-                  options={intervalOptions}
-                  getOptionLabel={(opt) => opt.label}
-                  getOptionValue={(opt) => opt.value.toString()}
-                  placeholder="Selecione a frequência"
-                  disabled={!settings.enabled}
-                />
-              </div>
+              <Combobox
+                label="Frequência"
+                value={intervalOptions.find(opt => opt.value === settings.intervalMinutes)}
+                onChange={(option) => option && updateSettings({ intervalMinutes: option.value })}
+                options={intervalOptions}
+                getOptionLabel={(opt) => opt.label}
+                getOptionValue={(opt) => opt.value.toString()}
+                placeholder="Selecione a frequência"
+                disabled={!settings.enabled}
+              />
 
               {/* Notificações */}
               <div className="space-y-2">

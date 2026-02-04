@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Limpar banco - Gestor Fazenda</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 480px;
+      margin: 2rem auto;
+      padding: 1.5rem;
+      text-align: center;
+      background: #f1f5f9;
+    }
+    .box {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    h1 { font-size: 1.25rem; color: #334155; }
+    p { color: #64748b; margin: 1rem 0; }
+    .ok { color: #059669; font-weight: 600; }
+    .btn { display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: #2563eb; color: white; text-decoration: none; border-radius: 8px; }
+    .btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Limpeza do banco de dados</h1>
+    <p id="msg">Executando...</p>
+    <a href="/" class="btn" id="link" style="display:none;">Ir para o app</a>
+  </div>
+  <script>
+    (async function () {
+      const msg = document.getElementById('msg');
+      const link = document.getElementById('link');
+      try {
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(function (key) { return caches.delete(key); }));
+        }
+        if (typeof indexedDB !== 'undefined') {
+          const req = indexedDB.deleteDatabase('FazendaDB');
+          await new Promise(function (resolve, reject) {
+            req.onsuccess = resolve;
+            req.onerror = reject;
+            req.onblocked = resolve;
+          });
+        }
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (let i = 0; i < regs.length; i++) {
+            await regs[i].unregister();
+          }
+        }
+        msg.textContent = 'Banco e cache limpos. Redirecionando...';
+        msg.className = 'ok';
+        link.style.display = 'inline-block';
+        setTimeout(function () {
+          window.location.href = '/';
+        }, 1500);
+      } catch (e) {
+        msg.textContent = 'Erro: ' + (e && e.message ? e.message : String(e));
+      }
+    })();
+  </script>
+</body>
+</html>

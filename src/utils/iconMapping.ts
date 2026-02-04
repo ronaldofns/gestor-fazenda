@@ -25,7 +25,10 @@ import {
   FaChevronLeft,    // ChevronLeft
   FaChevronRight,   // ChevronRight
   FaChevronUp,      // ChevronUp / ArrowUp
+  FaArrowLeft,      // ArrowLeft
+  FaFilter,         // Filter
   FaPlus,           // Plus
+  FaMinus,          // Minus
   FaEdit,           // Edit
   FaTrash,          // Trash2
   FaChartLine,      // TrendingUp
@@ -46,6 +49,8 @@ import {
   FaChevronDown,    // ChevronDown
   FaStar,           // Star
   FaEnvelope,       // Mail
+  FaHeart,          // Heart
+  FaAward,          // Award
   FaLock,           // Lock
   FaSignInAlt,      // LogIn
   FaUserPlus,       // UserCheck / UserPlus
@@ -73,7 +78,10 @@ import {
   FaPlay,            // Play
   FaInbox,           // Inbox
   FaChartBar,        // BarChart / Activity
-  FaSearch           // Search
+  FaSearch,          // Search
+  FaCodeBranch,      // GitBranch
+  FaDollarSign,      // DollarSign
+  FaList             // List
 } from 'react-icons/fa';
 
 // Font Awesome 6 (para ícones mais recentes)
@@ -119,9 +127,12 @@ export const Icons = {
   ChevronUp: FaChevronUp,
   ArrowUp: FaChevronUp,
   ArrowDown: FaChevronDown,
+  ArrowLeft: FaArrowLeft,
+  Filter: FaFilter,
   
   // Ações
   Plus: FaPlus,
+  Minus: FaMinus,
   Edit: FaEdit,
   Trash2: FaTrash,
   Trash: FaTrash,
@@ -131,6 +142,7 @@ export const Icons = {
   
   // Gráficos e Estatísticas
   TrendingUp: FaChartLine,
+  TrendingDown: FaChartLine, // Usando o mesmo ícone, mas pode ser rotacionado com CSS
   BarChart3: MdBarChart,
   BarChart: FaChartBar,
   Activity: FaChartBar,
@@ -160,13 +172,15 @@ export const Icons = {
   User: FaUser,
   
   // Ícones de Animais
-  Cow: FaCow,        // Alias para compatibilidade
-  Vaca: FaCow,
+  Cow: GiCow,        // Alias para compatibilidade
+  Vaca: GiCow,
   Novilha: GiCow,
   // Ícones adicionais
   ChevronDown: FaChevronDown,
   Star: FaStar,
   Mail: FaEnvelope,
+  Heart: FaHeart,
+  Award: FaAward,
   Lock: FaLock,
   LogIn: FaSignInAlt,
   UserCheck: FaUserPlus,
@@ -196,8 +210,12 @@ export const Icons = {
   Zap: FaBolt,
   Monitor: FaDesktop,
   Inbox: FaInbox,
-  Search: FaSearch
+  Search: FaSearch,
+  GitBranch: FaCodeBranch,
+  DollarSign: FaDollarSign,
+  List: FaList
 };
 
 // Tipo para garantir type-safety
 export type IconName = keyof typeof Icons;
+

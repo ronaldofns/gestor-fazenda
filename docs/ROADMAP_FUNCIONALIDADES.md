@@ -1,235 +1,187 @@
-# 🗺️ Roadmap de Funcionalidades - Gestor Fazenda
+# 🗺️ Roadmap — Gestor Fazenda
 
-Este documento lista as funcionalidades sugeridas e o status de implementação de cada uma.
+## 🎯 Objetivo do roadmap
 
-## 🔥 PRIORIDADE 1 — Robustez (antes de mais features)
+Chegar em **v1.0 estável, vendável e validado em campo**, com:
 
-### 1️⃣ Centro de Sincronização
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Status Online/Offline (componente `SyncStatus`)
-- ✅ Botão "Sincronizar agora" (no TopBar e Sidebar)
-- ✅ Tela dedicada com:
-  - Último sync bem-sucedido (timestamp)
-  - Quantidade de pendências locais (contador)
-  - Erros do último sync (log detalhado)
-  - Histórico de sincronizações
-
-**Onde está**: `src/components/SyncStatus.tsx`, `src/components/TopBar.tsx`, `src/components/Sidebar.tsx`
-
-### 2️⃣ Fila de Eventos Offline
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Tabela `sync_events` no IndexedDB
-- ✅ Tipo (INSERT, UPDATE, DELETE)
-- ✅ Entidade (nascimento, desmama, etc.)
-- ✅ Payload
-- ✅ Tentativas
-- ✅ Erro
-
-### 3️⃣ Lock de Registro
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Campo `locked_by`
-- ✅ Campo `locked_at`
-- ✅ TTL (ex.: 10 min)
-- ✅ Aviso quando outro usuário abre registro bloqueado
+- **Offline confiável**
+- **Fluxo rápido no curral**
+- **Valor claro para o produtor**
+- **Base sólida para escalar**
 
 ---
 
-## 🐄 PRIORIDADE 2 — Funcionalidades que o produtor realmente usa
+## 🟢 v0.4.0 — Produto de Campo (CURRAL FIRST)
 
-### 4️⃣ Linha do Tempo do Animal
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Histórico de partos por matriz (em `Home.tsx`)
-- ✅ Mostra nascimento, desmama, peso
-- ✅ Pesagens periódicas
-- ✅ Vacinações
-- ✅ Timeline visual completa com:
-  - Observações/eventos
-  - Metadados completos (brinco, sexo, raça, lote, responsável)
-  - Visualização consolidada em linha do tempo
+**Meta:** Fazer o sistema ser rápido e usável no curral, não só bonito no escritório.
 
-**Onde está**: `src/routes/Home.tsx` (modal de histórico), `src/components/TimelineAnimal.tsx`
+### Features-chave
 
-### 5️⃣ Pesagens Periódicas
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Tabela de pesagens
-- ✅ Campos: peso, data, observação
-- ✅ Cálculo de ganho médio diário (GMD)
-- ✅ Alertas para animais fora do padrão
-- ✅ Timeline de evolução do peso
-- ✅ Sincronização completa
+| Item | Status | Observação |
+|------|--------|------------|
+| **Modo Campo / Curral** — Toggle global, UI simplificada, fonte grande, alto contraste, botões de ação direta | ❌ Não implementado | Não existe “modo curral” dedicado; tema e cores existem, mas sem toggle curral/escritório |
+| **Fluxos rápidos** — Pesagem rápida, Vacinação rápida (individual e lote), Desmama rápida, Alteração de status em lote | 🔶 Parcial | Pesagem/Vacina/Desmama existem no modal do animal; não há tela “pesagem rápida” nem ações em lote |
+| **Lista “Pendências do Curral”** — Bezerros sem desmama, Vacinas vencidas, Animais sem pesagem recente | 🔶 Parcial | Notificações/alertas cobrem desmama atrasada e vacinas vencidas; não há lista dedicada “Pendências do Curral” nem “sem pesagem recente” |
+| **Feedback offline claro** — Badge “Offline”, contador de ações pendentes, Sync manual | ✅ Implementado | OfflineIndicator (barra + toast), contador de pendências na Sincronização, sync manual |
 
-### 6️⃣ Vacinação / Sanidade
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Tabela de vacinações
-- ✅ Campos: vacina, data de aplicação, data de vencimento, lote, responsável
-- ✅ Histórico de sanidade
-- ✅ Alertas de vacinas vencidas
-- ✅ Alertas de vacinas vencendo em breve (30 dias)
-- ✅ Sincronização completa
+### Ajustes técnicos (v0.4)
+
+| Item | Status |
+|------|--------|
+| Simplificar permissões → presets | ❌ Não implementado |
+| Reduzir relatórios para 3 essenciais | ❌ Não implementado (há mais relatórios/gráficos) |
+| UX mobile-first (toque > clique) | 🔶 Parcial (layout responsivo; sem foco explícito em toque) |
+
+**Resultado esperado v0.4:** Usuário consegue trabalhar o dia inteiro sem internet.  
+**Estado atual:** Offline e sync ok; falta “modo curral” e fluxos rápidos/lote.
 
 ---
 
-## 📊 PRIORIDADE 3 — Inteligência (valor alto)
+## 🟢 v0.5.0 — Experiência do Animal
 
-### 7️⃣ Indicadores Automáticos
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Taxa de desmama (%)
-- ✅ Taxa de mortalidade
-- ✅ Peso médio por raça
-- ✅ Nascimentos por mês/ano
-- ✅ Ganho médio diário (GMD) médio do rebanho
-- ✅ Intervalo parto–parto (média entre partos por matriz)
-- ✅ Gráficos interativos (nascimentos, mortalidade, comparativo por fazenda)
-- ✅ Distribuição por sexo
+**Meta:** Transformar dados em entendimento rápido.
 
-**Onde está**: `src/routes/Dashboard.tsx`, `src/utils/calcularGMD.ts`
+### Features-chave
 
-### 8️⃣ Alertas Inteligentes
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Bezerro sem desmama após X dias
-- ✅ Mortalidade alta por fazenda
-- ✅ Dados incompletos (sem raça, sem data de nascimento)
-- ✅ Matrizes sem cadastro
-- ✅ Peso abaixo da média (15% abaixo do esperado por idade/raça)
-- ✅ Vacinas vencidas
-- ✅ Vacinas vencendo em breve (30 dias)
-- ✅ Resumo compacto no Dashboard
-- ✅ Detalhes completos em página dedicada
+| Item | Status | Observação |
+|------|--------|------------|
+| **Linha do tempo do animal** — Eventos cronológicos, ícones por tipo (vacina, peso, status), offline | ✅ Implementado | `TimelineAnimal.tsx`; eventos de nascimento, desmama, pesagens, vacinações, status |
+| **Perfil do animal (refino)** — Dados principais no topo, Ações rápidas fixas, Histórico colapsável | 🔶 Parcial | AnimalModal completo; pode refinar ordem (dados no topo) e ações fixas/colapsável |
+| **Genealogia otimizada** — Lazy loading, visual mais simples no mobile | 🔶 Parcial | `ArvoreGenealogica` com lazy load; pode melhorar visual no mobile |
+| **Histórico de alterações (UI simplificada)** — Quem alterou, Quando, O quê (resumo) | ✅ Implementado | `HistoricoAlteracoes.tsx` por entidade |
 
-**Onde está**: `src/hooks/useNotifications.ts`, `src/routes/Notificacoes.tsx`, `src/routes/Dashboard.tsx`
+**Resultado esperado v0.5:** Em 5 segundos, o produtor entende a história do animal.  
+**Estado atual:** Timeline e histórico existem; refinamentos de perfil e genealogia mobile são opcionais.
 
 ---
 
-## 🔐 PRIORIDADE 4 — Profissionalização
+## 🟢 v0.6.0 — Entrada e Saída de Dados
 
-### 9️⃣ Permissões Finas (RBAC)
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Sistema de roles (admin, gerente, peão, visitante)
-- ✅ Permissões granulares por role
-- ✅ 16 tipos de permissões diferentes
-- ✅ Interface de gerenciamento (`Permissoes.tsx`)
-- ✅ Sincronização de permissões
+**Meta:** Facilitar adoção e segurança dos dados.
 
-**Onde está**: 
-- `src/hooks/usePermissions.ts`
-- `src/routes/Permissoes.tsx`
-- `src/db/models.ts` (RolePermission)
+### Features-chave
 
-### 🔟 Auditoria
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Tabela `audits` (AuditLog)
-- ✅ Registra: quem fez, o quê, quando
-- ✅ Snapshot antes/depois (before/after)
-- ✅ Histórico de alterações por entidade
-- ✅ Restauração de versões anteriores
-- ✅ Sincronização de auditoria
+| Item | Status | Observação |
+|------|--------|------------|
+| **Importação por Excel/CSV** — Template oficial, preview antes de importar, validação clara de erros | ❌ Não implementado | Tela de importação de planilha foi removida; seria reimplementar com template e validação |
+| **Exportações refinadas** — Excel por filtros, PDF resumido por fazenda | 🔶 Parcial | Export Excel/CSV em Animais (com filtros); PDF no Dashboard/Relatórios; “resumido por fazenda” pode ser refinado |
+| **Backup & Restore v2** — Histórico visual, download manual, restauração seletiva (por entidade) | 🔶 Parcial | Backup automático e histórico em Configurações; restauração seletiva por entidade não existe |
+| **Auditoria v2** — Timeline de alterações, busca por usuário/entidade | 🔶 Parcial | Histórico por entidade existe; busca por usuário/entidade não |
 
-**Onde está**: 
-- `src/db/models.ts` (AuditLog)
-- `src/components/HistoricoAlteracoes.tsx`
-- `src/utils/audit.ts`
+**Resultado esperado v0.6:** Migrar do papel ou outro sistema vira algo simples.  
+**Estado atual:** Export e backup existem; falta importação e refinamentos de backup/auditoria.
 
 ---
 
-## 🧱 PRIORIDADE 5 — Produto sério
+## 🟢 v0.7.0 — Alertas e Inteligência Básica
 
-### 1️⃣1️⃣ Backup Local
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Exportar dados para JSON
-- ✅ Exportar para CSV
-- ✅ Inclui todas as tabelas (fazendas, raças, nascimentos, desmamas, usuários)
-- ✅ Metadados (totais, data do backup)
-- ✅ Importar backup (restaurar)
-- ✅ Validação de estrutura do backup
-- ✅ Merge inteligente (não sobrescreve dados existentes)
+**Meta:** O sistema “avisar” o produtor.
 
-**Onde está**: `src/utils/exportarDados.ts` - `exportarBackupCompleto()`, `importarBackup()`
+### Features-chave
 
-### 1️⃣2️⃣ Multi-fazenda
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Usuário pode ter `fazendaId` (opcional)
-- ✅ Sistema suporta múltiplas fazendas
-- ✅ Troca rápida de fazenda no TopBar
-- ✅ Seleção de fazenda ativa com persistência (localStorage)
-- ✅ Filtro automático por fazenda ativa em todas as páginas
-- ✅ Opção "Todas as Fazendas" para visualização completa
-- ✅ Contexto React para gerenciar fazenda ativa
+| Item | Status | Observação |
+|------|--------|------------|
+| **Central de alertas** — Lidos / não lidos, Severidade (info / atenção / crítico) | ✅ Implementado | Notificações com filtro lidos/não lidos; severidade alta/média/baixa em `useAlertas` e UI |
+| **Alertas configuráveis** — Vacina vencida, Bezerro sem desmama, Mortalidade, Matriz improdutiva | ✅ Implementado | Configurações → Alertas (limites); tipos no código e em Notificações |
+| **Dashboard orientado a ação** — Cards clicáveis, acesso direto ao problema | 🔶 Parcial | AlertasBanner no Dashboard com links; pode aumentar “cards clicáveis” e links diretos |
 
-**Onde está**: `src/hooks/useFazendaContext.ts`, `src/components/TopBar.tsx`
+**Resultado esperado v0.7:** O produtor abre o app e sabe o que precisa resolver hoje.  
+**Estado atual:** Central de alertas e configuração existem; dashboard pode ganhar mais ações diretas.
 
 ---
 
-## 🚀 PRIORIDADE 6 — Crescimento futuro
+## 🟢 v0.8.0 — Financeiro Leve
 
-### 1️⃣3️⃣ Integração com Balança
-**Status**: ❌ **NÃO IMPLEMENTADO**
-- ❌ Integração Bluetooth
-- ❌ Entrada manual assistida
-- ❌ Leitura automática de peso
+**Meta:** Dar noção de dinheiro sem virar ERP.
 
-### 1️⃣4️⃣ Relatórios PDF
-**Status**: ✅ **IMPLEMENTADO**
-- ✅ Relatório de Nascimento/Desmama
-- ✅ Relatório de Produtividade por Fazenda
-- ✅ Relatório de Mortalidade por Raça
-- ✅ Relatório de Desmama com Médias de Peso
-- ✅ Geração offline-first
+### Features-chave
 
-**Onde está**: `src/utils/gerarRelatorioPDF.ts`
+| Item | Status | Observação |
+|------|--------|------------|
+| **Custos por animal (opcional)** — Vacina, Compra, Outros custos manuais | 🔶 Parcial | Animal tem `valorCompra` e `valorVenda`; não há “outros custos” nem custo de vacina por animal |
+| **Valor de venda** | ✅ Implementado | Campo `valorVenda` no animal |
+| **Lucro/prejuízo estimado** | ❌ Não implementado | Não há cálculo nem exibição por animal ou por fazenda |
+| **Indicadores simples** — Custo médio, Resultado por fazenda | ❌ Não implementado | Não há tela nem cards de custo médio/resultado |
+
+**Resultado esperado v0.8:** “Estou ganhando ou perdendo dinheiro?”  
+**Estado atual:** Valor compra/venda no animal; falta custos adicionais, lucro/prejuízo e indicadores.
 
 ---
 
-## 📋 Resumo do Status
+## 🟢 v0.9.0 — Pronto para Escalar
 
-### ✅ Totalmente Implementado: 13 funcionalidades
-1. Centro de Sincronização
-2. Fila de Eventos Offline
-3. Lock de Registro
-4. Permissões Finas (RBAC)
-5. Auditoria
-6. Relatórios PDF
-7. Indicadores Automáticos
-8. Alertas Inteligentes
-9. Linha do Tempo do Animal
-10. Pesagens Periódicas
-11. Vacinação / Sanidade
-12. Backup Local (exportar/importar)
-13. Multi-fazenda com troca rápida
+**Meta:** Estabilidade, confiança e polimento.
 
-### ❌ Não Implementado: 1 funcionalidade
-1. Integração com Balança
+### Features-chave
+
+| Item | Status | Observação |
+|------|--------|------------|
+| **Integração com balança (se disponível)** | ✅ Implementado | Configurações → Balança (Web Bluetooth, perfil Weight Scale); peso na pesagem |
+| **Sync avançado multi-dispositivo** | 🔶 Parcial | Sync bidirecional Supabase; conflitos tratados; “avançado” pode incluir mais dispositivos/UX |
+| **Resolução de conflitos aprimorada** | 🔶 Parcial | Existe tratamento no syncService; pode melhorar mensagens e resolução manual |
+| **Logs técnicos (suporte)** | ❌ Não implementado | Não há tela/logs exportáveis para suporte |
+| **Performance tuning final** | 🔶 Parcial | Lazy loading, virtualização (Animais), índices; sempre espaço para tuning |
+| **UX polish** — Microinterações, empty states educativos, onboarding rápido | 🔶 Parcial | Empty states e toasts existem; microinterações e onboarding não dedicados |
+
+**Resultado esperado v0.9:** Sistema sólido para múltiplos clientes reais.  
+**Estado atual:** Balança e sync ok; falta logs para suporte e polish de UX/onboarding.
 
 ---
 
-## 🎯 Funcionalidades Prioritárias para Implementar
+## 🟢 v1.0.0 — LANÇAMENTO COMERCIAL
 
-### ✅ Sprint 1 - Robustez (CONCLUÍDA)
-1. **Centro de Sincronização** ✅
-2. **Fila de Eventos Offline** ✅
-3. **Lock de Registro** ✅
+**Meta:** Vender sem vergonha.
 
-### ✅ Sprint 2 - Funcionalidades do Produtor (CONCLUÍDA)
-4. **Linha do Tempo do Animal** ✅
-5. **Pesagens Periódicas** ✅
-6. **Vacinação / Sanidade** ✅
+### Entregáveis
 
-### ✅ Sprint 3 - Inteligência (CONCLUÍDA)
-7. **Indicadores Avançados** ✅
-8. **Alertas Inteligentes** ✅
+| Item | Status |
+|------|--------|
+| MVP + PRO bem definidos | ❌ Não implementado |
+| Planos de assinatura ativos | ❌ Não implementado |
+| Trial 30 dias | ❌ Não implementado |
+| Documentação básica | 🔶 Parcial (docs técnicos e funcionais existem) |
+| Política de backup e segurança | ❌ Não implementado (documento formal) |
+| Página institucional simples | ❌ Não implementado |
 
-### ✅ Sprint 4 - Melhorias e Refinamentos (CONCLUÍDA)
-9. **Multi-fazenda** ✅ (troca rápida de contexto com seletor no TopBar)
-10. **Importar Backup** ✅ (restaurar dados salvos com merge inteligente)
-11. **Aplicar permissões nas rotas** ✅ (proteção baseada em roles e permissões)
-12. **Filtro automático por fazenda** ✅ (Dashboard, Home, Matrizes, Notificações)
-
-### 🔮 Sprint 5 - Futuro (PRÓXIMAS)
-13. **Otimizações de performance** (lazy loading, virtualization em listas grandes)
-14. **Integração com Balança** (Bluetooth/USB)
-15. **Modo offline aprimorado** (melhor feedback visual, indicadores)
-16. **PWA avançado** (notificações push, background sync)
-17. **Análises avançadas** (relatórios personalizados, comparativos temporais)
+**Estado atual:** Produto funcional; camada comercial (planos, trial, página) não existe.
 
 ---
 
-**Última atualização**: 19/01/2026
+## 📋 Resumo para implementação
+
+### Já coberto (pouco ou nenhum trabalho)
+
+- v0.4: Feedback offline (badge, contador, sync manual).
+- v0.5: Linha do tempo do animal, histórico de alterações.
+- v0.7: Central de alertas, severidade, alertas configuráveis.
+- v0.8: Valor de venda (e compra) no animal.
+- v0.9: Integração com balança.
+
+### Prioridade sugerida para implementar
+
+1. **v0.4 — Curral First (maior impacto no uso no campo)**  
+   - Modo Campo/Curral (toggle + UI simplificada, fonte grande, alto contraste).  
+   - Fluxos rápidos: pesagem rápida, vacinação rápida, desmama rápida (telas ou atalhos dedicados).  
+   - Alteração de status em lote.  
+   - Lista “Pendências do Curral” (bezerros sem desmama, vacinas vencidas, sem pesagem recente).
+
+2. **v0.6 — Entrada e Saída**  
+   - Reimplementar importação Excel/CSV (template, preview, validação).  
+   - Backup v2: restauração seletiva por entidade.  
+   - Auditoria v2: busca por usuário/entidade.
+
+3. **v0.8 — Financeiro Leve**  
+   - Custos por animal (opcional): vacina, outros.  
+   - Cálculo e exibição de lucro/prejuízo (por animal ou resumo).  
+   - Indicadores: custo médio, resultado por fazenda.
+
+4. **v0.9 — Escalar**  
+   - Logs técnicos para suporte.  
+   - UX polish e onboarding rápido.
+
+5. **v1.0 — Comercial**  
+   - Definir MVP vs PRO, planos, trial, política de backup/segurança, página institucional.
+
+---
+
+**Última atualização:** Comparação com o novo roadmap (v0.4–v1.0); status por feature e prioridade de implementação.

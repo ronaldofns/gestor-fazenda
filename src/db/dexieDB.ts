@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType, SyncEvent, Pesagem, Vacina } from './models';
+import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType, SyncEvent, Pesagem, Vacina, Animal, TipoAnimal, StatusAnimal, Origem, Genealogia } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -27,7 +27,7 @@ export interface Tag {
 export interface TagAssignment {
   id: string;
   entityId: string;
-  entityType: 'nascimento' | 'matriz' | 'fazenda';
+  entityType: 'nascimento' | 'matriz' | 'fazenda' | 'animal';
   tagId: string;
   assignedBy: string;
   createdAt: string;
@@ -56,6 +56,13 @@ class AppDB extends Dexie {
   syncEvents!: Dexie.Table<SyncEvent, string>; // Tabela para fila de eventos de sincronização
   tags!: Dexie.Table<Tag, string>; // Tabela de tags customizáveis
   tagAssignments!: Dexie.Table<TagAssignment, string>; // Tabela de atribuições de tags
+  
+  // NOVO SISTEMA DE ANIMAIS
+  animais!: Dexie.Table<Animal, string>; // Tabela principal de animais
+  tiposAnimal!: Dexie.Table<TipoAnimal, string>; // Tipos (Bezerro, Vaca, etc.)
+  statusAnimal!: Dexie.Table<StatusAnimal, string>; // Status (Ativo, Vendido, etc.)
+  origens!: Dexie.Table<Origem, string>; // Origens (Nascido, Comprado, etc.)
+  genealogias!: Dexie.Table<Genealogia, string>; // Árvore genealógica completa
 
   constructor() {
     super('FazendaDB');
@@ -295,47 +302,66 @@ class AppDB extends Dexie {
       const now = new Date().toISOString();
       const roles: UserRole[] = ['admin', 'gerente', 'peao', 'visitante'];
       const permissions: PermissionType[] = [
-        'importar_planilha',
         'gerenciar_usuarios',
         'gerenciar_fazendas',
-        'gerenciar_matrizes',
         'gerenciar_racas',
         'gerenciar_categorias',
-        'cadastrar_nascimento',
-        'editar_nascimento',
-        'excluir_nascimento',
+        'cadastrar_animal',
+        'editar_animal',
+        'excluir_animal',
         'cadastrar_desmama',
         'editar_desmama',
         'excluir_desmama',
+        'cadastrar_pesagem',
+        'editar_pesagem',
+        'excluir_pesagem',
+        'cadastrar_vacina',
+        'editar_vacina',
+        'excluir_vacina',
         'ver_dashboard',
         'ver_notificacoes',
+        'ver_sincronizacao',
+        'ver_planilha',
+        'ver_fazendas',
+        'ver_usuarios',
         'exportar_dados',
         'gerar_relatorios'
       ];
 
-      // Permissões padrão por role
+      // Permissões padrão por role (alinhado às funcionalidades atuais)
       const defaultPermissions: Record<UserRole, PermissionType[]> = {
         admin: permissions, // Admin tem todas as permissões
         gerente: [
           'ver_dashboard',
           'ver_notificacoes',
-          'cadastrar_nascimento',
-          'editar_nascimento',
+          'ver_sincronizacao',
+          'ver_planilha',
+          'ver_fazendas',
+          'cadastrar_animal',
+          'editar_animal',
           'cadastrar_desmama',
           'editar_desmama',
-          'gerenciar_matrizes',
+          'cadastrar_pesagem',
+          'editar_pesagem',
+          'cadastrar_vacina',
+          'editar_vacina',
           'exportar_dados',
           'gerar_relatorios'
         ],
         peao: [
           'ver_dashboard',
           'ver_notificacoes',
-          'cadastrar_nascimento',
-          'cadastrar_desmama'
+          'ver_planilha',
+          'cadastrar_animal',
+          'cadastrar_desmama',
+          'cadastrar_pesagem',
+          'cadastrar_vacina'
         ],
         visitante: [
           'ver_dashboard',
-          'ver_notificacoes'
+          'ver_notificacoes',
+          'ver_planilha',
+          'ver_fazendas'
         ]
       };
 
@@ -563,6 +589,244 @@ class AppDB extends Dexie {
       syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]',
       tags: 'id, name, category, createdBy, synced, remoteId, [createdBy+synced], usageCount',
       tagAssignments: 'id, entityId, entityType, tagId, [entityId+entityType], [entityType+tagId], [tagId+entityId], assignedBy, synced, remoteId, [synced+entityType]'
+    });
+
+    // Versão 25: NOVO SISTEMA DE ANIMAIS
+    // IMPORTANTE: Apenas adicionar as NOVAS tabelas, sem redefinir as existentes!
+    // Isso preserva os dados de usuários e outras tabelas
+    this.version(25).stores({
+      // NOVAS TABELAS DO SISTEMA DE ANIMAIS
+      animais: 'id, brinco, tipoId, racaId, sexo, statusId, fazendaId, [fazendaId+brinco], [fazendaId+statusId], [fazendaId+synced], [tipoId+statusId], dataNascimento, dataCadastro, synced, remoteId, deletedAt, createdAt',
+      tiposAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      statusAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      origens: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      genealogias: 'id, animalId, matrizId, reprodutorId, synced, remoteId, deletedAt, [animalId+synced]'
+    }).upgrade(async (tx) => {
+        // Inserir tipos padrão de animal (sem redundância)
+        const tiposPadrao: Omit<TipoAnimal, 'id'>[] = [
+          { nome: 'Bezerro(a)', descricao: 'Até 12 meses', ordem: 1, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Novilho(a)', descricao: 'De 12 a 24 meses', ordem: 2, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Vaca', descricao: 'Fêmea adulta', ordem: 3, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Touro', descricao: 'Macho reprodutor', ordem: 4, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Boi', descricao: 'Macho castrado para engorda', ordem: 5, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Garrote', descricao: 'Macho jovem para engorda', ordem: 6, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        ];
+
+      const { uuid } = await import('../utils/uuid');
+      
+      // Verificar se já existem dados (evitar duplicação)
+      const tiposExistentes = await tx.table('tiposAnimal').count();
+      
+      if (tiposExistentes === 0) {
+        // Só inserir se não houver dados
+        for (const tipo of tiposPadrao) {
+          await tx.table('tiposAnimal').add({ ...tipo, id: uuid() });
+        }
+
+        // Inserir status padrão
+        const statusPadrao: Omit<StatusAnimal, 'id'>[] = [
+          { nome: 'Ativo', cor: '#10b981', descricao: 'Animal ativo no rebanho', ordem: 1, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Vendido', cor: '#3b82f6', descricao: 'Animal vendido', ordem: 2, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Morto', cor: '#ef4444', descricao: 'Animal morto', ordem: 3, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Transferido', cor: '#f59e0b', descricao: 'Transferido para outra fazenda', ordem: 4, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Doente', cor: '#ec4899', descricao: 'Animal em tratamento', ordem: 5, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        ];
+
+        for (const status of statusPadrao) {
+          await tx.table('statusAnimal').add({ ...status, id: uuid() });
+        }
+
+        // Inserir origens padrão
+        const origensPadrao: Omit<Origem, 'id'>[] = [
+          { nome: 'Nascido na Fazenda', descricao: 'Animal nascido na propriedade', ordem: 1, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Comprado', descricao: 'Animal adquirido de terceiros', ordem: 2, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Transferido', descricao: 'Transferido de outra fazenda do grupo', ordem: 3, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          { nome: 'Doado', descricao: 'Animal recebido como doação', ordem: 4, ativo: true, synced: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        ];
+
+        for (const origem of origensPadrao) {
+          await tx.table('origens').add({ ...origem, id: uuid() });
+        }
+        
+        console.log('✅ Dados padrão do sistema de animais inseridos com sucesso!');
+      } else {
+        console.log('ℹ️ Dados padrão já existem, pulando inserção.');
+      }
+    });
+
+    // Versão 26: Adicionar animalId à tabela desmamas
+    this.version(26).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, [fazendaId+dataNascimento], [fazendaId+mes+ano], [fazendaId+synced], mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, animalId, dataDesmama, synced, remoteId, [nascimentoId+synced], [animalId+synced]',
+      pesagens: 'id, nascimentoId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced]',
+      vacinacoes: 'id, nascimentoId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, synced, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo, synced',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]',
+      tags: 'id, name, category, createdBy, synced, remoteId, [createdBy+synced], usageCount',
+      tagAssignments: 'id, entityId, entityType, tagId, [entityId+entityType], [entityType+tagId], [tagId+entityId], assignedBy, synced, remoteId, [synced+entityType]',
+      animais: 'id, brinco, tipoId, racaId, sexo, statusId, fazendaId, [fazendaId+brinco], [fazendaId+statusId], [fazendaId+synced], [tipoId+statusId], dataNascimento, dataCadastro, synced, remoteId, deletedAt, createdAt',
+      tiposAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      statusAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      origens: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      genealogias: 'id, animalId, matrizId, reprodutorId, synced, remoteId, deletedAt, [animalId+synced]'
+    }).upgrade(async (tx) => {
+      // Migração: Vincular desmamas existentes aos animais através do nascimento
+      console.log('🔄 Migrando desmamas para vincular com animais...');
+      
+      const desmamas = await tx.table('desmamas').toArray();
+      const animais = await tx.table('animais').toArray();
+      const nascimentos = await tx.table('nascimentos').toArray();
+      
+      // Criar mapa: nascimentoId -> animalId
+      // Buscar animal pelo brinco + fazenda do nascimento
+      const nascimentoToAnimalMap = new Map<string, string>();
+      
+      for (const nascimento of nascimentos) {
+        if (!nascimento.brincoNumero || !nascimento.brincoNumero.trim()) continue;
+        
+        // Buscar animal com mesmo brinco e fazenda
+        const animal = animais.find(a => 
+          !a.deletedAt &&
+          a.brinco === nascimento.brincoNumero.trim() &&
+          a.fazendaId === nascimento.fazendaId &&
+          a.dataNascimento === nascimento.dataNascimento
+        );
+        
+        if (animal) {
+          nascimentoToAnimalMap.set(nascimento.id, animal.id);
+        }
+      }
+      
+      // Atualizar desmamas com animalId
+      let atualizadas = 0;
+      for (const desmama of desmamas) {
+        const animalId = nascimentoToAnimalMap.get(desmama.nascimentoId);
+        if (animalId) {
+          await tx.table('desmamas').update(desmama.id, { animalId });
+          atualizadas++;
+        }
+      }
+      
+      console.log(`✅ ${atualizadas}/${desmamas.length} desmamas vinculadas a animais`);
+    });
+
+    // Versão 27: Adicionar animalId às tabelas pesagens e vacinacoes
+    this.version(27).stores({
+      fazendas: 'id, nome, synced, remoteId',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, [fazendaId+dataNascimento], [fazendaId+mes+ano], [fazendaId+synced], mes, ano, dataNascimento, synced, remoteId, sexo, raca, createdAt, morto',
+      desmamas: 'id, nascimentoId, animalId, dataDesmama, synced, remoteId, [nascimentoId+synced], [animalId+synced]',
+      pesagens: 'id, nascimentoId, animalId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced], [animalId+dataPesagem], [animalId+synced]',
+      vacinacoes: 'id, nascimentoId, animalId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced], [animalId+dataAplicacao], [animalId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, synced, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo, synced',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, marcadaEm, synced, remoteId',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]',
+      tags: 'id, name, category, createdBy, synced, remoteId, [createdBy+synced], usageCount',
+      tagAssignments: 'id, entityId, entityType, tagId, [entityId+entityType], [entityType+tagId], [tagId+entityId], assignedBy, synced, remoteId, [synced+entityType]',
+      animais: 'id, brinco, tipoId, racaId, sexo, statusId, fazendaId, [fazendaId+brinco], [fazendaId+statusId], [fazendaId+synced], [tipoId+statusId], dataNascimento, dataCadastro, synced, remoteId, deletedAt, createdAt',
+      tiposAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      statusAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      origens: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      genealogias: 'id, animalId, matrizId, reprodutorId, synced, remoteId, deletedAt, [animalId+synced]'
+    }).upgrade(async (tx) => {
+      // Migração: Vincular pesagens e vacinas existentes aos animais através do nascimento
+      // Log removido - migração só executa uma vez na atualização do banco
+      // console.log('🔄 Migrando pesagens e vacinas para vincular com animais...');
+      
+      const pesagens = await tx.table('pesagens').toArray();
+      const vacinacoes = await tx.table('vacinacoes').toArray();
+      const animais = await tx.table('animais').toArray();
+      const nascimentos = await tx.table('nascimentos').toArray();
+      
+      // Criar mapa: nascimentoId -> animalId
+      const nascimentoToAnimalMap = new Map<string, string>();
+      
+      for (const nascimento of nascimentos) {
+        if (!nascimento.brincoNumero || !nascimento.brincoNumero.trim()) continue;
+        
+        const animal = animais.find(a => 
+          !a.deletedAt &&
+          a.brinco === nascimento.brincoNumero.trim() &&
+          a.fazendaId === nascimento.fazendaId &&
+          a.dataNascimento === nascimento.dataNascimento
+        );
+        
+        if (animal) {
+          nascimentoToAnimalMap.set(nascimento.id, animal.id);
+        }
+      }
+      
+      // Atualizar pesagens com animalId
+      let pesagensAtualizadas = 0;
+      for (const pesagem of pesagens) {
+        if (pesagem.nascimentoId) {
+          const animalId = nascimentoToAnimalMap.get(pesagem.nascimentoId);
+          if (animalId) {
+            await tx.table('pesagens').update(pesagem.id, { animalId });
+            pesagensAtualizadas++;
+          }
+        }
+      }
+      
+      // Atualizar vacinas com animalId
+      let vacinasAtualizadas = 0;
+      for (const vacina of vacinacoes) {
+        if (vacina.nascimentoId) {
+          const animalId = nascimentoToAnimalMap.get(vacina.nascimentoId);
+          if (animalId) {
+            await tx.table('vacinacoes').update(vacina.id, { animalId });
+            vacinasAtualizadas++;
+          }
+        }
+      }
+      
+      // Logs removidos - migração só executa uma vez
+      // console.log(`✅ ${pesagensAtualizadas}/${pesagens.length} pesagens vinculadas a animais`);
+      // console.log(`✅ ${vacinasAtualizadas}/${vacinacoes.length} vacinas vinculadas a animais`);
+    });
+
+    // Versão 26: Adicionar índice usuarioId na tabela notificacoesLidas
+    this.version(26).stores({
+      fazendas: 'id, nome, synced, remoteId, [synced+nome]',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, sexo, raca, brincoNumero, synced, remoteId, [fazendaId+mes+ano], [matrizId+synced], [fazendaId+dataNascimento], [fazendaId+synced]',
+      desmamas: 'id, nascimentoId, animalId, dataDesmama, synced, remoteId, [nascimentoId+synced], [animalId+synced]',
+      pesagens: 'id, nascimentoId, animalId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced], [animalId+dataPesagem], [animalId+synced]',
+      vacinacoes: 'id, nascimentoId, animalId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced], [animalId+dataAplicacao], [animalId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, synced, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo, synced',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, usuarioId, marcadaEm, synced, remoteId, [usuarioId+tipo]',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]',
+      tags: 'id, name, category, createdBy, synced, remoteId, [createdBy+synced], usageCount',
+      tagAssignments: 'id, entityId, entityType, tagId, [entityId+entityType], [entityType+tagId], [tagId+entityId], assignedBy, synced, remoteId, [synced+entityType]',
+      animais: 'id, brinco, tipoId, racaId, sexo, statusId, fazendaId, [fazendaId+brinco], [fazendaId+statusId], [fazendaId+synced], [tipoId+statusId], dataNascimento, dataCadastro, synced, remoteId, deletedAt, createdAt',
+      tiposAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      statusAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      origens: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      genealogias: 'id, animalId, matrizId, reprodutorId, synced, remoteId, deletedAt, [animalId+synced]'
     });
   }
 }

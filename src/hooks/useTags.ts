@@ -17,7 +17,7 @@ export interface Tag {
 
 export interface TagAssignment {
   entityId: string; // ID do nascimento, matriz, etc.
-  entityType: 'nascimento' | 'matriz' | 'fazenda';
+  entityType: 'nascimento' | 'matriz' | 'fazenda' | 'animal';
   tagIds: string[];
   updatedAt: string;
 }

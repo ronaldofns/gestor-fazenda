@@ -26,8 +26,8 @@ const SHORTCUTS: ShortcutGroup[] = [
     icon: <Icons.Navigation className="w-5 h-5" />,
     shortcuts: [
       { keys: { key: 'd', ctrl: true }, description: 'Ir para Dashboard' },
-      { keys: { key: 'h', ctrl: true }, description: 'Ir para Home (Nascimentos)' },
-      { keys: { key: 'm', ctrl: true }, description: 'Ir para Matrizes' },
+      { keys: { key: 'h', ctrl: true }, description: 'Ir para Animais' },
+      { keys: { key: 'm', ctrl: true }, description: 'Ir para Animais' },
       { keys: { key: 'f', ctrl: true }, description: 'Ir para Fazendas' },
       { keys: { key: 'u', ctrl: true }, description: 'Ir para Usuários' },
     ],
@@ -36,7 +36,7 @@ const SHORTCUTS: ShortcutGroup[] = [
     category: 'Ações',
     icon: <Icons.Zap className="w-5 h-5" />,
     shortcuts: [
-      { keys: { key: 'n', ctrl: true }, description: 'Novo Nascimento' },
+      { keys: { key: 'n', ctrl: true }, description: 'Notificações' },
       { keys: { key: 's', ctrl: true }, description: 'Sincronizar' },
       { keys: { key: 'p', ctrl: true }, description: 'Ver Perfil' },
       { keys: { key: 'k', ctrl: true }, description: 'Busca Rápida (em breve)' },

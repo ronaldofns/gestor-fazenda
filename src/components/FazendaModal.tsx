@@ -7,12 +7,12 @@ import { uuid } from '../utils/uuid';
 import { Fazenda } from '../db/models';
 import Modal from './Modal';
 import TagSelector from './TagSelector';
+import Input from './Input';
 import { showToast } from '../utils/toast';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass } from '../utils/themeHelpers';
-import { getThemeClasses } from '../utils/themeHelpers';
 import { useAuth } from '../hooks/useAuth';
 
 type Mode = 'create' | 'edit';
@@ -149,14 +149,10 @@ export default function FazendaModal({
             
             await db.tagAssignments.bulkAdd(newAssignments);
             
+            // 🔧 FIX: Recalcular usageCount baseado em assignments reais
+            const { recalculateTagUsage } = await import('../utils/fixTagUsageCount');
             for (const tagId of tagsToAdd) {
-              const tag = await db.tags.get(tagId);
-              if (tag) {
-                await db.tags.update(tagId, {
-                  usageCount: tag.usageCount + 1,
-                  synced: false
-                });
-              }
+              await recalculateTagUsage(tagId);
             }
           }
         }
@@ -190,14 +186,10 @@ export default function FazendaModal({
           
           await db.tagAssignments.bulkAdd(tagAssignments);
           
+          // 🔧 FIX: Recalcular usageCount baseado em assignments reais
+          const { recalculateTagUsage } = await import('../utils/fixTagUsageCount');
           for (const tagId of selectedTagIds) {
-            const tag = await db.tags.get(tagId);
-            if (tag) {
-              await db.tags.update(tagId, {
-                usageCount: tag.usageCount + 1,
-                synced: false
-              });
-            }
+            await recalculateTagUsage(tagId);
           }
         }
         
@@ -216,33 +208,22 @@ export default function FazendaModal({
 
   const conteudoFormulario = (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-          Nome da Fazenda *
-        </label>
-        <input
-          type="text"
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-          placeholder="Ex: Fazenda Capenema III"
-          {...register('nome')}
-          autoFocus
-        />
-        {errors.nome && (
-          <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.nome.message}</p>
-        )}
-      </div>
+      <Input
+        {...register('nome')}
+        label="Nome da Fazenda"
+        type="text"
+        required
+        placeholder="Ex: Fazenda Capenema III"
+        error={errors.nome?.message}
+        autoFocus
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-          URL do Logo (opcional)
-        </label>
-        <input
-          type="url"
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-          placeholder="https://exemplo.com/logo.png"
-          {...register('logoUrl')}
-        />
-      </div>
+      <Input
+        {...register('logoUrl')}
+        label="URL do Logo (opcional)"
+        type="url"
+        placeholder="https://exemplo.com/logo.png"
+      />
 
       {/* Tags */}
       <TagSelector
@@ -283,7 +264,7 @@ export default function FazendaModal({
   return (
     <Modal open={open} onClose={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 pt-6 pb-4 flex items-center justify-between z-10">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{titulo}</h2>
           <button
             onClick={onClose}
@@ -292,7 +273,7 @@ export default function FazendaModal({
             <Icons.X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6">{conteudoFormulario}</div>
+        <div className="px-6 pt-6 pb-8">{conteudoFormulario}</div>
       </div>
     </Modal>
   );

@@ -8,20 +8,21 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - ✅ Funciona **100% offline**
 - ✅ Pode ser instalado como app no celular/tablet
 - ✅ Sincronização automática quando online
-- ✅ Service Worker para cache inteligente
+- ✅ Service Worker para cache inteligente (precache + runtime cache)
+- ✅ **Notificações push** no navegador (inscrição + exibição em segundo plano; ver `docs/NOTIFICACOES_PUSH_SERVIDOR.md`)
 
 ### 🔄 Sincronização Offline-First
 - ✅ Sincronização bidirecional IndexedDB ↔ Supabase
-- ✅ 13 tabelas sincronizadas automaticamente
-- ✅ Sincronização automática a cada 30 segundos
-- ✅ Botão de sincronização manual
-- ✅ Indicador de status online/offline
+- ✅ Múltiplas tabelas sincronizadas (fazendas, animais, matrizes, nascimentos, desmamas, pesagens, vacinações, usuários, etc.)
+- ✅ Intervalo configurável (padrão 30 s)
+- ✅ Tela dedicada de **Sincronização** (fila de pendências, envio manual)
+- ✅ Indicador de status online/offline e toast "Conexão restaurada"
 - ✅ Tratamento robusto de erros e conflitos
 
 ### 👥 Sistema Multi-usuário
 - ✅ 4 roles: Admin, Gerente, Peão, Visitante
-- ✅ 16 permissões granulares por role
-- ✅ Gerenciamento de usuários e permissões
+- ✅ Permissões granulares por role (ver_*, cadastrar_*, editar_*, excluir_*, gerar_relatorios, exportar_dados, etc.)
+- ✅ Gerenciamento de usuários e permissões (telas Usuários e Permissões)
 - ✅ Proteção de rotas por permissão
 - ✅ Sincronização de permissões entre dispositivos
 
@@ -32,78 +33,63 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - ✅ Timeout de inatividade configurável
 
 ### 🐄 Gestão de Rebanho
-- ✅ **Fazendas**: Múltiplas fazendas
-- ✅ **Matrizes**: Cadastro completo com identificador, categoria, raça, linhagem (pai/mãe)
-- ✅ **Nascimentos**: Cadastro completo com brinco, sexo, raça, data, observações
-- ✅ **Desmamas**: Peso e data de desmama
-- ✅ **Raças e Categorias**: Gestão de catálogos
-- ✅ **Histórico**: Histórico completo de partos por matriz
+- ✅ **Fazendas**: Múltiplas fazendas, histórico, tags
+- ✅ **Animais**: Cadastro completo (brinco, tipo, status, origem, genealogia, datas, valor compra/venda). Listagem com filtros e virtualização para listas grandes
+- ✅ **Matrizes**: Integradas ao cadastro de animais e à genealogia (mãe/pai)
+- ✅ **Nascimentos**: Registro histórico; animais nascidos na fazenda via origem/tipo
+- ✅ **Desmamas**: Peso e data de desmama (por animal)
+- ✅ **Pesagens**: Data e peso por animal (com opção de **balança** Web Bluetooth em Configurações)
+- ✅ **Vacinações**: Vacina, data de aplicação e vencimento por animal
+- ✅ **Raças e Categorias**: Gestão em Configurações → Raças e Categorias (e cadastro rápido de raça no modal do animal)
+- ✅ **Tipos / Status / Origens**: Editáveis (Bezerro, Vaca, Ativo, Vendido, Nascido na Fazenda, etc.)
+- ✅ **Histórico**: Histórico de alterações por entidade (fazenda, animal)
 
-### 📊 Dashboard e Indicadores
-- ✅ Dashboard com métricas em tempo real
-- ✅ Taxa de desmama (%)
-- ✅ Taxa de mortalidade
-- ✅ Peso médio por raça
-- ✅ Nascimentos por mês/ano
-- ✅ Gráficos de evolução (nascimentos, distribuição por sexo)
+### 📊 Dashboard e Relatórios
+- ✅ **Dashboard**: Métricas em tempo real por fazenda, evolução do rebanho, distribuição por tipo/status, alertas, exportação PDF/Excel
+- ✅ **Relatórios** (tela dedicada): Gráficos de evolução, tipos, por fazenda; filtros por período; exportação PDF/Excel
+- ✅ Taxa de desmama, mortalidade, nascimentos por período
 - ✅ Estatísticas por fazenda
 
 ### 🔔 Notificações e Alertas
 - ✅ Bezerros sem desmama após X meses (configurável)
 - ✅ Mortalidade alta por fazenda (configurável)
-- ✅ Dados incompletos (matriz sem cadastro)
+- ✅ Peso crítico, vacinas vencidas, matriz improdutiva
 - ✅ Sistema de notificações lidas
 - ✅ Configurações de alertas sincronizadas
+- ✅ Banner de alertas no Dashboard
 
-### 📄 Relatórios e Exportação
-- ✅ **Relatórios PDF**:
-  - Relatório de Nascimento/Desmama
-  - Relatório de Produtividade por Fazenda
-  - Relatório de Mortalidade por Raça
-  - Relatório de Desmama com Médias de Peso
-- ✅ **Exportação Excel/CSV**: Planilhas completas com múltiplas abas
-- ✅ **Backup JSON**: Exportação completa de todos os dados locais
+### 📄 Exportação e Backup
+- ✅ **Exportação Excel/CSV**: Lista de animais (com filtros aplicados)
+- ✅ **Dashboard e Relatórios**: Exportação PDF e Excel
+- ✅ **Backup automático** agendado com histórico (Configurações → Backup)
+- ✅ Restauração a partir de backup local
 
 ### 🔍 Busca e Filtros
-- ✅ Busca global (matriz, brinco, raça, fazenda, observações)
-- ✅ Filtros combinados:
-  - Por fazenda
-  - Por mês e ano
-  - Por matriz/brinco
-  - Por sexo (Macho/Fêmea/Todos)
-  - Por status (Vivos/Mortos/Todos)
-- ✅ Histórico de buscas recentes
+- ✅ Busca por brinco, nome, tipo, status, raça, fazenda, tags
+- ✅ Filtros combinados: fazenda, tipo, status, sexo, raça, mês/ano de nascimento, tags (modo qualquer/todos)
+- ✅ Ordenação e colunas visíveis configuráveis
 - ✅ Paginação configurável
-
-### 📋 Importação
-- ✅ Importação de planilhas Excel/CSV
-- ✅ Detecção automática de colunas
-- ✅ Mapeamento manual de colunas
-- ✅ Preview antes de importar
-- ✅ Validação de dados
-- ✅ Criação automática de matrizes
+- ✅ Filtros avançados com salvamento e reutilização
 
 ### 🔐 Auditoria e Segurança
-- ✅ **Auditoria completa**: Registro de todas as alterações
-- ✅ Histórico de alterações por entidade
-- ✅ Restauração de versões anteriores
-- ✅ Quem fez, o quê, quando
+- ✅ Auditoria completa: registro de todas as alterações
+- ✅ Histórico de alterações por entidade (fazenda, animal)
+- ✅ Restauração de versões anteriores (onde aplicável)
+- ✅ Lock de registro (evitar edição simultânea)
 - ✅ Snapshot antes/depois das alterações
 
 ### ⚡ Performance e UX (v0.3.0)
-- ✅ **Atalhos de teclado globais** (Ctrl+D, Ctrl+H, Ctrl+B, etc)
-- ✅ **Animações suaves** com framer-motion
-- ✅ **Lazy loading** de rotas para carregamento mais rápido
-- ✅ **React.memo** em componentes críticos
-- ✅ **Índices compostos** no IndexedDB (70% mais rápido)
-- ✅ **Filtros Avançados** com salvamento e reutilização
-- ✅ **Backup Automático Agendado** com histórico
-- ✅ **Sistema de Tags** customizáveis
-- ✅ **Métricas Avançadas** no Dashboard (GMD, crescimento, projeções)
-- ✅ Favoritos (fazendas e matrizes)
+- ✅ **Atalhos de teclado globais** (Ctrl+D, Ctrl+H, Ctrl+B, etc.; ver `docs/KEYBOARD_SHORTCUTS.md`)
+- ✅ **Lazy loading** de rotas e modais pesados (AnimalModal, Histórico, Árvore Genealógica)
+- ✅ **Virtualização** da lista de animais (react-window) para 100+ itens
+- ✅ **Filtros avançados** com salvamento e reutilização
+- ✅ **Backup automático agendado** com histórico
+- ✅ **Sistema de tags** customizáveis (fazendas, animais)
+- ✅ **i18n** preparado (estrutura pt-BR e hook `t()`; Login já traduzido)
+- ✅ **Testes** com Vitest (usePermissions, useAuth, Login, Modal, utils)
 - ✅ Paginação otimizada
 - ✅ Loading/Empty/Error states padronizados
-- ✅ Feedback visual (toasts com alto contraste)
+- ✅ Feedback visual (toasts)
 - ✅ Responsivo (mobile, tablet, desktop)
 
 ## 🛠️ Stack Tecnológica
@@ -117,6 +103,8 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - **Gráficos**: Recharts
 - **PDF**: jsPDF + jsPDF-AutoTable
 - **Planilhas**: XLSX
+- **PWA**: vite-plugin-pwa (Workbox injectManifest; Service Worker com push)
+- **Testes**: Vitest + Testing Library
 
 ## 📦 Instalação
 
@@ -125,25 +113,18 @@ npm install
 npm run dev
 ```
 
-## 🗺️ Roadmap
+Variáveis de ambiente (`.env`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Para notificações push: `VITE_VAPID_PUBLIC_KEY` (e no servidor `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`). Ver `docs/NOTIFICACOES_PUSH_SERVIDOR.md`.
 
-Para ver o roadmap completo de funcionalidades e o que está planejado, consulte [`docs/ROADMAP_FUNCIONALIDADES.md`](./docs/ROADMAP_FUNCIONALIDADES.md).
+## 📋 Funcionalidades – Referência
 
-### Próximas Funcionalidades Prioritárias
+O sistema está **completo** para gestão de fazendas (cadastros, operações por animal, relatórios, usuários, alertas, sincronização, configurações). Para a lista detalhada de funcionalidades e permissões, consulte **[`docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md`](./docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md)**.
 
-**Sprint 1 - Robustez:**
-- Centro de Sincronização (tela dedicada)
-- Fila de Eventos Offline
-- Lock de Registro
-
-**Sprint 2 - Funcionalidades do Produtor:**
-- Linha do Tempo do Animal (timeline visual)
-- Pesagens Periódicas
-- Vacinação / Sanidade
+O documento [`docs/ROADMAP_FUNCIONALIDADES.md`](./docs/ROADMAP_FUNCIONALIDADES.md) contém o histórico do roadmap já implementado.
 
 ## 📚 Documentação
 
-Para documentação técnica detalhada, consulte a pasta [`docs/`](./docs/README.md).
+- **Funcionalidades**: [`docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md`](./docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md)
+- **Documentação técnica**: pasta [`docs/`](./docs/) (estrutura, sincronização, tags, atalhos, backup, notificações push, etc.)
 
 ## 📄 Licença
 

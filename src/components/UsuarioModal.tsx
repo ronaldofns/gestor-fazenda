@@ -9,6 +9,7 @@ import { showToast } from '../utils/toast';
 import { UserRole } from '../db/models';
 import Modal from './Modal';
 import Combobox, { ComboboxOption } from './Combobox';
+import Input from './Input';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
@@ -195,110 +196,87 @@ export default function UsuarioModal({
   const conteudoFormulario = (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Nome *</label>
-          <input
-            type="text"
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-            {...register('nome')}
-            autoFocus
-          />
-          {errors.nome && (
-            <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.nome.message}</p>
-          )}
-        </div>
+        <Input
+          {...register('nome')}
+          label="Nome"
+          type="text"
+          required
+          error={errors.nome?.message}
+          autoFocus
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Email *</label>
-          <input
-            type="email"
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-            {...register('email')}
-          />
-          {errors.email && (
-            <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.email.message}</p>
-          )}
-        </div>
+        <Input
+          {...register('email')}
+          label="Email"
+          type="email"
+          required
+          error={errors.email?.message}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-            Senha {!mode || mode === 'create' ? '*' : ''}
-            {mode === 'edit' && <span className="text-gray-500 text-xs"> (deixe em branco para não alterar)</span>}
-          </label>
-          <input
-            type="password"
-            className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-            {...register('senha')}
-          />
-          {errors.senha && (
-            <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.senha.message}</p>
-          )}
-        </div>
+        <Input
+          {...register('senha')}
+          label={mode === 'edit' ? 'Senha (deixe em branco para não alterar)' : 'Senha'}
+          type="password"
+          required={mode === 'create'}
+          error={errors.senha?.message}
+        />
 
         {senha && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Confirmar Senha *</label>
-            <input
-              type="password"
-              className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-              {...register('confirmarSenha')}
-            />
-            {errors.confirmarSenha && (
-              <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.confirmarSenha.message}</p>
-            )}
-          </div>
+          <Input
+            {...register('confirmarSenha')}
+            label="Confirmar Senha"
+            type="password"
+            required
+            error={errors.confirmarSenha?.message}
+          />
         )}
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Role *</label>
-          <Combobox
-            value={(() => {
-              const role = watch('role');
-              if (!role) return '';
-              if (typeof role === 'string') return role;
-              if (typeof role === 'object' && role !== null) {
-                const obj = role as Record<string, unknown>;
-                if ('value' in obj) return String(obj.value);
-              }
-              return String(role);
-            })()}
-            onChange={(value) => {
-              const roleValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
-              startTransition(() => setValue('role', roleValue as UserRole));
-            }}
-            options={Object.entries(ROLE_LABELS).map(([value, label]) => ({ label, value }))}
-            allowCustomValue={false}
-          />
-          {errors.role && (
-            <p className="text-red-600 dark:text-red-400 text-xs mt-1">{errors.role.message}</p>
-          )}
-        </div>
+        <Combobox
+          label="Role"
+          required
+          value={(() => {
+            const role = watch('role');
+            if (!role) return '';
+            if (typeof role === 'string') return role;
+            if (typeof role === 'object' && role !== null) {
+              const obj = role as Record<string, unknown>;
+              if ('value' in obj) return String(obj.value);
+            }
+            return String(role);
+          })()}
+          onChange={(value) => {
+            const roleValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+            startTransition(() => setValue('role', roleValue as UserRole));
+          }}
+          options={Object.entries(ROLE_LABELS).map(([value, label]) => ({ label, value }))}
+          allowCustomValue={false}
+          error={errors.role?.message}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Fazenda</label>
-          <Combobox
-            value={(() => {
-              const fazendaId = watch('fazendaId');
-              if (!fazendaId) return '';
-              if (typeof fazendaId === 'string') return fazendaId;
-              if (typeof fazendaId === 'object' && fazendaId !== null) {
-                const obj = fazendaId as Record<string, unknown>;
-                if ('value' in obj) return String(obj.value);
-              }
-              return String(fazendaId);
-            })()}
-            onChange={(value) => {
-              const fazendaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
-              startTransition(() => setValue('fazendaId', fazendaValue));
-            }}
-            options={[
-              { label: 'Nenhuma', value: '' },
-              ...fazendaOptions
-            ]}
-            placeholder="Selecione a fazenda"
-            allowCustomValue={false}
-          />
-        </div>
+        <Combobox
+          label="Fazenda"
+          value={(() => {
+            const fazendaId = watch('fazendaId');
+            if (!fazendaId) return '';
+            if (typeof fazendaId === 'string') return fazendaId;
+            if (typeof fazendaId === 'object' && fazendaId !== null) {
+              const obj = fazendaId as Record<string, unknown>;
+              if ('value' in obj) return String(obj.value);
+            }
+            return String(fazendaId);
+          })()}
+          onChange={(value) => {
+            const fazendaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+            startTransition(() => setValue('fazendaId', fazendaValue));
+          }}
+          options={[
+            { label: 'Nenhuma', value: '' },
+            ...fazendaOptions
+          ]}
+          placeholder="Selecione a fazenda"
+          allowCustomValue={false}
+        />
+      </div>
 
         <div className="flex items-center">
           <input
@@ -311,7 +289,6 @@ export default function UsuarioModal({
             Usuário ativo
           </label>
         </div>
-      </div>
 
       <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
         <button

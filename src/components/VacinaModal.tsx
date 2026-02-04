@@ -7,6 +7,8 @@ import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { Vacina } from '../db/models';
 import Modal from './Modal';
+import Input from './Input';
+import Textarea from './Textarea';
 import ConfirmDialog from './ConfirmDialog';
 import { showToast } from '../utils/toast';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -446,106 +448,68 @@ function VacinaModalComponent({
         <fieldset disabled={isLocked} className={isLocked ? 'opacity-60' : ''}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-                Vacina *
-              </label>
-              <input
-                type="text"
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
+              <Input
                 {...register('vacina')}
+                label="Vacina"
+                type="text"
+                required
                 placeholder="Ex: Brucelose, Febre Aftosa..."
-              />
-              {errors.vacina && (
-                <p className="text-red-600 dark:text-red-400 text-sm mt-1">
-                  {String(errors.vacina.message)}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-                Data de Aplicação *
-              </label>
-              <input
-                type="text"
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-                placeholder="DD/MM/YYYY"
-                maxLength={10}
-                {...register('dataAplicacao', {
-                  onChange: (e) => {
-                    const valor = e.target.value;
-                    const normalizado = normalizarDataInput(valor);
-                    setValue('dataAplicacao', normalizado, { shouldValidate: false });
-                  }
-                })}
-              />
-              {errors.dataAplicacao && (
-                <p className="text-red-600 dark:text-red-400 text-sm mt-1">
-                  {String(errors.dataAplicacao.message)}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-                Data de Vencimento/Revacinação
-              </label>
-              <input
-                type="text"
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-                placeholder="DD/MM/YYYY"
-                maxLength={10}
-                {...register('dataVencimento', {
-                  onChange: (e) => {
-                    const valor = e.target.value;
-                    const normalizado = normalizarDataInput(valor);
-                    setValue('dataVencimento', normalizado, { shouldValidate: false });
-                  }
-                })}
-              />
-              {errors.dataVencimento && (
-                <p className="text-red-600 dark:text-red-400 text-sm mt-1">
-                  {String(errors.dataVencimento.message)}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-                Lote
-              </label>
-              <input
-                type="text"
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-                {...register('lote')}
-                placeholder="Número do lote"
+                error={errors.vacina?.message}
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-                Responsável
-              </label>
-              <input
-                type="text"
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-                {...register('responsavel')}
-                placeholder="Nome do responsável"
-              />
-            </div>
-          </div>
+            <Input
+              {...register('dataAplicacao', {
+                onChange: (e) => {
+                  const valor = e.target.value;
+                  const normalizado = normalizarDataInput(valor);
+                  setValue('dataAplicacao', normalizado, { shouldValidate: false });
+                }
+              })}
+              label="Data de Aplicação"
+              type="text"
+              required
+              maxLength={10}
+              placeholder="DD/MM/YYYY"
+              error={errors.dataAplicacao?.message}
+            />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-              Observações
-            </label>
-            <textarea
-              className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-              rows={3}
-              {...register('observacao')}
-              placeholder="Observações sobre a vacinação (opcional)"
+            <Input
+              {...register('dataVencimento', {
+                onChange: (e) => {
+                  const valor = e.target.value;
+                  const normalizado = normalizarDataInput(valor);
+                  setValue('dataVencimento', normalizado, { shouldValidate: false });
+                }
+              })}
+              label="Data de Vencimento/Revacinação"
+              type="text"
+              maxLength={10}
+              placeholder="DD/MM/YYYY"
+              error={errors.dataVencimento?.message}
+            />
+
+            <Input
+              {...register('lote')}
+              label="Lote"
+              type="text"
+              placeholder="Número do lote"
+            />
+
+            <Input
+              {...register('responsavel')}
+              label="Responsável"
+              type="text"
+              placeholder="Nome do responsável"
             />
           </div>
+
+          <Textarea
+            {...register('observacao')}
+            label="Observações"
+            rows={3}
+            placeholder="Observações sobre a vacinação (opcional)"
+          />
         </fieldset>
 
         {/* Timeline de Vacinações */}

@@ -1,439 +1,468 @@
+import { useState } from 'react';
 import { Icons } from '../utils/iconMapping';
 import { Link } from 'react-router-dom';
-import { useNotifications } from '../hooks/useNotifications';
+import { useAlertas, Alerta } from '../hooks/useAlertas';
+import { useFazendaContext } from '../hooks/useFazendaContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryBgClass, getThemeClasses, getPrimaryCardClass, getPrimaryBadgeClass, getPrimarySmallButtonClass } from '../utils/themeHelpers';
-import { marcarNotificacaoComoLida, marcarTodasComoLidas, chaveDesmama, chaveMortalidade, chaveDadosIncompletos, chaveMatrizSemCadastro, chavePesoForaPadrao, chaveVacina } from '../utils/notificacoesLidas';
+import { getPrimaryBgClass } from '../utils/themeHelpers';
+import { useAuth } from '../hooks/useAuth';
+import { marcarAlertaComoLido, marcarAlertaComoNaoLido, marcarTodosAlertasComoLidos } from '../utils/alertasLidos';
+import { NotificacaoLida } from '../db/models';
 
 export default function Notificacoes() {
-  const notificacoes = useNotifications();
+  const { fazendaAtivaId } = useFazendaContext();
+  const { user } = useAuth();
+  const { alertas, totalAlertas, totalNaoLidos, alertasAlta, alertasMedia } = useAlertas(
+    fazendaAtivaId || undefined,
+    user?.id
+  );
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const [filtroSeveridade, setFiltroSeveridade] = useState<'todas' | 'alta' | 'media' | 'baixa'>('todas');
+  const [filtroLeitura, setFiltroLeitura] = useState<'todos' | 'nao_lidos' | 'lidos'>('todos');
 
-  const handleMarcarComoLida = async (tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina', chave: string) => {
+  const alertasFiltrados = alertas.filter(alerta => {
+    // Filtro de severidade
+    if (filtroSeveridade !== 'todas' && alerta.severidade !== filtroSeveridade) {
+      return false;
+    }
+    
+    // Filtro de leitura
+    if (filtroLeitura === 'nao_lidos' && alerta.lido) return false;
+    if (filtroLeitura === 'lidos' && !alerta.lido) return false;
+    
+    return true;
+  });
+
+  // Função para alternar o estado de leitura de um alerta
+  const toggleAlertaLido = async (alerta: Alerta) => {
+    if (!user?.id) return;
+
     try {
-      await marcarNotificacaoComoLida(chave, tipo);
-      // Sincronizar imediatamente após marcar como lida
-      try {
-        const { pushPending } = await import('../api/syncService');
-        await pushPending();
-      } catch (syncError) {
-        console.error('Erro ao sincronizar após marcar como lida:', syncError);
-        // Não mostrar erro ao usuário, apenas logar - a sincronização automática vai tentar depois
+      if (alerta.lido) {
+        await marcarAlertaComoNaoLido(alerta.id);
+      } else {
+        // Mapear tipo do alerta para tipo da notificação
+        const tipoMap: Record<string, NotificacaoLida['tipo']> = {
+          'desmama': 'desmama_atrasada',
+          'matriz': 'matriz_improdutiva',
+          'peso': 'peso_critico',
+          'vacina': 'vacinas_vencidas',
+          'mortalidade': 'mortalidade_alta'
+        };
+        const tipo = tipoMap[alerta.tipo] || 'desmama';
+        await marcarAlertaComoLido(alerta.id, tipo, user.id);
       }
     } catch (error) {
-      console.error('Erro ao marcar notificação como lida:', error);
-      alert('Erro ao marcar notificação como lida. Tente novamente.');
+      console.error('Erro ao alternar alerta:', error);
     }
   };
 
-  const handleMarcarTodasComoLidas = async (tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina', chaves: string[]) => {
+  // Função para marcar todos como lidos
+  const marcarTodosComoLidos = async () => {
+    if (!user?.id) return;
+
     try {
-      await marcarTodasComoLidas(tipo, chaves);
-      // Sincronizar imediatamente após marcar todas como lidas
-      try {
-        const { pushPending } = await import('../api/syncService');
-        await pushPending();
-      } catch (syncError) {
-        console.error('Erro ao sincronizar após marcar todas como lidas:', syncError);
-        // Não mostrar erro ao usuário, apenas logar - a sincronização automática vai tentar depois
+      // Obter apenas alertas não lidos
+      const alertasNaoLidos = alertas.filter(a => !a.lido);
+      
+      const tipoMap: Record<string, NotificacaoLida['tipo']> = {
+        'desmama': 'desmama_atrasada',
+        'matriz': 'matriz_improdutiva',
+        'peso': 'peso_critico',
+        'vacina': 'vacinas_vencidas',
+        'mortalidade': 'mortalidade_alta'
+      };
+
+      // Marcar todos em lote
+      for (const alerta of alertasNaoLidos) {
+        const tipo = tipoMap[alerta.tipo] || 'desmama';
+        await marcarAlertaComoLido(alerta.id, tipo, user.id);
       }
     } catch (error) {
-      console.error('Erro ao marcar todas as notificações como lidas:', error);
-      alert('Erro ao marcar todas as notificações como lidas. Tente novamente.');
+      console.error('Erro ao marcar todos como lidos:', error);
     }
   };
 
   return (
-    <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
-
-      <div className="space-y-4">
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-amber-200 dark:border-amber-500/40 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Icons.AlertTriangle className="w-5 h-5 text-amber-500" />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Desmama atrasada</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-600/90 dark:text-white font-medium rounded-full">
-                {notificacoes.desmamaAtrasada.length} pendência(s)
-              </span>
-              {notificacoes.desmamaAtrasada.length > 0 && (
-                <button
-                  onClick={() => {
-                    const chaves = notificacoes.desmamaAtrasada.map(n => chaveDesmama(n.id));
-                    handleMarcarTodasComoLidas('desmama', chaves);
-                  }}
-                  className="text-xs px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md transition-colors flex items-center gap-1"
-                  title="Marcar todas como lidas"
-                >
-                  <Icons.CheckCheck className="w-3 h-3" />
-                  Marcar todas
-                </button>
-              )}
-            </div>
-          </div>
-          {notificacoes.desmamaAtrasada.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-slate-400">Nenhuma pendência.</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-auto">
-              {notificacoes.desmamaAtrasada.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-900/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                      Matriz {item.matrizId} {item.brinco ? `• Brinco ${item.brinco}` : ''}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                      Fazenda: {item.fazenda} • Nasc.: {item.dataNascimento || '-'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
-                      {item.meses} meses
-                    </span>
-                    <button
-                      onClick={() => handleMarcarComoLida('desmama', chaveDesmama(item.id))}
-                      className="p-1 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-500/20 rounded transition-colors"
-                      title="Marcar como lida"
-                    >
-                      <Icons.Check className="w-4 h-4" />
-                    </button>
-                  </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
+      <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
+        
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${getPrimaryBgClass(primaryColor)}`}>
+                  <Icons.Bell className="w-6 h-6 text-white" />
                 </div>
-              ))}
+                Alertas e Notificações
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                Sistema inteligente de monitoramento do rebanho
+              </p>
             </div>
-          )}
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 transition-colors"
+            >
+              <Icons.ArrowLeft className="w-4 h-4" />
+              Voltar ao Dashboard
+            </Link>
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-red-200 dark:border-red-500/40 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Icons.AlertTriangle className="w-5 h-5 text-red-500" />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Mortalidade alta</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-red-100 text-red-800 dark:bg-red-600/90 dark:text-white font-medium rounded-full">
-                {notificacoes.mortalidadeAlta.length} alerta(s)
-              </span>
-              {notificacoes.mortalidadeAlta.length > 0 && (
-                <button
-                  onClick={() => {
-                    const chaves = notificacoes.mortalidadeAlta.map(n => chaveMortalidade(n.fazendaId));
-                    handleMarcarTodasComoLidas('mortalidade', chaves);
-                  }}
-                  className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors flex items-center gap-1"
-                  title="Marcar todas como lidas"
-                >
-                  <Icons.CheckCheck className="w-3 h-3" />
-                  Marcar todas
-                </button>
-              )}
-            </div>
-          </div>
-          {notificacoes.mortalidadeAlta.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-slate-400">Nenhum alerta.</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-auto">
-              {notificacoes.mortalidadeAlta.map((item) => (
-                <div key={item.fazendaId} className="flex items-center justify-between p-2 rounded-md border border-red-200 bg-red-50 dark:border-red-600/50 dark:bg-red-900/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{item.fazenda}</p>
-                    <p className="text-xs text-gray-600 dark:text-slate-400">
-                      {item.mortos} mortos de {item.total} nascimentos
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-red-700 whitespace-nowrap">
-                      {item.taxa}%
-                    </span>
-                    <button
-                      onClick={() => handleMarcarComoLida('mortalidade', chaveMortalidade(item.fazendaId))}
-                      className="p-1 text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-500/20 rounded transition-colors"
-                      title="Marcar como lida"
-                    >
-                      <Icons.Check className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-green-200 dark:border-green-500/40 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Icons.FileWarning className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')}`} />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Dados incompletos</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-600/90 dark:text-white font-medium rounded-full">
-                {notificacoes.dadosIncompletos.length} registro(s)
-              </span>
-              {notificacoes.dadosIncompletos.length > 0 && (
-                <button
-                  onClick={() => {
-                    const chaves = notificacoes.dadosIncompletos.map(n => chaveDadosIncompletos(n.id));
-                    handleMarcarTodasComoLidas('dados', chaves);
-                  }}
-                  className={`text-xs px-2 py-1 ${getPrimarySmallButtonClass(primaryColor)} text-white rounded-md transition-colors flex items-center gap-1`}
-                  title="Marcar todas como lidas"
-                >
-                  <Icons.CheckCheck className="w-3 h-3" />
-                  Marcar todas
-                </button>
-              )}
-            </div>
-          </div>
-          {notificacoes.dadosIncompletos.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-slate-400">Nenhum registro com dados incompletos.</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-auto">
-              {notificacoes.dadosIncompletos.slice(0, 20).map((item) => (
-                <div key={item.id} className={`flex items-start justify-between p-2 rounded-md border ${getThemeClasses(primaryColor, 'border-light')} ${getThemeClasses(primaryColor, 'bg-light')} dark:${getThemeClasses(primaryColor, 'border')}/30 dark:${getPrimaryBgClass(primaryColor)}/10`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                      Matriz {item.matrizId} {item.brinco ? `• Brinco ${item.brinco}` : ''}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                      Fazenda: {item.fazenda}
-                    </p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {item.problemas.map((problema, idx) => (
-                        <span key={idx} className={`text-xs px-2 py-0.5 ${getPrimaryBadgeClass(primaryColor)} rounded`}>
-                          {problema}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleMarcarComoLida('dados', chaveDadosIncompletos(item.id))}
-                    className={`p-1 ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'hover-text')} hover:${getThemeClasses(primaryColor, 'bg-light')} dark:hover:${getPrimaryBgClass(primaryColor)}/20 rounded transition-colors ml-2`}
-                    title="Marcar como lida"
-                  >
-                    <Icons.Check className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-              {notificacoes.dadosIncompletos.length > 20 && (
-                <p className="text-xs text-gray-500 dark:text-slate-400 text-center pt-2">
-                  ... e mais {notificacoes.dadosIncompletos.length - 20} registro(s)
+        {/* Resumo de Alertas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-gray-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wide">
+                  Total
                 </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-purple-200 dark:border-purple-500/40 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Icons.Cow className="w-5 h-5 text-purple-500" />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Matrizes sem cadastro</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-600/90 dark:text-white font-medium rounded-full">
-                {notificacoes.matrizesSemCadastro.length} matriz(es)
-              </span>
-              {notificacoes.matrizesSemCadastro.length > 0 && (
-                <button
-                  onClick={() => {
-                    const chaves = notificacoes.matrizesSemCadastro.map(n => chaveMatrizSemCadastro(n.matrizId, n.fazendaId));
-                    handleMarcarTodasComoLidas('matriz', chaves);
-                  }}
-                  className="text-xs px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded-md transition-colors flex items-center gap-1"
-                  title="Marcar todas como lidas"
-                >
-                  <Icons.CheckCheck className="w-3 h-3" />
-                  Marcar todas
-                </button>
-              )}
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  {totalAlertas}
+                </p>
+              </div>
+              <Icons.AlertTriangle className="w-8 h-8 text-gray-500" />
             </div>
           </div>
-          {notificacoes.matrizesSemCadastro.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-slate-400">Todas as matrizes estão cadastradas.</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-auto">
-              {notificacoes.matrizesSemCadastro.map((item) => (
-                <div key={`${item.matrizId}-${item.fazendaId}`} className="flex items-center justify-between p-2 rounded-md border border-purple-200 bg-purple-50 dark:border-purple-600/50 dark:bg-purple-900/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                      Matriz {item.matrizId}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                      Fazenda: {item.fazenda}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-purple-700 whitespace-nowrap">
-                      {item.totalNascimentos} nascimento(s)
-                    </span>
-                    <button
-                      onClick={() => handleMarcarComoLida('matriz', chaveMatrizSemCadastro(item.matrizId, item.fazendaId))}
-                      className="p-1 text-purple-600 hover:text-purple-700 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded transition-colors"
-                      title="Marcar como lida"
-                    >
-                      <Icons.Check className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Peso Fora do Padrão */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-orange-200 dark:border-orange-500/40 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Icons.Scale className="w-5 h-5 text-orange-500" />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">Peso fora do padrão</h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200 rounded-full">
-                {notificacoes.pesoForaPadrao.length} animal(is)
-              </span>
-              {notificacoes.pesoForaPadrao.length > 0 && (
-                <button
-                  onClick={() => {
-                    const chaves = notificacoes.pesoForaPadrao.map(n => chavePesoForaPadrao(n.nascimentoId));
-                    handleMarcarTodasComoLidas('peso', chaves);
-                  }}
-                  className="text-xs px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md transition-colors flex items-center gap-1"
-                  title="Marcar todas como lidas"
-                >
-                  <Icons.CheckCheck className="w-3 h-3" />
-                  Marcar todas
-                </button>
-              )}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-red-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wide">
+                  Alta Prioridade
+                </p>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+                  {alertasAlta}
+                </p>
+              </div>
+              <Icons.AlertCircle className="w-8 h-8 text-red-500" />
             </div>
           </div>
-          {notificacoes.pesoForaPadrao.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-slate-400">Todos os animais estão com peso adequado.</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-auto">
-              {notificacoes.pesoForaPadrao.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-2 rounded-md border border-orange-100 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-500/10">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                      {item.brinco ? `Brinco ${item.brinco}` : 'Animal sem brinco'}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                      Fazenda: {item.fazenda} • Idade: {item.idadeDias} dias
-                    </p>
-                    <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
-                      Peso atual: <strong>{item.pesoAtual} kg</strong> • Esperado: <strong>{item.pesoMedioEsperado} kg</strong> • Diferença: <strong>{item.diferencaPercentual.toFixed(1)}%</strong>
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleMarcarComoLida('peso', chavePesoForaPadrao(item.nascimentoId))}
-                      className="p-1 text-orange-600 hover:text-orange-700 hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded transition-colors"
-                      title="Marcar como lida"
-                    >
-                      <Icons.Check className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Vacinas vencidas / vencendo */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-rose-200 dark:border-rose-500/40 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Icons.Injection className="w-5 h-5 text-rose-500" />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100">
-                Vacinas vencidas / vencendo
-              </h3>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-rose-100 text-rose-800 dark:bg-rose-600/90 dark:text-white font-medium rounded-full">
-                {notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length} alerta(s)
-              </span>
-              {(notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length) > 0 && (
-                <button
-                  onClick={() => {
-                    const chaves = [
-                      ...notificacoes.vacinasVencidas.map(n => chaveVacina(n.id)),
-                      ...notificacoes.vacinasVencendo.map(n => chaveVacina(n.id))
-                    ];
-                    handleMarcarTodasComoLidas('vacina', chaves);
-                  }}
-                  className="text-xs px-2 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-md transition-colors flex items-center gap-1"
-                  title="Marcar todas como lidas"
-                >
-                  <Icons.CheckCheck className="w-3 h-3" />
-                  Marcar todas
-                </button>
-              )}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-amber-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wide">
+                  Média Prioridade
+                </p>
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                  {alertasMedia}
+                </p>
+              </div>
+              <Icons.Info className="w-8 h-8 text-amber-500" />
             </div>
           </div>
-          {notificacoes.vacinasVencidas.length + notificacoes.vacinasVencendo.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-slate-400">Nenhuma vacina vencida ou vencendo em breve.</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-auto">
-              {notificacoes.vacinasVencidas.map((item) => (
-                <div key={`vacina-vencida-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-rose-200 bg-rose-50 dark:border-rose-600/50 dark:bg-rose-900/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                      {item.vacina} {item.brinco ? `• Brinco ${item.brinco}` : ''}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                      Fazenda: {item.fazenda} • Aplicação: {item.dataAplicacao}
-                    </p>
-                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
-                      Vencida em: <strong>{item.dataVencimento}</strong> • {Math.abs(item.diasParaVencer)} dia(s) em atraso
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-rose-700 whitespace-nowrap">
-                      Vencida
-                    </span>
-                    <button
-                      onClick={() => handleMarcarComoLida('vacina', chaveVacina(item.id))}
-                      className="p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded transition-colors"
-                      title="Marcar como lida"
-                    >
-                      <Icons.Check className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {notificacoes.vacinasVencendo.map((item) => (
-                <div key={`vacina-vence-${item.id}`} className="flex items-center justify-between p-2 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-900/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                      {item.vacina} {item.brinco ? `• Brinco ${item.brinco}` : ''}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-slate-400 truncate">
-                      Fazenda: {item.fazenda} • Aplicação: {item.dataAplicacao}
-                    </p>
-                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                      Vence em: <strong>{item.dataVencimento}</strong> • {item.diasParaVencer} dia(s)
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
-                      Vence em breve
-                    </span>
-                    <button
-                      onClick={() => handleMarcarComoLida('vacina', chaveVacina(item.id))}
-                      className="p-1 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-500/20 rounded transition-colors"
-                      title="Marcar como lida"
-                    >
-                      <Icons.Check className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 border-l-4 border-blue-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wide">
+                  Baixa Prioridade
+                </p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+                  {alertas.filter(a => a.severidade === 'baixa').length}
+                </p>
+              </div>
+              <Icons.CheckCircle className="w-8 h-8 text-blue-500" />
             </div>
-          )}
+          </div>
         </div>
+
+        {/* Filtros */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-4 mb-6">
+          {/* Filtros de Severidade */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+              Filtrar por severidade:
+            </span>
+            <button
+              onClick={() => setFiltroSeveridade('todas')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                filtroSeveridade === 'todas'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              Todas ({totalAlertas})
+            </button>
+            <button
+              onClick={() => setFiltroSeveridade('alta')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                filtroSeveridade === 'alta'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/30'
+              }`}
+            >
+              Alta ({alertasAlta})
+            </button>
+            <button
+              onClick={() => setFiltroSeveridade('media')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                filtroSeveridade === 'media'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/30'
+              }`}
+            >
+              Média ({alertasMedia})
+            </button>
+            <button
+              onClick={() => setFiltroSeveridade('baixa')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                filtroSeveridade === 'baixa'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30'
+              }`}
+            >
+              Baixa ({alertas.filter(a => a.severidade === 'baixa').length})
+            </button>
+          </div>
+
+          {/* Filtros de Leitura */}
+          <div className="flex items-center gap-2 flex-wrap justify-between border-t border-gray-200 dark:border-slate-700 pt-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                Filtrar por status:
+              </span>
+              <button
+                onClick={() => setFiltroLeitura('todos')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filtroLeitura === 'todos'
+                    ? 'bg-gray-700 text-white'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                Todos ({totalAlertas})
+              </button>
+              <button
+                onClick={() => setFiltroLeitura('nao_lidos')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filtroLeitura === 'nao_lidos'
+                    ? 'bg-orange-600 text-white'
+                    : 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/30'
+                }`}
+              >
+                Não Lidos ({totalNaoLidos})
+              </button>
+              <button
+                onClick={() => setFiltroLeitura('lidos')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filtroLeitura === 'lidos'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30'
+                }`}
+              >
+                Lidos ({totalAlertas - totalNaoLidos})
+              </button>
+            </div>
+
+            {/* Botão Marcar Todos como Lidos */}
+            {totalNaoLidos > 0 && (
+              <button
+                onClick={marcarTodosComoLidos}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <Icons.CheckCircle className="w-4 h-4" />
+                Marcar Todos como Lidos
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Lista de Alertas */}
+        {totalAlertas === 0 ? (
+          <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-xl p-8 text-center">
+            <Icons.CheckCircle className="w-16 h-16 text-green-600 dark:text-green-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-green-900 dark:text-green-100 mb-2">
+              ✅ Tudo em ordem!
+            </h3>
+            <p className="text-sm text-green-700 dark:text-green-300">
+              Nenhum alerta pendente no momento. Seu rebanho está bem monitorado!
+            </p>
+          </div>
+        ) : alertasFiltrados.length === 0 ? (
+          <div className="bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-8 text-center">
+            <Icons.Filter className="w-16 h-16 text-gray-400 dark:text-slate-500 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-700 dark:text-slate-300 mb-2">
+              Nenhum alerta nesta categoria
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-slate-400">
+              Tente selecionar outro filtro de severidade
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {alertasFiltrados.map((alerta) => (
+              <AlertaCard 
+                key={alerta.id} 
+                alerta={alerta} 
+                primaryColor={primaryColor}
+                onToggleLido={toggleAlertaLido}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+function AlertaCard({ 
+  alerta, 
+  primaryColor, 
+  onToggleLido 
+}: { 
+  alerta: Alerta; 
+  primaryColor: ColorPaletteKey;
+  onToggleLido: (alerta: Alerta) => void;
+}) {
+  const [expandido, setExpandido] = useState(false);
+  const IconComponent = Icons[alerta.icone as keyof typeof Icons] || Icons.AlertCircle;
+
+  const getBgColor = (cor: string) => {
+    switch (cor) {
+      case 'red': return 'bg-red-50 dark:bg-red-900/10 border-red-300 dark:border-red-800';
+      case 'amber': return 'bg-amber-50 dark:bg-amber-900/10 border-amber-300 dark:border-amber-800';
+      case 'orange': return 'bg-orange-50 dark:bg-orange-900/10 border-orange-300 dark:border-orange-800';
+      case 'purple': return 'bg-purple-50 dark:bg-purple-900/10 border-purple-300 dark:border-purple-800';
+      default: return 'bg-gray-50 dark:bg-slate-800 border-gray-300 dark:border-slate-700';
+    }
+  };
+
+  const getIconColor = (cor: string) => {
+    switch (cor) {
+      case 'red': return 'text-red-600 dark:text-red-400';
+      case 'amber': return 'text-amber-600 dark:text-amber-400';
+      case 'orange': return 'text-orange-600 dark:text-orange-400';
+      case 'purple': return 'text-purple-600 dark:text-purple-400';
+      default: return 'text-gray-600 dark:text-slate-400';
+    }
+  };
+
+  const getTextColor = (cor: string) => {
+    switch (cor) {
+      case 'red': return 'text-red-900 dark:text-red-100';
+      case 'amber': return 'text-amber-900 dark:text-amber-100';
+      case 'orange': return 'text-orange-900 dark:text-orange-100';
+      case 'purple': return 'text-purple-900 dark:text-purple-100';
+      default: return 'text-gray-900 dark:text-slate-100';
+    }
+  };
+
+  return (
+    <div className={`${getBgColor(alerta.cor)} border-2 rounded-xl shadow-sm hover:shadow-md transition-all`}>
+      <div className="p-4">
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0">
+            <div className={`p-3 rounded-lg ${
+              alerta.severidade === 'alta' 
+                ? 'bg-red-100 dark:bg-red-900/30' 
+                : alerta.severidade === 'media'
+                ? 'bg-amber-100 dark:bg-amber-900/30'
+                : 'bg-blue-100 dark:bg-blue-900/30'
+            }`}>
+              <IconComponent className={`w-6 h-6 ${getIconColor(alerta.cor)}`} />
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <h3 className={`text-lg font-bold ${getTextColor(alerta.cor)}`}>
+                    {alerta.titulo}
+                  </h3>
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                    alerta.severidade === 'alta' 
+                      ? 'bg-red-500 text-white' 
+                      : alerta.severidade === 'media'
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-blue-500 text-white'
+                  }`}>
+                    {alerta.severidade.toUpperCase()}
+                  </span>
+                  {alerta.lido && (
+                    <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                      LIDO
+                    </span>
+                  )}
+                </div>
+                <p className={`text-sm ${getTextColor(alerta.cor)} opacity-90`}>
+                  {alerta.mensagem}
+                </p>
+              </div>
+              
+              {/* Botão Marcar como Lido/Não Lido */}
+              <button
+                onClick={() => onToggleLido(alerta)}
+                className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
+                  alerta.lido
+                    ? 'bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300'
+                    : 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400'
+                }`}
+                title={alerta.lido ? 'Marcar como não lido' : 'Marcar como lido'}
+              >
+                {alerta.lido ? (
+                  <Icons.Eye className="w-5 h-5" />
+                ) : (
+                  <Icons.CheckCircle className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+
+            {alerta.detalhes && alerta.detalhes.length > 0 && (
+              <div className="mt-3">
+                <button
+                  onClick={() => setExpandido(!expandido)}
+                  className={`text-sm font-medium ${getIconColor(alerta.cor)} hover:opacity-80 transition-opacity flex items-center gap-1`}
+                >
+                  {expandido ? (
+                    <>
+                      <Icons.ChevronUp className="w-4 h-4" />
+                      Ocultar detalhes
+                    </>
+                  ) : (
+                    <>
+                      <Icons.ChevronDown className="w-4 h-4" />
+                      Ver detalhes ({alerta.detalhes.length})
+                    </>
+                  )}
+                </button>
+
+                {expandido && (
+                  <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
+                    {alerta.detalhes.map((detalhe: any, index: number) => (
+                      <div
+                        key={index}
+                        className="bg-white dark:bg-slate-800/50 rounded-lg p-3 border border-gray-200 dark:border-slate-700"
+                      >
+                        {detalhe.brinco && (
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            🏷️ Brinco: {detalhe.brinco}
+                          </p>
+                        )}
+                        {detalhe.nome && (
+                          <p className="text-xs text-gray-600 dark:text-slate-400">
+                            Nome: {detalhe.nome}
+                          </p>
+                        )}
+                        {detalhe.dataNascimento && (
+                          <p className="text-xs text-gray-600 dark:text-slate-400">
+                            Nascimento: {new Date(detalhe.dataNascimento).toLocaleDateString('pt-BR')}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

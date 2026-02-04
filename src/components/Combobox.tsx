@@ -1,391 +1,273 @@
-import React, { useState, useRef, useEffect, useMemo, useTransition } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses, getComboboxOptionHoverClass, getComboboxOptionHoverStateClass } from '../utils/themeHelpers';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
 
 export interface ComboboxOption {
   label: string;
   value: string;
 }
 
-export interface ComboboxProps<T = any> {
-  value: T | string | number | undefined | null;
-  onChange: (value: T | string) => void;
-  options: string[] | ComboboxOption[] | T[];
+export interface ComboboxProps {
+  label?: string;
+  value: string | undefined | null;
+  onChange: (value: string) => void;
+  options: ComboboxOption[];
   placeholder?: string;
+  error?: string;
+  required?: boolean;
+  disabled?: boolean;
+  allowCustomValue?: boolean;
   onAddNew?: () => void;
   addNewLabel?: string;
   className?: string;
-  disabled?: boolean;
-  allowCustomValue?: boolean;
-  // Props para objetos genéricos
-  getOptionLabel?: (option: T) => string;
-  getOptionValue?: (option: T) => string;
-  // Props para favoritos
-  favoritoTipo?: 'fazenda' | 'raca';
-  isFavorito?: (value: string) => boolean;
-  onToggleFavorito?: (value: string) => void;
+  containerClassName?: string;
 }
 
-function ComboboxComponent<T = any>({
+export default function Combobox({
+  label,
   value,
   onChange,
   options,
-  placeholder = "Digite ou selecione",
-  onAddNew,
-  addNewLabel = "Adicionar novo",
-  className = "",
+  placeholder = 'Selecione',
+  error,
+  required = false,
   disabled = false,
   allowCustomValue = true,
-  getOptionLabel,
-  getOptionValue,
-  favoritoTipo,
-  isFavorito,
-  onToggleFavorito
-}: ComboboxProps<T>) {
-  const [isOpen, setIsOpen] = useState(false);
+  onAddNew,
+  addNewLabel = 'Adicionar',
+  className = '',
+  containerClassName = ''
+}: ComboboxProps) {
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
-  
-  // Função helper para extrair label de uma opção
-  const extractLabel = (option: any): string => {
-    if (typeof option === 'string') return option;
-    if (getOptionLabel) return getOptionLabel(option);
-    if (option && typeof option === 'object' && 'label' in option) return option.label;
-    return String(option);
-  };
-  
-  // Função helper para extrair value de uma opção
-  const extractValue = (option: any): string => {
-    if (typeof option === 'string') return option;
-    if (getOptionValue) return getOptionValue(option);
-    if (option && typeof option === 'object' && 'value' in option) return String(option.value);
-    return String(option);
-  };
-  
-  // Garantir que value seja sempre uma string
-  const valueStr = value != null ? (typeof value === 'object' && value !== null ? extractLabel(value) : String(value)) : '';
-  const [inputValue, setInputValue] = useState(valueStr);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [isPending, startTransition] = useTransition();
 
-  // Normalizar opções para formato unificado
-  const normalizeOptions = (opts: any[]): ComboboxOption[] => {
-    return opts.map(opt => ({
-      label: extractLabel(opt),
-      value: extractValue(opt)
-    }));
-  };
+  // Encontrar a opção selecionada
+  const selectedOption = options.find(opt => opt.value === value);
+  const displayValue = selectedOption?.label || value || '';
 
-  const normalizedOptions = useMemo(() => normalizeOptions(options), [options, getOptionLabel, getOptionValue]);
+  // Filtrar opções baseado na busca
+  const filteredOptions = options.filter(opt =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  // Função para encontrar o label baseado no value
-  const getLabelFromValue = (val: string | number | undefined | null): string => {
-    if (!val && val !== 0) return '';
-    // Garantir que val seja uma string
-    const valStr = String(val);
-    // Normalizar comparação (trim e case-insensitive)
-    const valNormalizado = valStr.trim().toLowerCase();
-    const matchingOption = normalizedOptions.find(opt => 
-      opt.value.trim().toLowerCase() === valNormalizado ||
-      opt.label.trim().toLowerCase() === valNormalizado
-    );
-    return matchingOption ? matchingOption.label : valStr;
-  };
-
-  // Atualizar inputValue quando value prop mudar
+  // Fechar dropdown ao clicar fora
   useEffect(() => {
-    const label = getLabelFromValue(valueStr);
-    // Só atualizar se o label mudou para evitar resets desnecessários
-    if (label !== inputValue) {
-      setInputValue(label);
-    }
-  }, [valueStr, options, normalizedOptions, inputValue]); // Só quando value prop mudar
-
-  const filteredOptions = useMemo(() => {
-    let opts = normalizedOptions;
-    
-    // Se há filtro de texto, aplicar
-    if (inputValue && isOpen) {
-      const exactMatch = normalizedOptions.find(opt =>
-        opt.label.toLowerCase() === inputValue.toLowerCase() ||
-        opt.value.toLowerCase() === inputValue.toLowerCase()
-      );
-      if (exactMatch) {
-        opts = normalizedOptions;
-      } else {
-        opts = normalizedOptions.filter(opt =>
-          opt.label.toLowerCase().includes(inputValue.toLowerCase()) ||
-          opt.value.toLowerCase().includes(inputValue.toLowerCase())
-        );
-      }
-    }
-    
-    // Ordenar: favoritos primeiro, depois os demais
-    if (isFavorito) {
-      return [...opts].sort((a, b) => {
-        const aFav = isFavorito(a.value);
-        const bFav = isFavorito(b.value);
-        if (aFav && !bFav) return -1;
-        if (!aFav && bFav) return 1;
-        return 0;
-      });
-    }
-    
-    return opts;
-  }, [inputValue, isOpen, normalizedOptions, isFavorito]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setHighlightedIndex(-1);
+        setSearchTerm('');
       }
-    }
+    };
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isOpen]);
 
-  // Resetar highlightedIndex quando filteredOptions mudar
-  useEffect(() => {
-    if (highlightedIndex >= filteredOptions.length) {
-      setHighlightedIndex(-1);
-    }
-  }, [filteredOptions.length, highlightedIndex]);
+  const handleSelect = (optionValue: string) => {
+    onChange(optionValue);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
-    setInputValue(newValue);
-    setHighlightedIndex(-1); // Resetar índice destacado ao digitar
-    startTransition(() => onChange(newValue));
+    setSearchTerm(newValue);
     setIsOpen(true);
-  };
 
-  const handleSelect = (option: ComboboxOption) => {
-    setInputValue(option.label);
-    // Encontrar a opção original para passar para onChange
-    const originalOption = options.find(opt => extractValue(opt) === option.value);
-    startTransition(() => onChange(originalOption || option.value));
-    setIsOpen(false);
-    setHighlightedIndex(-1);
-    inputRef.current?.blur();
-  };
-
-  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (!disabled) {
-      // Quando focar, se o valor atual corresponde exatamente a uma opção válida,
-      // limpar o filtro para mostrar todas as opções
-      const inputValueNormalizado = inputValue.trim().toLowerCase();
-      const currentValueMatches = normalizedOptions.some(opt => 
-        opt.label.trim().toLowerCase() === inputValueNormalizado ||
-        opt.value.trim().toLowerCase() === inputValueNormalizado
-      );
-      
-      // Se o valor atual corresponde a uma opção, mostrar todas as opções ao focar
-      if (currentValueMatches) {
-        // nada a fazer: filteredOptions já depende de normalizedOptions
-      }
-      
-      setIsOpen(true);
-      setHighlightedIndex(-1);
-      // Selecionar todo o texto para facilitar digitação
-      e.target.select();
+    // Se permitir valores customizados, atualizar imediatamente
+    if (allowCustomValue) {
+      onChange(newValue);
     }
   };
 
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleInputFocus = () => {
+    if (!disabled) {
+      setIsOpen(true);
+      setSearchTerm('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       setIsOpen(false);
-      setHighlightedIndex(-1);
-      inputRef.current?.blur();
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (!isOpen) {
-        setIsOpen(true);
-        setHighlightedIndex(0);
-      } else {
-        setHighlightedIndex((prev) => {
-          const next = prev < filteredOptions.length - 1 ? prev + 1 : 0;
-          // Scroll para a opção destacada
-          setTimeout(() => {
-            optionRefs.current[next]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          }, 0);
-          return next;
-        });
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (isOpen) {
-        setHighlightedIndex((prev) => {
-          const next = prev > 0 ? prev - 1 : filteredOptions.length - 1;
-          // Scroll para a opção destacada
-          setTimeout(() => {
-            optionRefs.current[next]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          }, 0);
-          return next;
-        });
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (isOpen && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
-        handleSelect(filteredOptions[highlightedIndex]);
-      } else if (!allowCustomValue && filteredOptions.length === 1) {
-        // Se não permite valor customizado e há apenas uma opção filtrada, selecionar
-        handleSelect(filteredOptions[0]);
-      }
-    } else if (e.key === 'Tab') {
-      // Fechar ao pressionar Tab
-      setIsOpen(false);
-      setHighlightedIndex(-1);
+      setSearchTerm('');
     }
   };
-
-  const handleBlur = () => {
-    // Se não permite valor customizado e o valor não está nas opções, limpar ou usar o valor mais próximo
-    if (!allowCustomValue && inputValue) {
-      const exactMatch = normalizedOptions.find(opt => 
-        opt.label.toLowerCase() === inputValue.toLowerCase() ||
-        opt.value.toLowerCase() === inputValue.toLowerCase()
-      );
-      if (!exactMatch && normalizedOptions.length > 0) {
-        // Tentar encontrar a primeira opção que começa com o valor digitado
-        const partialMatch = normalizedOptions.find(opt =>
-          opt.label.toLowerCase().startsWith(inputValue.toLowerCase())
-        );
-        if (partialMatch) {
-          setInputValue(partialMatch.label);
-          onChange(partialMatch.value);
-        }
-      }
-    }
-  };
-
-  const showDropdown = isOpen && filteredOptions.length > 0 && !disabled;
 
   return (
-    <div className={`flex gap-2 ${className}`}>
-      <div ref={containerRef} className="flex-1 relative">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          onFocus={handleInputFocus}
-          onKeyDown={handleInputKeyDown}
-          onBlur={handleBlur}
-          disabled={disabled}
-          aria-busy={isPending}
-          className={`w-full px-3 py-2 pr-10 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')} disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed`}
-          placeholder={placeholder}
-        />
-        {/* Seta indicadora de dropdown - clicável */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!disabled) {
-              const willOpen = !isOpen;
-              setIsOpen(willOpen);
-              setHighlightedIndex(-1);
-              // Focar no input quando abrir (comportamento nativo)
-              if (willOpen) {
-                // Pequeno delay para garantir que o estado foi atualizado
-                setTimeout(() => {
-                  inputRef.current?.focus();
-                }, 10);
-              } else {
-                // Quando fechar, manter foco no input
-                inputRef.current?.focus();
-              }
-            }
-          }}
-          onMouseDown={(e) => {
-            // Prevenir que o input perca o foco ao clicar na seta
-            // Isso permite que o onClick funcione corretamente
-            e.preventDefault();
-          }}
-          disabled={disabled}
-          className={`absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer rounded-r-md transition-colors disabled:cursor-not-allowed disabled:hover:bg-transparent focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} focus:ring-inset`}
-          aria-label={isOpen ? 'Fechar lista' : 'Abrir lista'}
-          aria-expanded={isOpen}
-          tabIndex={-1}
-        >
-          <Icons.ChevronDown className={`w-5 h-5 text-gray-400 dark:text-slate-400 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
-        </button>
-        {showDropdown && (
-          <div 
-            ref={dropdownRef}
-            className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md shadow-lg max-h-60 overflow-auto"
+    <div ref={containerRef} className={`relative mb-2 ${containerClassName}`}>
+      {/* Container com borda */}
+      <div
+        className={`
+          relative
+          rounded-md
+          border
+          px-3
+          pt-2
+          pb-2
+          bg-white
+          dark:bg-slate-900
+          transition-colors
+          ${error
+            ? 'border-red-500 dark:border-red-400'
+            : 'border-gray-300 dark:border-slate-600'}
+        `}
+      >
+        {/* Label */}
+        {label && (
+          <label
+            className={`
+              absolute
+              -top-2
+              left-3
+              px-1
+              text-[11px]
+              font-medium
+              bg-white
+              dark:bg-slate-900
+              text-slate-500
+              dark:text-slate-400
+              pointer-events-none
+              transition-colors
+              ${error ? 'text-red-500 dark:text-red-400' : ''}
+            `}
           >
-            {filteredOptions.map((option, index) => {
-              const isFav = isFavorito ? isFavorito(option.value) : false;
-              const isHighlighted = index === highlightedIndex;
-              return (
-                <div
-                  key={`${option.value}-${index}`}
-                  className={`flex items-center group ${
-                    isHighlighted 
-                      ? getComboboxOptionHoverClass(primaryColor)
-                      : getComboboxOptionHoverStateClass(primaryColor)
-                  }`}
-                >
-                  <button
-                    ref={(el) => {
-                      optionRefs.current[index] = el;
-                    }}
-                    type="button"
-                    onClick={() => handleSelect(option)}
-                    className={`flex-1 text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none transition-colors ${
-                      isHighlighted ? getComboboxOptionHoverClass(primaryColor) : ''
-                    }`}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                  >
-                    {option.label}
-                  </button>
-                  {onToggleFavorito && favoritoTipo && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorito(option.value);
-                      }}
-                      className="px-2 py-2 text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity focus:outline-none"
-                      title={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                    >
-                      <Icons.Star className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+            {label}
+            {required && <span className="ml-1 text-red-500 dark:text-red-400">*</span>}
+          </label>
         )}
+
+        {/* Input Container */}
+        <div className="flex items-center justify-between gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={isOpen ? searchTerm : displayValue}
+            onChange={handleInputChange}
+            onFocus={handleInputFocus}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={`
+              flex-1
+              min-w-0
+              bg-transparent
+              border-0
+              outline-none
+              text-sm
+              leading-tight
+              px-0
+              py-0.5
+              text-slate-800
+              dark:text-slate-100
+              placeholder:text-gray-400
+              dark:placeholder:text-slate-500
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+              ${className}
+            `}
+          />
+
+          {/* Botão Adicionar Novo */}
+          {onAddNew && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddNew();
+              }}
+              disabled={disabled}
+              className={`
+                flex-shrink-0
+                ${getPrimaryButtonClass(primaryColor)}
+                text-white
+                px-2.5
+                py-1.5
+                rounded-md
+                focus:outline-none
+                focus:ring-2
+                focus:ring-offset-2
+                transition-colors
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+              `}
+              title={addNewLabel}
+            >
+              <Icons.Plus className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Ícone Dropdown */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!disabled) {
+                setIsOpen(!isOpen);
+                if (!isOpen) {
+                  inputRef.current?.focus();
+                }
+              }
+            }}
+            disabled={disabled}
+            className="flex-shrink-0 p-0 bg-transparent border-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none"
+          >
+            <Icons.ChevronDown
+              className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+        </div>
       </div>
-      {onAddNew && (
-        <button
-          type="button"
-          onClick={onAddNew}
-          disabled={disabled}
-          className={`px-3 py-2 text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed`}
-          title={addNewLabel}
-        >
-          <Icons.Plus className="w-5 h-5" />
-        </button>
+
+      {/* Dropdown com opções */}
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 max-h-64 overflow-y-auto">
+          {filteredOptions.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-gray-500 dark:text-slate-400">
+              Nenhuma opção encontrada
+            </div>
+          ) : (
+            <div className="py-1">
+              {filteredOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleSelect(option.value)}
+                  className={`
+                    w-full
+                    text-left
+                    px-3
+                    py-2
+                    text-sm
+                    transition-colors
+                    ${option.value === value
+                      ? 'bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800'
+                    }
+                  `}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mensagem de erro */}
+      {error && (
+        <p className="mt-1 text-xs text-red-500 dark:text-red-400">
+          {error}
+        </p>
       )}
     </div>
   );
 }
-
-export default React.memo(ComboboxComponent);
-

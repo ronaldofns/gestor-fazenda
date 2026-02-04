@@ -110,3 +110,43 @@ body {
 .dark .bg-white.rounded-lg {
   background-color: rgb(30 41 59) !important; /* slate-800 */
 }
+
+/* v0.4 — Modo Campo/Curral: fonte maior e alto contraste para uso no curral */
+.mode-curral {
+  font-size: 1.125rem; /* 18px base */
+}
+.mode-curral main {
+  font-size: 1.125rem;
+}
+.mode-curral .text-sm {
+  font-size: 1rem;
+}
+.mode-curral .text-xs {
+  font-size: 0.9375rem;
+}
+.mode-curral button,
+.mode-curral [role="button"],
+.mode-curral input,
+.mode-curral select,
+.mode-curral textarea {
+  font-size: 1rem;
+  min-height: 2.5rem;
+}
+.mode-curral .font-medium,
+.mode-curral label {
+  font-weight: 600;
+}
+/* Alto contraste no modo claro */
+html:not(.dark) .mode-curral .text-gray-600 {
+  color: rgb(31 41 55);
+}
+html:not(.dark) .mode-curral .text-gray-500 {
+  color: rgb(55 65 81);
+}
+/* Alto contraste no modo escuro */
+html.dark .mode-curral .text-slate-400 {
+  color: rgb(226 232 240);
+}
+html.dark .mode-curral .text-slate-500 {
+  color: rgb(203 213 225);
+}

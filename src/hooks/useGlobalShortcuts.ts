@@ -37,9 +37,9 @@ export function useGlobalShortcuts() {
     key: 'm',
     ctrl: true,
     action: () => {
-      if (location.pathname !== '/matrizes') {
-        navigate('/matrizes');
-        showToast({ type: 'info', message: 'Matrizes', duration: 1500 });
+      if (location.pathname !== '/animais') {
+        navigate('/animais');
+        showToast({ type: 'info', message: 'Animais', duration: 1500 });
       }
     },
   });

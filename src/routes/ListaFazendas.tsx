@@ -8,12 +8,21 @@ import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { Fazenda } from '../db/models';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { usePermissions } from '../hooks/usePermissions';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass } from '../utils/themeHelpers';
+import FazendaTags from '../components/FazendaTags';
+import { useAllEntityTags } from '../hooks/useAllEntityTags';
 
 export default function ListaFazendas() {
   const { appSettings } = useAppSettings();
+  const { hasPermission } = usePermissions();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const podeGerenciarFazendas = hasPermission('gerenciar_fazendas');
+  
+  // Buscar tags de TODAS as fazendas uma única vez (otimização anti-OOM)
+  const fazendaTagsMap = useAllEntityTags('fazenda');
+  
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
   const fazendas = useMemo(() => {
     return fazendasRaw.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
@@ -135,13 +144,15 @@ export default function ListaFazendas() {
         {fazendas.length === 0 ? (
           <div className="p-8 text-center text-gray-500 dark:text-slate-400 text-sm">
             Nenhuma fazenda cadastrada ainda.
-            <button
-              type="button"
-              onClick={handleNovaFazenda}
-              className="ml-2 text-green-600 hover:text-green-800 dark:hover:text-green-400 underline"
-            >
-              Cadastrar primeira fazenda
-            </button>
+            {podeGerenciarFazendas && (
+              <button
+                type="button"
+                onClick={handleNovaFazenda}
+                className="ml-2 text-green-600 hover:text-green-800 dark:hover:text-green-400 underline"
+              >
+                Cadastrar primeira fazenda
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -155,6 +166,9 @@ export default function ListaFazendas() {
                 </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
                   Status
+                </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                  Tags
                 </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
                   Ações
@@ -183,34 +197,41 @@ export default function ListaFazendas() {
                       <span className="text-yellow-600">Pendente</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-sm">
+                    <FazendaTags tags={fazendaTagsMap.get(fazenda.id)} />
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
+                      {podeGerenciarFazendas && (
+                        <button
+                          onClick={() => handleEditarFazenda(fazenda)}
+                          className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-900 transition-colors"
+                          title="Editar fazenda"
+                        >
+                          <Icons.Edit className="w-5 h-5" />
+                        </button>
+                      )}
                       <button
-                            onClick={() => handleEditarFazenda(fazenda)}
-                            className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-900 transition-colors"
-                            title="Editar fazenda"
-                          >
-                            <Icons.Edit className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setHistoricoEntityId(fazenda.id);
-                              setHistoricoOpen(true);
-                            }}
-                            className="text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-900 transition-colors"
-                            title="Ver histórico de alterações"
-                          >
-                            <Icons.History className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(fazenda.id, fazenda.nome)}
-                            className="text-red-600 hover:bg-red-50 hover:text-red-900 transition-colors"
-                            title="Excluir fazenda"
-                          >
-                            <Icons.Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
+                        onClick={() => {
+                          setHistoricoEntityId(fazenda.id);
+                          setHistoricoOpen(true);
+                        }}
+                        className="text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-900 transition-colors"
+                        title="Ver histórico de alterações"
+                      >
+                        <Icons.History className="w-5 h-5" />
+                      </button>
+                      {podeGerenciarFazendas && (
+                        <button
+                          onClick={() => handleDelete(fazenda.id, fazenda.nome)}
+                          className="text-red-600 hover:bg-red-50 hover:text-red-900 transition-colors"
+                          title="Excluir fazenda"
+                        >
+                          <Icons.Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                     </tr>
                   ))}
                 </tbody>
@@ -243,13 +264,15 @@ export default function ListaFazendas() {
                       </div>
                     </div>
                     <div className="flex flex-shrink-0 gap-2">
-                      <button
-                        onClick={() => handleEditarFazenda(fazenda)}
-                        className="p-1.5 text-green-600 hover:bg-green-50 hover:text-green-900 dark:hover:bg-green-900/30 rounded-full transition-colors"
-                        title="Editar fazenda"
-                      >
-                        <Icons.Edit className="w-5 h-5" />
-                      </button>
+                      {podeGerenciarFazendas && (
+                        <button
+                          onClick={() => handleEditarFazenda(fazenda)}
+                          className="p-1.5 text-green-600 hover:bg-green-50 hover:text-green-900 dark:hover:bg-green-900/30 rounded-full transition-colors"
+                          title="Editar fazenda"
+                        >
+                          <Icons.Edit className="w-5 h-5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setHistoricoEntityId(fazenda.id);
@@ -260,14 +283,19 @@ export default function ListaFazendas() {
                       >
                         <Icons.History className="w-5 h-5" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(fazenda.id, fazenda.nome)}
-                        className="p-1.5 text-red-600 hover:bg-red-50 hover:text-red-900 dark:hover:bg-red-900/30 rounded-full transition-colors"
-                        title="Excluir fazenda"
-                      >
-                        <Icons.Trash2 className="w-5 h-5" />
-                      </button>
+                      {podeGerenciarFazendas && (
+                        <button
+                          onClick={() => handleDelete(fazenda.id, fazenda.nome)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 hover:text-red-900 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                          title="Excluir fazenda"
+                        >
+                          <Icons.Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-slate-800">
+                    <FazendaTags tags={fazendaTagsMap.get(fazenda.id)} />
                   </div>
                 </div>
               ))}
@@ -312,16 +340,18 @@ export default function ListaFazendas() {
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
       />
-      <button
+      {podeGerenciarFazendas && (
+        <button
           type="button"
           onClick={handleNovaFazenda}
-        className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3 py-3 ${getPrimaryButtonClass(primaryColor)} text-white rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg hover:shadow-xl hover:scale-105`}
-        title="Nova Fazenda"
-        aria-label="Nova Fazenda"
-      >
-        <Icons.Plus className="w-5 h-5" />
-        <span className="text-sm font-medium hidden sm:inline">Nova Fazenda</span>
-      </button>
+          className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3 py-3 ${getPrimaryButtonClass(primaryColor)} text-white rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg hover:shadow-xl hover:scale-105`}
+          title="Nova Fazenda"
+          aria-label="Nova Fazenda"
+        >
+          <Icons.Plus className="w-5 h-5" />
+          <span className="text-sm font-medium hidden sm:inline">Nova Fazenda</span>
+        </button>
+      )}
     </div>
   );
 }

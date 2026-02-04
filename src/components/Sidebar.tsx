@@ -144,12 +144,14 @@ export default function Sidebar() {
   const menuItems = [
     ...(hasPermission('ver_dashboard') ? [{ path: '/dashboard', label: 'Dashboard', icon: Icons.LayoutDashboard }] : []),
     ...(hasPermission('ver_notificacoes') ? [{ path: '/notificacoes', label: 'Notificações', icon: Icons.Bell, badge: notificacoes.total > 0 ? notificacoes.total : undefined }] : []),
-    ...(hasPermission('ver_planilha') ? [{ path: '/planilha', label: 'Nascimento/Desmama', icon: Icons.FileSpreadsheet }] : []),
-    ...(hasPermission('ver_matrizes') ? [{ path: '/matrizes', label: 'Matrizes', icon: Icons.ListTree }] : []),
+    ...(hasPermission('ver_planilha') ? [
+      { path: '/animais', label: 'Animais', icon: Icons.Cow },
+      { path: '/pendencias-curral', label: 'Pendências do Curral', icon: Icons.List }
+    ] : []),
     ...(hasPermission('ver_fazendas') ? [{ path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 }] : []),
     ...(hasPermission('ver_sincronizacao') ? [{ path: '/sincronizacao', label: 'Sincronização', icon: Icons.RefreshCw }] : []),
-    ...(hasPermission('importar_planilha') ? [{ path: '/importar-planilha', label: 'Importar Planilha', icon: Icons.Upload }] : []),
-    ...(hasPermission('gerenciar_usuarios') ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),
+    ...(hasPermission('gerar_relatorios') ? [{ path: '/relatorios', label: 'Relatórios', icon: Icons.BarChart3 }] : []),
+    ...((hasPermission('ver_usuarios') || hasPermission('gerenciar_usuarios')) ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),
     ...(isAdmin() ? [{ path: '/permissoes', label: 'Permissões', icon: Icons.Shield }] : []),
   ];
 
@@ -282,7 +284,7 @@ export default function Sidebar() {
         className={`fixed top-3 left-3 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden ${
           sidebarOpen ? 'z-[60]' : 'z-50'
         }`}
-        aria-label="Toggle sidebar"
+        aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
       >
         {sidebarOpen ? (
           <Icons.X className="w-4  h-4 text-gray-600 dark:text-slate-300" />

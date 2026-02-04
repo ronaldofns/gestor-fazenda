@@ -3,13 +3,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Icons } from '../utils/iconMapping';
 import { db } from '../db/dexieDB';
 import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
+import { getPrimaryButtonClass } from '../utils/themeHelpers';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import { showToast } from '../utils/toast';
 import { uuid } from '../utils/uuid';
+import Input from './Input';
+import Textarea from './Textarea';
 
 interface TagsManagerProps {
   buttonLabel?: string;
@@ -25,6 +28,8 @@ const TagsManager = memo(function TagsManager({
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
+  const podeExportarDados = hasPermission('exportar_dados');
   
   // Carregar tags do Dexie
   const tags = useLiveQuery(
@@ -215,6 +220,10 @@ const TagsManager = memo(function TagsManager({
   };
 
   const handleExport = async () => {
+    if (!podeExportarDados) {
+      showToast({ type: 'error', title: 'Sem permissão', message: 'Você não tem permissão para exportar dados.' });
+      return;
+    }
     try {
       const allTags = await db.tags.filter(t => !t.deletedAt).toArray();
       const exportData = {
@@ -368,13 +377,15 @@ const TagsManager = memo(function TagsManager({
               <span>Nova Tag</span>
             </button>
 
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all"
-            >
-              <Icons.Download className="w-4 h-4" />
-              Exportar
-            </button>
+            {podeExportarDados && (
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all"
+              >
+                <Icons.Download className="w-4 h-4" />
+                Exportar
+              </button>
+            )}
 
             <label className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all cursor-pointer">
               <Icons.Upload className="w-4 h-4" />
@@ -406,31 +417,22 @@ const TagsManager = memo(function TagsManager({
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                    Nome *
-                  </label>
-                  <input
-                    type="text"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="Ex: Urgente"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-slate-100"
-                  />
-                </div>
+                <Input
+                  label="Nome"
+                  type="text"
+                  required
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Ex: Urgente"
+                />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                    Categoria
-                  </label>
-                  <input
-                    type="text"
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    placeholder="Ex: Status"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-slate-100"
-                  />
-                </div>
+                <Input
+                  label="Categoria"
+                  type="text"
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  placeholder="Ex: Status"
+                />
               </div>
 
               <div>
@@ -459,18 +461,13 @@ const TagsManager = memo(function TagsManager({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Descrição
-                </label>
-                <textarea
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Adicione uma descrição..."
-                  rows={2}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-slate-100 resize-none"
-                />
-              </div>
+              <Textarea
+                label="Descrição"
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                placeholder="Adicione uma descrição..."
+                rows={2}
+              />
 
               <div className="flex justify-end gap-2">
                 <button

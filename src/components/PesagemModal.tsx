@@ -7,6 +7,8 @@ import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { Pesagem } from '../db/models';
 import Modal from './Modal';
+import Input from './Input';
+import Textarea from './Textarea';
 import ConfirmDialog from './ConfirmDialog';
 import { showToast } from '../utils/toast';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -17,6 +19,7 @@ import { useAuth } from '../hooks/useAuth';
 import { checkLock, lockRecord, unlockRecord } from '../utils/recordLock';
 import { registrarAudit } from '../utils/audit';
 import { calcularGMD, calcularGMDAcumulado } from '../utils/calcularGMD';
+import { useBalancaStore } from '../stores/balancaStore';
 
 const schemaPesagem = z.object({
   dataPesagem: z.string().min(1, 'Informe a data da pesagem'),
@@ -49,6 +52,7 @@ function PesagemModalComponent({
 }: PesagemModalProps) {
   const { appSettings } = useAppSettings();
   const { user } = useAuth();
+  const pesoBalança = useBalancaStore((s) => s.pesoKg);
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lockError, setLockError] = useState<string | null>(null);
@@ -516,61 +520,53 @@ function PesagemModalComponent({
 
         <fieldset disabled={isLocked} className={isLocked ? 'opacity-60' : ''}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-                Data da Pesagem *
-              </label>
-              <input
-                type="text"
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-                placeholder="DD/MM/YYYY"
-                maxLength={10}
-                {...register('dataPesagem', {
-                  onChange: (e) => {
-                    const valor = e.target.value;
-                    const normalizado = normalizarDataInput(valor);
-                    setValue('dataPesagem', normalizado, { shouldValidate: false });
-                  }
-                })}
-              />
-              {errors.dataPesagem && (
-                <p className="text-red-600 dark:text-red-400 text-sm mt-1">
-                  {String(errors.dataPesagem.message)}
-                </p>
-              )}
-            </div>
+            <Input
+              {...register('dataPesagem', {
+                onChange: (e) => {
+                  const valor = e.target.value;
+                  const normalizado = normalizarDataInput(valor);
+                  setValue('dataPesagem', normalizado, { shouldValidate: false });
+                }
+              })}
+              label="Data da Pesagem"
+              type="text"
+              required
+              maxLength={10}
+              placeholder="DD/MM/YYYY"
+              error={errors.dataPesagem?.message}
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-                Peso (kg) *
-              </label>
-              <input
+            <div className="space-y-1">
+              <Input
+                {...register('peso', { valueAsNumber: true })}
+                label="Peso (kg)"
                 type="number"
+                required
                 step="0.01"
                 min="0.01"
-                className={`w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-                {...register('peso', { valueAsNumber: true })}
                 placeholder="Ex: 180.5"
+                error={errors.peso?.message}
               />
-              {errors.peso && (
-                <p className="text-red-600 dark:text-red-400 text-sm mt-1">
-                  {String(errors.peso.message)}
-                </p>
+              {pesoBalança != null && mode === 'create' && (
+                <button
+                  type="button"
+                  onClick={() => setValue('peso', pesoBalança, { shouldValidate: true })}
+                  className={`flex items-center gap-2 text-sm font-medium ${getPrimaryActionButtonLightClass(primaryColor)} rounded-lg px-3 py-1.5 border border-current`}
+                  title="Preencher com o peso lido da balança conectada"
+                >
+                  <Icons.Scale className="w-4 h-4 shrink-0" />
+                  Usar peso da balança ({pesoBalança} kg)
+                </button>
               )}
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-100 mb-1">
-              Observações
-            </label>
-            <textarea
-              className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, 'ring')} ${getThemeClasses(primaryColor, 'border')}`}
-              rows={3}
-              {...register('observacao')}
-              placeholder="Observações sobre a pesagem (opcional)"
-            />
-          </div>
+          <Textarea
+            {...register('observacao')}
+            label="Observações"
+            rows={3}
+            placeholder="Observações sobre a pesagem (opcional)"
+          />
         </fieldset>
 
         {/* Timeline de Evolução do Peso */}
@@ -790,16 +786,6 @@ function PesagemModalComponent({
           >
             {isSubmitting ? 'Salvando...' : isLocked ? 'Bloqueado' : mode === 'create' ? 'Salvar' : 'Salvar Alterações'}
           </button>
-          {mode === 'edit' && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isSubmitting || isLocked}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icons.Trash2 className="w-4 h-4" />
-            </button>
-          )}
           <button
             type="button"
             onClick={handleClose}

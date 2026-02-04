@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../hooks/useAuth';
 import { useFazendaContext } from '../hooks/useFazendaContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { db } from '../db/dexieDB';
 import { Icons } from '../utils/iconMapping';
 import { showToast } from '../utils/toast';
@@ -19,15 +20,15 @@ const routeMetadata: Record<string, { title: string; subtitle: string; icon?: ke
     subtitle: 'Visão geral do seu rebanho',
     icon: 'LayoutDashboard'
   },
-  '/planilha': {
-    title: 'Nascimento/Desmama',
-    subtitle: 'Gerenciar nascimentos e desmamas',
-    icon: 'FileSpreadsheet'
+  '/animais': {
+    title: 'Animais',
+    subtitle: 'Cadastro e gestão de animais',
+    icon: 'Cow'
   },
-  '/matrizes': {
-    title: 'Matrizes',
-    subtitle: 'Gerenciar matrizes do rebanho',
-    icon: 'ListTree'
+  '/pendencias-curral': {
+    title: 'Pendências do Curral',
+    subtitle: 'Bezerros sem desmama, vacinas vencidas, sem pesagem recente',
+    icon: 'List'
   },
   '/notificacoes': {
     title: 'Notificações',
@@ -39,11 +40,6 @@ const routeMetadata: Record<string, { title: string; subtitle: string; icon?: ke
     subtitle: 'Gerenciar fazendas',
     icon: 'Building2'
   },
-  '/importar-planilha': {
-    title: 'Importar Planilha',
-    subtitle: 'Importar dados de planilhas Excel',
-    icon: 'Upload'
-  },
   '/usuarios': {
     title: 'Usuários',
     subtitle: 'Gerenciar usuários do sistema',
@@ -51,8 +47,18 @@ const routeMetadata: Record<string, { title: string; subtitle: string; icon?: ke
   },
   '/permissoes': {
     title: 'Permissões',
-    subtitle: 'Gerenciar permissões por role',
+    subtitle: 'Incluir e remover permissões por role',
     icon: 'Shield'
+  },
+  '/relatorios': {
+    title: 'Relatórios',
+    subtitle: 'Comparativos temporais e análises',
+    icon: 'BarChart3'
+  },
+  '/sincronizacao': {
+    title: 'Sincronização',
+    subtitle: 'Status e fila de sincronização',
+    icon: 'RefreshCw'
   }
 };
 
@@ -68,6 +74,8 @@ export default function TopBar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { fazendaAtivaId, setFazendaAtiva } = useFazendaContext();
+  const { hasPermission } = usePermissions();
+  const podeExportarDados = hasPermission('exportar_dados');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [fazendaMenuOpen, setFazendaMenuOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -84,7 +92,7 @@ export default function TopBar() {
   });
   const menuRef = useRef<HTMLDivElement>(null);
   const fazendaMenuRef = useRef<HTMLDivElement>(null);
-  const { appSettings } = useAppSettings();
+  const { appSettings, saveSettings } = useAppSettings();
   
   // Buscar fazendas disponíveis
   const fazendas = useLiveQuery(() => db.fazendas.toArray(), []) || [];
@@ -303,6 +311,23 @@ export default function TopBar() {
             )}
           </div>
 
+          {/* Toggle Modo Curral (v0.4) */}
+          <button
+            onClick={() => saveSettings({ modoCurral: !appSettings.modoCurral })}
+            className={`flex items-center gap-2 rounded-xl px-3 py-2 transition-all border ${
+              appSettings.modoCurral
+                ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200'
+                : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
+            }`}
+            title={appSettings.modoCurral ? 'Modo Curral ativo (clique para desativar)' : 'Ativar Modo Curral (fonte maior, alto contraste)'}
+            aria-label={appSettings.modoCurral ? 'Desativar modo Curral' : 'Ativar modo Curral'}
+          >
+            <Icons.Sun className="w-4 h-4" />
+            <span className="hidden sm:inline text-sm font-medium">
+              {appSettings.modoCurral ? 'Curral' : 'Escritório'}
+            </span>
+          </button>
+
           {/* Avatar e Menu do Usuário */}
           <div className="relative" ref={menuRef}>
             <button
@@ -393,6 +418,7 @@ export default function TopBar() {
                     <span>{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
                   </button>
 
+                  {podeExportarDados && (
                   <button
                     onClick={async () => {
                       setUserMenuOpen(false);
@@ -432,6 +458,7 @@ export default function TopBar() {
                     <Icons.Download className="w-4 h-4" />
                     <span>Exportar Backup</span>
                   </button>
+                  )}
 
                   <button
                     onClick={() => {
