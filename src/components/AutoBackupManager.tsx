@@ -84,7 +84,7 @@ const AutoBackupManager = memo(function AutoBackupManager({ inline = false }: Au
             <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-700">
               <div className="flex items-center gap-3 mb-4">
                 <div className={`p-2 rounded-lg ${getPrimaryBadgeClass(primaryColor)}`}>
-                  <Icons.Activity className="w-5 h-5" />
+                  <Icons.BarChart className="w-5 h-5" />
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">Status</h3>
               </div>
