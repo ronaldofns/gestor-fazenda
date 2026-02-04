@@ -192,6 +192,9 @@ export default defineConfig({
             if (id.includes('react') || id.includes('react-dom')) {
               return 'vendor-react';
             }
+            if (id.includes('react-icons')) {
+              return 'vendor-icons';
+            }
             if (id.includes('supabase')) {
               return 'vendor-supabase';
             }

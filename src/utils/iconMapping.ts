@@ -77,7 +77,7 @@ import {
   FaSave,            // Save
   FaPlay,            // Play
   FaInbox,           // Inbox
-  FaChartBar,        // BarChart / Activity
+  FaChartBar,        // BarChart
   FaSearch,          // Search
   FaCodeBranch,      // GitBranch
   FaDollarSign,      // DollarSign
@@ -145,8 +145,7 @@ export const Icons = {
   TrendingDown: FaChartLine, // Usando o mesmo ícone, mas pode ser rotacionado com CSS
   BarChart3: MdBarChart,
   BarChart: FaChartBar,
-  Activity: FaChartBar,
-  
+
   // Gênero
   Mars: FaMars,
   Venus: FaVenus,
