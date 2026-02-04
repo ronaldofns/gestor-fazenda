@@ -185,13 +185,11 @@ export default defineConfig({
           }
           return `assets/[name]-[hash][extname]`;
         },
-        // Code splitting manual para reduzir tamanho dos chunks
+        // Code splitting manual para reduzir tamanho dos chunks.
+        // React/react-dom NÃO são separados em vendor-react para evitar erro
+        // "Cannot set properties of undefined (setting 'Activity')" com React 19 no build.
         manualChunks: (id) => {
-          // Separar node_modules em chunks menores
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'vendor-react';
-            }
             if (id.includes('react-icons')) {
               return 'vendor-icons';
             }
