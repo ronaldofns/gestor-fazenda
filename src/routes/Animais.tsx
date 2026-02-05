@@ -114,7 +114,7 @@ export default function Animais() {
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>(VISIBLE_COLUMNS_DEFAULT);
   const [colunasPopoverOpen, setColunasPopoverOpen] = useState(false);
   const colunasPopoverRef = useRef<HTMLDivElement>(null);
-  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true);
   const [filtroSomenteBezerros, setFiltroSomenteBezerros] = useState(false);
 
   const [isPending, startTransition] = useTransition();
@@ -777,183 +777,6 @@ export default function Animais() {
           )}
         </div>
 
-        {/* Total da lista filtrada (mesma fonte da tabela e dos cards) — para conferência visual */}
-        <div className="flex items-center gap-2 mb-2 text-sm text-gray-600 dark:text-slate-400">
-          <span>Total da lista filtrada:</span>
-          <span className="font-semibold text-gray-800 dark:text-slate-200">{animaisFiltrados.length}</span>
-          <span>{animaisFiltrados.length === 1 ? 'animal' : 'animais'}</span>
-          {(filtroMesesNascimento.length > 0 || (filtroAno && filtroAno.trim() !== '')) && (
-            <span className="text-gray-500 dark:text-slate-500">
-              (Mês: {filtroMesesNascimento.length > 0 ? filtroMesesNascimento.map(m => nomeMes(m)).join(', ') : 'todos'}
-              {filtroAno && filtroAno.trim() !== '' ? ` · Ano: ${filtroAno}` : ''})
-            </span>
-          )}
-        </div>
-
-        {/* KPIs */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${filtrosAbertos ? 'mb-6' : 'mb-2'}`}>
-          {/* Matrizes */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-purple-500" />
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Matrizes</h3>
-              </div>
-              <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                {Array.from(matrizesStats.values()).reduce((sum, count) => sum + count, 0)}
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-slate-700">
-              {Array.from(matrizesStats.entries()).length > 0 ? (
-                Array.from(matrizesStats.entries()).map(([tipoNome, count]) => {
-                  const tipoObj = tipos.find(t => t.nome === tipoNome);
-                  return (
-                    <button
-                      key={tipoNome}
-                      type="button"
-                      onClick={() => {
-                        if (tipoObj) {
-                          startTransition(() => {
-                            setFiltroTipoId(tipoObj.id);
-                            setPaginaAtual(1);
-                          });
-                          setFiltrosAbertos(true);
-                        }
-                      }}
-                      title="Clique para filtrar por este tipo"
-                      className="flex items-center justify-between w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm text-gray-600 dark:text-slate-400">{tipoNome}</span>
-                      <span className="text-sm font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded">
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="text-sm text-gray-400 dark:text-slate-500 italic">Nenhuma matriz encontrada</div>
-              )}
-            </div>
-          </div>
-
-          {/* Bezerros */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
-            <button
-              type="button"
-              onClick={() => {
-                startTransition(() => {
-                  setFiltroSomenteBezerros(true);
-                  setPaginaAtual(1);
-                });
-                setFiltrosAbertos(true);
-              }}
-              title="Clique para filtrar somente bezerros"
-              className="flex items-center justify-between w-full mb-2 text-left rounded hover:opacity-90 transition-opacity cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Bezerros</h3>
-              </div>
-              <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {bezerrosStats.total}
-              </div>
-            </button>
-            <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-slate-700">
-              <button
-                type="button"
-                onClick={() => {
-                  startTransition(() => {
-                    setFiltroSomenteBezerros(true);
-                    setFiltroSexo('M');
-                    setPaginaAtual(1);
-                  });
-                  setFiltrosAbertos(true);
-                }}
-                title="Clique para filtrar bezerros machos"
-                className="flex items-center justify-between w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
-              >
-                <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                  Machos
-                </span>
-                <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
-                  {bezerrosStats.machos}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  startTransition(() => {
-                    setFiltroSomenteBezerros(true);
-                    setFiltroSexo('F');
-                    setPaginaAtual(1);
-                  });
-                  setFiltrosAbertos(true);
-                }}
-                title="Clique para filtrar bezerros fêmeas"
-                className="flex items-center justify-between w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-colors cursor-pointer"
-              >
-                <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
-                  Fêmeas
-                </span>
-                <span className="text-sm font-semibold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/20 px-2 py-0.5 rounded">
-                  {bezerrosStats.femeas}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Raças — total = mesma lista da tabela (animaisFiltrados) */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Raças</h3>
-              </div>
-              <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">
-                {animaisFiltrados.length}
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-slate-700 max-h-[160px] overflow-y-auto">
-              {racasStats.length > 0 ? (
-                racasStats.map((raca) => {
-                  const racaObj = racas.find(r => r.nome === raca.nome);
-                  return (
-                    <button
-                      key={raca.nome}
-                      type="button"
-                      onClick={() => {
-                        if (racaObj) {
-                          startTransition(() => {
-                            setFiltroRacaId(racaObj.id);
-                            setPaginaAtual(1);
-                          });
-                          setFiltrosAbertos(true);
-                        }
-                      }}
-                      title="Clique para filtrar por esta raça"
-                      className="flex items-center justify-between gap-2 w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors cursor-pointer"
-                    >
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-sm text-gray-700 dark:text-slate-300 font-medium">{raca.nome}</span>
-                        <div className="text-xs text-gray-500 dark:text-slate-400">
-                          • {raca.machos} Machos • {raca.femeas} Fêmeas
-                        </div>
-                      </div>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded shrink-0">
-                        {raca.total} Animais
-                      </span>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="text-sm text-gray-400 dark:text-slate-500 italic">Nenhuma raça encontrada</div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* Filtros - painel recolhível */}
         <div className={filtrosAbertos ? 'mb-2' : 'mb-0'}>
           <div className={`flex items-center justify-between ${filtrosAbertos ? 'mb-2' : 'mb-0'}`}>
@@ -1136,6 +959,186 @@ export default function Animais() {
             </div>
           )}
         </div>
+
+
+        {/* Total da lista filtrada (mesma fonte da tabela e dos cards) — para conferência visual */}
+        <div className="flex items-center gap-2 mb-2 text-sm text-gray-600 dark:text-slate-400">
+          <span>Total da lista filtrada:</span>
+          <span className="font-semibold text-gray-800 dark:text-slate-200">{animaisFiltrados.length}</span>
+          <span>{animaisFiltrados.length === 1 ? 'animal' : 'animais'}</span>
+          {(filtroMesesNascimento.length > 0 || (filtroAno && filtroAno.trim() !== '')) && (
+            <span className="text-gray-500 dark:text-slate-500">
+              (Mês: {filtroMesesNascimento.length > 0 ? filtroMesesNascimento.map(m => nomeMes(m)).join(', ') : 'todos'}
+              {filtroAno && filtroAno.trim() !== '' ? ` · Ano: ${filtroAno}` : ''})
+            </span>
+          )}
+        </div>
+
+        {/* KPIs */}
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${filtrosAbertos ? 'mb-6' : 'mb-2'}`}>
+          {/* Matrizes */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-purple-500" />
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Matrizes</h3>
+              </div>
+              <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                {Array.from(matrizesStats.values()).reduce((sum, count) => sum + count, 0)}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-slate-700">
+              {Array.from(matrizesStats.entries()).length > 0 ? (
+                Array.from(matrizesStats.entries()).map(([tipoNome, count]) => {
+                  const tipoObj = tipos.find(t => t.nome === tipoNome);
+                  return (
+                    <button
+                      key={tipoNome}
+                      type="button"
+                      onClick={() => {
+                        if (tipoObj) {
+                          startTransition(() => {
+                            setFiltroTipoId(tipoObj.id);
+                            setPaginaAtual(1);
+                          });
+                          setFiltrosAbertos(true);
+                        }
+                      }}
+                      title="Clique para filtrar por este tipo"
+                      className="flex items-center justify-between w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors cursor-pointer"
+                    >
+                      <span className="text-sm text-gray-600 dark:text-slate-400">{tipoNome}</span>
+                      <span className="text-sm font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="text-sm text-gray-400 dark:text-slate-500 italic">Nenhuma matriz encontrada</div>
+              )}
+            </div>
+          </div>
+
+          {/* Bezerros */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                startTransition(() => {
+                  setFiltroSomenteBezerros(true);
+                  setPaginaAtual(1);
+                });
+                setFiltrosAbertos(true);
+              }}
+              title="Clique para filtrar somente bezerros"
+              className="flex items-center justify-between w-full mb-2 text-left rounded hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Bezerros</h3>
+              </div>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                {bezerrosStats.total}
+              </div>
+            </button>
+            <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => {
+                  startTransition(() => {
+                    setFiltroSomenteBezerros(true);
+                    setFiltroSexo('M');
+                    setPaginaAtual(1);
+                  });
+                  setFiltrosAbertos(true);
+                }}
+                title="Clique para filtrar bezerros machos"
+                className="flex items-center justify-between w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
+              >
+                <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  Machos
+                </span>
+                <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
+                  {bezerrosStats.machos}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  startTransition(() => {
+                    setFiltroSomenteBezerros(true);
+                    setFiltroSexo('F');
+                    setPaginaAtual(1);
+                  });
+                  setFiltrosAbertos(true);
+                }}
+                title="Clique para filtrar bezerros fêmeas"
+                className="flex items-center justify-between w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-colors cursor-pointer"
+              >
+                <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
+                  Fêmeas
+                </span>
+                <span className="text-sm font-semibold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/20 px-2 py-0.5 rounded">
+                  {bezerrosStats.femeas}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Raças — total = mesma lista da tabela (animaisFiltrados) */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Raças</h3>
+              </div>
+              <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">
+                {animaisFiltrados.length}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-slate-700 max-h-[160px] overflow-y-auto">
+              {racasStats.length > 0 ? (
+                racasStats.map((raca) => {
+                  const racaObj = racas.find(r => r.nome === raca.nome);
+                  return (
+                    <button
+                      key={raca.nome}
+                      type="button"
+                      onClick={() => {
+                        if (racaObj) {
+                          startTransition(() => {
+                            setFiltroRacaId(racaObj.id);
+                            setPaginaAtual(1);
+                          });
+                          setFiltrosAbertos(true);
+                        }
+                      }}
+                      title="Clique para filtrar por esta raça"
+                      className="flex items-center justify-between gap-2 w-full text-left rounded px-1 py-0.5 -mx-1 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors cursor-pointer"
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm text-gray-700 dark:text-slate-300 font-medium">{raca.nome}</span>
+                        <div className="text-xs text-gray-500 dark:text-slate-400">
+                          • {raca.machos} Machos • {raca.femeas} Fêmeas
+                        </div>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded shrink-0">
+                        {raca.total} Animais
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="text-sm text-gray-400 dark:text-slate-500 italic">Nenhuma raça encontrada</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+
 
         {/* Loading ao aplicar filtros */}
         {isPending && (
