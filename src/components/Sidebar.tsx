@@ -14,24 +14,10 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import ConfirmDialog from './ConfirmDialog';
 import { applyTheme, getInitialTheme, Theme } from '../utils/theme';
 import { APP_VERSION } from '../utils/version';
+import { setGlobalSyncing, getGlobalSyncing } from '../utils/syncState';
 
-// Variável global para rastrear estado de sincronização
-let globalSyncing = false;
-const syncListeners = new Set<(syncing: boolean) => void>();
-
-export function setGlobalSyncing(syncing: boolean) {
-  globalSyncing = syncing;
-  syncListeners.forEach(listener => listener(syncing));
-  // Também atualizar via window para compatibilidade
-  if (typeof window !== 'undefined') {
-    (window as any).__globalSyncing = syncing;
-    window.dispatchEvent(new CustomEvent('syncStateChange', { detail: { syncing } }));
-  }
-}
-
-export function getGlobalSyncing() {
-  return globalSyncing;
-}
+// Re-exportar para compatibilidade com TopBar e Sincronizacao
+export { setGlobalSyncing, getGlobalSyncing };
 
 export default function Sidebar() {
   const location = useLocation();
@@ -99,24 +85,13 @@ export default function Sidebar() {
   
   // Escutar mudanças no estado global de sincronização
   useEffect(() => {
-    const listener = (isSyncing: boolean) => {
-      setSyncing(isSyncing);
-    };
-    syncListeners.add(listener);
-    setSyncing(globalSyncing); // Sincronizar estado inicial
-    
-    // Escutar eventos customizados de mudança de estado
     const handleSyncStateChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ syncing: boolean }>;
       setSyncing(customEvent.detail.syncing);
     };
-    
     window.addEventListener('syncStateChange', handleSyncStateChange);
-    
-    return () => {
-      syncListeners.delete(listener);
-      window.removeEventListener('syncStateChange', handleSyncStateChange);
-    };
+    setSyncing(getGlobalSyncing()); // Estado inicial
+    return () => window.removeEventListener('syncStateChange', handleSyncStateChange);
   }, []);
 
   const handleLogout = () => {
@@ -130,6 +105,7 @@ export default function Sidebar() {
     try {
       const { syncAll } = await import('../api/syncService');
       await syncAll();
+      // Se retornou { ran: false }, outra sync já estava em andamento
     } catch (error) {
       console.error('Erro na sincronização manual:', error);
     } finally {
@@ -281,9 +257,7 @@ export default function Sidebar() {
             setSidebarCollapsed(false);
           }
         }}
-        className={`fixed top-3 left-3 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden ${
-          sidebarOpen ? 'z-[60]' : 'z-50'
-        }`}
+        className="fixed top-3 left-3 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden z-[70] touch-manipulation"
         aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
       >
         {sidebarOpen ? (

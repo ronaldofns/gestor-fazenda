@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useTransition, useRef, lazy, Suspense } from 'react';
+import { useState, useMemo, useEffect, useTransition, useRef, lazy, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { List } from 'react-window';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -81,7 +81,7 @@ export default function Animais() {
   const [sortAsc, setSortAsc] = useState(false);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [itensPorPagina, setItensPorPagina] = useState(ITENS_POR_PAGINA_PADRAO);
-  
+
   // Modais de detalhes
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [historicoEntityId, setHistoricoEntityId] = useState<string | null>(null);
@@ -105,7 +105,7 @@ export default function Animais() {
   }>({
     open: false,
     message: '',
-    onConfirm: () => {}
+    onConfirm: () => { }
   });
 
   // Ref para dropdown de meses
@@ -118,6 +118,76 @@ export default function Animais() {
   const [filtroSomenteBezerros, setFiltroSomenteBezerros] = useState(false);
 
   const [isPending, startTransition] = useTransition();
+
+  // 🚀 OTIMIZAÇÃO: Handlers com startTransition para melhor responsividade
+  const handleBuscaChange = useCallback((value: string) => {
+    startTransition(() => {
+      setBusca(value);
+    });
+  }, []);
+
+  const handleFiltroSexoChange = useCallback((value: '' | 'M' | 'F') => {
+    startTransition(() => {
+      setFiltroSexo(value);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleFiltroTipoChange = useCallback((value: string) => {
+    startTransition(() => {
+      setFiltroTipoId(value);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleFiltroStatusChange = useCallback((value: string) => {
+    startTransition(() => {
+      setFiltroStatusId(value);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleFiltroRacaChange = useCallback((value: string) => {
+    startTransition(() => {
+      setFiltroRacaId(value);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleFiltroAnoChange = useCallback((value: string) => {
+    startTransition(() => {
+      setFiltroAno(value);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleFiltroMesesChange = useCallback((meses: number[]) => {
+    startTransition(() => {
+      setFiltroMesesNascimento(meses);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleSelectedTagsChange = useCallback((tags: string[]) => {
+    startTransition(() => {
+      setSelectedTags(tags);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleTagFilterModeChange = useCallback((mode: TagFilterMode) => {
+    startTransition(() => {
+      setTagFilterMode(mode);
+      setPaginaAtual(1);
+    });
+  }, []);
+
+  const handleFiltroSomenteBezerrosChange = useCallback((value: boolean) => {
+    startTransition(() => {
+      setFiltroSomenteBezerros(value);
+      setPaginaAtual(1);
+    });
+  }, []);
 
   // Função para obter nome do mês
   const nomeMes = (mes: number) => {
@@ -213,7 +283,7 @@ export default function Animais() {
 
   // 🚀 OTIMIZAÇÃO: Tags centralizadas
   const animalTagsMap = useAllEntityTags('animal');
-  
+
   // Carregar genealogias para obter tipoMatrizId
   const genealogias = useLiveQuery(() => db.genealogias.filter(g => !g.deletedAt).toArray(), []) || [];
   const genealogiaMap = useMemo(() => {
@@ -225,6 +295,27 @@ export default function Animais() {
     });
     return map;
   }, [genealogias]);
+
+  // 🚀 OTIMIZAÇÃO: Cache de datas de nascimento parseadas
+  const dataNascimentoCache = useMemo(() => {
+    const cache = new Map<string, Date | null>();
+    animaisRaw.forEach(animal => {
+      if (animal.dataNascimento && !cache.has(animal.id)) {
+        cache.set(animal.id, parseDataNascimentoLocal(animal.dataNascimento));
+      }
+    });
+    return cache;
+  }, [animaisRaw]);
+
+  // 🚀 OTIMIZAÇÃO: Memoizar anos disponíveis
+  const anosDisponiveis = useMemo(() => {
+    const anos = new Set<number>();
+    animaisRaw.filter((a) => !a.deletedAt && a.dataNascimento).forEach((a) => {
+      const data = dataNascimentoCache.get(a.id);
+      if (data) anos.add(data.getFullYear());
+    });
+    return Array.from(anos).sort((a, b) => b - a).map((ano) => ({ label: ano.toString(), value: ano.toString() }));
+  }, [animaisRaw, dataNascimentoCache]);
 
   // Maps para lookup rápido
   const fazendaMap = useMemo(() => {
@@ -323,109 +414,123 @@ export default function Animais() {
     return meses > 0 ? `${anos}a ${meses}m` : `${anos}a`;
   };
 
-  // Filtros e ordenação
+  // 🚀 OTIMIZAÇÃO: Filtros e ordenação combinados em um único loop
   const animaisFiltrados = useMemo(() => {
     if (!animaisRaw || animaisRaw.length === 0) return [];
-    
-    let filtrados = [...animaisRaw].filter(a => !a.deletedAt);
 
-    // Filtro por fazenda ativa
-    if (fazendaAtivaId) {
-      filtrados = filtrados.filter(a => a.fazendaId === fazendaAtivaId);
+    const termoBusca = buscaDebounced.trim().toLowerCase();
+    const temBusca = termoBusca.length > 0;
+    const temFiltroMeses = filtroMesesNascimento.length > 0;
+    const temFiltroAno = filtroAno && filtroAno.trim() !== '';
+    const temFiltroTags = selectedTags.length > 0;
+    const mesesSet = temFiltroMeses ? new Set(filtroMesesNascimento) : null;
+
+    // Pré-computar valores para busca (se necessário)
+    let buscaPreparada: {
+      fazendaMap: Map<string, string>;
+      tipoMap: Map<string, string>;
+      statusMap: Map<string, string>;
+      racaMap: Map<string, string>;
+    } | null = null;
+
+    if (temBusca) {
+      buscaPreparada = {
+        fazendaMap: new Map(Array.from(fazendaMap.entries()).map(([k, v]) => [k, v?.toLowerCase() || ''])),
+        tipoMap: new Map(Array.from(tipoMap.entries()).map(([k, v]) => [k, v?.toLowerCase() || ''])),
+        statusMap: new Map(Array.from(statusMap.entries()).map(([k, v]) => [k, v?.toLowerCase() || ''])),
+        racaMap: new Map(Array.from(racaMap.entries()).map(([k, v]) => [k, v?.toLowerCase() || ''])),
+      };
     }
 
-    // Filtro por sexo (verificar string não vazia explicitamente)
-    if (filtroSexo && filtroSexo.trim() !== '') {
-      filtrados = filtrados.filter(a => a.sexo === filtroSexo);
-    }
-
-    // Filtro por tipo (verificar string não vazia explicitamente)
-    if (filtroTipoId && filtroTipoId.trim() !== '') {
-      filtrados = filtrados.filter(a => a.tipoId === filtroTipoId);
-    }
-
-    // Filtro por status (verificar string não vazia explicitamente)
-    if (filtroStatusId && filtroStatusId.trim() !== '') {
-      filtrados = filtrados.filter(a => a.statusId === filtroStatusId);
-    }
-
-    // Filtro por raça (verificar string não vazia explicitamente)
-    if (filtroRacaId && filtroRacaId.trim() !== '') {
-      filtrados = filtrados.filter(a => a.racaId === filtroRacaId);
-    }
-
-    // Filtro somente bezerros (animais que têm matriz)
-    if (filtroSomenteBezerros) {
-      filtrados = filtrados.filter(a => {
-        const genealogia = genealogiaMap.get(a.id);
-        const matrizId = genealogia?.matrizId || a.matrizId;
-        return !!matrizId;
-      });
-    }
-
-    // Filtro por mês de nascimento (múltipla seleção) — usar data em horário local
-    if (filtroMesesNascimento.length > 0) {
-      filtrados = filtrados.filter(a => {
-        const data = parseDataNascimentoLocal(a.dataNascimento);
-        if (!data) return false;
-        const mes = data.getMonth() + 1; // 1-12
-        return filtroMesesNascimento.includes(mes);
-      });
-    }
-
-    // Filtro por ano de nascimento
-    if (filtroAno && filtroAno.trim() !== '') {
-      filtrados = filtrados.filter(a => {
-        const data = parseDataNascimentoLocal(a.dataNascimento);
-        if (!data) return false;
-        return data.getFullYear().toString() === filtroAno;
-      });
-    }
-
-    // Filtro por tags
-    if (selectedTags.length > 0) {
-      filtrados = filtrados.filter(a => {
-        const animalTags = animalTagsMap.get(a.id) || [];
-        const animalTagIds = animalTags.map(t => t.id);
-        
-        if (tagFilterMode === 'any') {
-          // Qualquer tag selecionada
-          return selectedTags.some(tagId => animalTagIds.includes(tagId));
-        } else {
-          // Todas as tags selecionadas
-          return selectedTags.every(tagId => animalTagIds.includes(tagId));
+    // Pré-computar tags (se necessário)
+    const animalTagIdsMap = temFiltroTags ? new Map<string, string[]>() : null;
+    if (temFiltroTags) {
+      animaisRaw.forEach(a => {
+        if (!a.deletedAt) {
+          const animalTags = animalTagsMap.get(a.id) || [];
+          animalTagIdsMap!.set(a.id, animalTags.map(t => t.id));
         }
       });
     }
 
-    // Busca global
-    if (buscaDebounced.trim()) {
-      const termo = buscaDebounced.trim().toLowerCase();
-      filtrados = filtrados.filter(a => {
-        // Buscar identificador da matriz através da genealogia
-        const genealogia = genealogiaMap.get(a.id);
-        const matrizId = genealogia?.matrizId || a.matrizId;
-        // Buscar matriz na tabela de Animais
+    // Loop único para todos os filtros
+    const filtrados: Animal[] = [];
+    for (const animal of animaisRaw) {
+      if (animal.deletedAt) continue;
+
+      // Filtro por fazenda ativa
+      if (fazendaAtivaId && animal.fazendaId !== fazendaAtivaId) continue;
+
+      // Filtro por sexo
+      if (filtroSexo && filtroSexo.trim() !== '' && animal.sexo !== filtroSexo) continue;
+
+      // Filtro por tipo
+      if (filtroTipoId && filtroTipoId.trim() !== '' && animal.tipoId !== filtroTipoId) continue;
+
+      // Filtro por status
+      if (filtroStatusId && filtroStatusId.trim() !== '' && animal.statusId !== filtroStatusId) continue;
+
+      // Filtro por raça
+      if (filtroRacaId && filtroRacaId.trim() !== '' && animal.racaId !== filtroRacaId) continue;
+
+      // Filtro somente bezerros
+      if (filtroSomenteBezerros) {
+        const genealogia = genealogiaMap.get(animal.id);
+        const matrizId = genealogia?.matrizId || animal.matrizId;
+        if (!matrizId) continue;
+      }
+
+      // Filtro por mês de nascimento (usar cache)
+      if (temFiltroMeses) {
+        const data = dataNascimentoCache.get(animal.id);
+        if (!data) continue;
+        const mes = data.getMonth() + 1;
+        if (!mesesSet!.has(mes)) continue;
+      }
+
+      // Filtro por ano de nascimento (usar cache)
+      if (temFiltroAno) {
+        const data = dataNascimentoCache.get(animal.id);
+        if (!data || data.getFullYear().toString() !== filtroAno) continue;
+      }
+
+      // Filtro por tags
+      if (temFiltroTags) {
+        const animalTagIds = animalTagIdsMap!.get(animal.id) || [];
+        if (tagFilterMode === 'any') {
+          if (!selectedTags.some(tagId => animalTagIds.includes(tagId))) continue;
+        } else {
+          if (!selectedTags.every(tagId => animalTagIds.includes(tagId))) continue;
+        }
+      }
+
+      // Busca global (otimizada)
+      if (temBusca) {
+        const genealogia = genealogiaMap.get(animal.id);
+        const matrizId = genealogia?.matrizId || animal.matrizId;
         const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
-        const matrizIdentificador = matrizAnimal?.brinco;
-        const matrizNome = matrizAnimal?.nome;
-        
-        return (
-          (a.brinco?.toLowerCase() || '').includes(termo) ||
-          (a.nome?.toLowerCase() || '').includes(termo) ||
-          (a.lote?.toLowerCase() || '').includes(termo) ||
-          (a.obs?.toLowerCase() || '').includes(termo) ||
-          (fazendaMap.get(a.fazendaId)?.toLowerCase() || '').includes(termo) ||
-          (tipoMap.get(a.tipoId)?.toLowerCase() || '').includes(termo) ||
-          (statusMap.get(a.statusId)?.toLowerCase() || '').includes(termo) ||
-          (racaMap.get(a.racaId)?.toLowerCase() || '').includes(termo) ||
-          (matrizIdentificador?.toLowerCase() || '').includes(termo) ||
-          (matrizNome?.toLowerCase() || '').includes(termo)
-        );
-      });
+        const matrizIdentificador = matrizAnimal?.brinco?.toLowerCase() || '';
+        const matrizNome = matrizAnimal?.nome?.toLowerCase() || '';
+
+        const match =
+          (animal.brinco?.toLowerCase() || '').includes(termoBusca) ||
+          (animal.nome?.toLowerCase() || '').includes(termoBusca) ||
+          (animal.lote?.toLowerCase() || '').includes(termoBusca) ||
+          (animal.obs?.toLowerCase() || '').includes(termoBusca) ||
+          (buscaPreparada!.fazendaMap.get(animal.fazendaId) || '').includes(termoBusca) ||
+          (buscaPreparada!.tipoMap.get(animal.tipoId) || '').includes(termoBusca) ||
+          (buscaPreparada!.statusMap.get(animal.statusId) || '').includes(termoBusca) ||
+          (buscaPreparada!.racaMap.get(animal.racaId) || '').includes(termoBusca) ||
+          matrizIdentificador.includes(termoBusca) ||
+          matrizNome.includes(termoBusca);
+
+        if (!match) continue;
+      }
+
+      filtrados.push(animal);
     }
 
-    // Ordenação
+    // Ordenação (otimizada)
     filtrados.sort((a, b) => {
       let comp = 0;
       switch (sortField) {
@@ -451,8 +556,8 @@ export default function Animais() {
           comp = (fazendaMap.get(a.fazendaId) || '').localeCompare(fazendaMap.get(b.fazendaId) || '');
           break;
         case 'dataNascimento':
-          const dataA = parseDataNascimentoLocal(a.dataNascimento)?.getTime() ?? 0;
-          const dataB = parseDataNascimentoLocal(b.dataNascimento)?.getTime() ?? 0;
+          const dataA = dataNascimentoCache.get(a.id)?.getTime() ?? 0;
+          const dataB = dataNascimentoCache.get(b.id)?.getTime() ?? 0;
           comp = dataA - dataB;
           break;
         case 'createdAt':
@@ -466,7 +571,7 @@ export default function Animais() {
     });
 
     return filtrados;
-  }, [animaisRaw, fazendaAtivaId, filtroSexo, filtroTipoId, filtroStatusId, filtroRacaId, filtroSomenteBezerros, filtroMesesNascimento, filtroAno, selectedTags, tagFilterMode, buscaDebounced, sortField, sortAsc, fazendaMap, tipoMap, statusMap, racaMap, genealogiaMap, animaisMap, animalTagsMap]);
+  }, [animaisRaw, fazendaAtivaId, filtroSexo, filtroTipoId, filtroStatusId, filtroRacaId, filtroSomenteBezerros, filtroMesesNascimento, filtroAno, selectedTags, tagFilterMode, buscaDebounced, sortField, sortAsc, fazendaMap, tipoMap, statusMap, racaMap, genealogiaMap, animaisMap, animalTagsMap, dataNascimentoCache]);
 
   // Estatísticas de matrizes:
   // - Se a lista filtrada tem animais com mãe (matrizId): mostrar as matrizes distintas desses filhos, por tipo (Vaca/Novilho(a)).
@@ -519,18 +624,18 @@ export default function Animais() {
   // Estatísticas de raças
   const racasStats = useMemo(() => {
     const racasCounts = new Map<string, { nome: string; total: number; machos: number; femeas: number }>();
-    
+
     animaisFiltrados.forEach(animal => {
       const racaNome = animal.racaId ? (racaMap.get(animal.racaId) || 'Sem raça') : 'Sem raça';
       const current = racasCounts.get(racaNome) || { nome: racaNome, total: 0, machos: 0, femeas: 0 };
-      
+
       current.total += 1;
       if (animal.sexo === 'M') current.machos += 1;
       if (animal.sexo === 'F') current.femeas += 1;
-      
+
       racasCounts.set(racaNome, current);
     });
-    
+
     return Array.from(racasCounts.values())
       .sort((a, b) => b.total - a.total); // Ordenar por total decrescente
   }, [animaisFiltrados, racaMap]);
@@ -584,7 +689,7 @@ export default function Animais() {
         try {
           const { uuid } = await import('../utils/uuid');
           const deletedId = uuid();
-          
+
           // Registrar exclusão na tabela deletedRecords
           if (db.deletedRecords) {
             await db.deletedRecords.add({
@@ -595,13 +700,13 @@ export default function Animais() {
               synced: false
             });
           }
-          
+
           // Marcar animal como deletado
           await db.animais.update(animal.id, {
             deletedAt: new Date().toISOString(),
             synced: false
           });
-          
+
           showToast({ type: 'success', title: 'Animal excluído', message: animal.brinco });
           // Forçar atualização da lista
           // setRefreshKey(prev => prev + 1); // Removido - useLiveQuery atualiza automaticamente
@@ -650,7 +755,7 @@ export default function Animais() {
         // Buscar matriz na tabela de Animais
         const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
         const tipoMatrizId = genealogia?.tipoMatrizId || matrizAnimal?.tipoId;
-        
+
         return {
           'Brinco': a.brinco || '',
           'Nome': a.nome || '',
@@ -703,7 +808,7 @@ export default function Animais() {
         // Buscar matriz na tabela de Animais
         const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
         const tipoMatrizId = genealogia?.tipoMatrizId || matrizAnimal?.tipoId;
-        
+
         return {
           'Brinco': a.brinco || '',
           'Nome': a.nome || '',
@@ -746,7 +851,7 @@ export default function Animais() {
 
 
   return (
-    <div className="p-3 sm:p-4 text-gray-900 dark:text-slate-100 relative min-w-0">
+    <div className="p-2 sm:p-3 md:p-4 text-gray-900 dark:text-slate-100 relative min-w-0 max-w-full overflow-x-hidden">
       {isLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-2 px-6 py-8 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
@@ -755,10 +860,10 @@ export default function Animais() {
           </div>
         </div>
       )}
-      <div className={`${getPrimaryCardClass(primaryColor)} rounded-xl shadow-sm mb-4 sm:mb-6 p-4 sm:p-6 min-w-0 overflow-hidden`}>
+      <div className={`${getPrimaryCardClass(primaryColor)} rounded-xl shadow-sm mb-4 sm:mb-6 p-3 sm:p-4 md:p-6 min-w-0 max-w-full overflow-hidden`}>
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-          <div>
+        <div className="flex flex-row items-start justify-between gap-2 mb-6">
+          <div className="flex-1 min-w-0">
             <h1 className={`text-2xl font-bold ${getTitleTextClass(primaryColor)}`}>
               Gestão de Animais
             </h1>
@@ -769,160 +874,126 @@ export default function Animais() {
           {podeCadastrarAnimal && (
             <button
               onClick={handleNovoAnimal}
-              className={`${getPrimaryButtonClass(primaryColor)} text-white px-4 py-2 rounded-lg flex items-center gap-2`}
+              className={`${getPrimaryButtonClass(primaryColor)} text-white w-10 h-10 md:w-auto md:px-4 md:py-2 rounded-full md:rounded-lg flex items-center justify-center gap-2 flex-shrink-0 shadow-lg hover:shadow-xl transition-all`}
+              title="Novo Animal"
+              aria-label="Novo Animal"
             >
-              <Icons.Plus className="w-5 h-5" />
-              Novo Animal
+              <Icons.Plus className="w-5 h-5 flex-shrink-0" />
+              <span className="hidden md:inline font-medium">Novo Animal</span>
             </button>
           )}
         </div>
 
-        {/* Filtros - painel recolhível */}
-        <div className={filtrosAbertos ? 'mb-2' : 'mb-0'}>
-          <div className={`flex items-center justify-between ${filtrosAbertos ? 'mb-2' : 'mb-0'}`}>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+        {/* Painel de Filtros */}
+        <div className="mb-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+
+          {/* Cabeçalho */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">
               Filtros
             </h3>
+
             <button
               type="button"
-              onClick={() => setFiltrosAbertos((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-md hover:shadow-lg transition-all border border-amber-600/50 dark:bg-amber-600 dark:hover:bg-amber-700 dark:border-amber-700/50"
+              onClick={() => setFiltrosAbertos(v => !v)}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-xl
+                 bg-amber-500 hover:bg-amber-600 text-white
+                 text-sm font-semibold shadow-sm transition"
             >
               <Icons.Filter className="w-4 h-4 shrink-0" />
-              <span>{filtrosAbertos ? 'Ocultar filtros' : 'Mostrar filtros'}</span>
-              <Icons.ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-200 ${filtrosAbertos ? 'rotate-180' : ''}`} />
+              <span className="hidden sm:inline">{filtrosAbertos ? 'Ocultar filtros' : 'Mostrar filtros'}</span>
+              <Icons.ChevronDown
+                className={`w-4 h-4 transition-transform ${filtrosAbertos ? 'rotate-180' : ''}`}
+              />
             </button>
           </div>
 
           {filtrosAbertos && (
-            <div className="flex flex-col">
-              {/* Grupo 1 – Filtros principais */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 bg-gray-50 dark:bg-slate-800/50 p-2 rounded-lg">
-                <div className="min-w-0">
+            <div className="px-4 py-4 space-y-4">
+
+              {/* ================= FILTROS PRINCIPAIS ================= */}
+              <h4 className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">
+                Filtros principais
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-6 lg:grid-cols-12 gap-3">
+
+                {/* Busca */}
+                <div className="sm:col-span-6 lg:col-span-4">
                   <Input
                     label="Busca"
-                    type="text"
                     value={busca}
-                    onChange={(e) => startTransition(() => setBusca(e.target.value))}
                     placeholder="Buscar por brinco, nome, lote..."
+                    onChange={(e) => handleBuscaChange(e.target.value)}
                   />
                 </div>
-                <div className="mb-0">
+
+                {/* Sexo */}
+                <div className="sm:col-span-3 lg:col-span-2">
                   <Combobox
                     label="Sexo"
                     value={filtroSexo}
-                    onChange={(value) => {
-                      const valorFinal = (typeof value === 'string') ? value : (value && typeof value === 'object' && 'value' in value && typeof value.value === 'string') ? value.value : '';
-                      startTransition(() => setFiltroSexo(valorFinal as '' | 'M' | 'F'));
-                    }}
                     options={[
                       { label: 'Todos os sexos', value: '' },
                       { label: 'Macho', value: 'M' },
                       { label: 'Fêmea', value: 'F' }
                     ]}
-                    placeholder="Todos os sexos"
-                    allowCustomValue={false}
+                    onChange={(v) => handleFiltroSexoChange(v as any)}
                   />
                 </div>
-                <div>
+
+                {/* Tipo */}
+                <div className="sm:col-span-3 lg:col-span-3">
                   <Combobox
                     label="Tipo"
                     value={filtroTipoId}
-                    onChange={(value) => {
-                      const valorFinal = (typeof value === 'string') ? value : (value && typeof value === 'object' && 'value' in value && typeof value.value === 'string') ? value.value : '';
-                      startTransition(() => setFiltroTipoId(valorFinal));
-                    }}
                     options={[
                       { label: 'Todos os tipos', value: '' },
-                      ...tipos.sort((a, b) => (a.ordem || 99) - (b.ordem || 99)).map((t) => ({ label: t.nome, value: t.id }))
+                      ...tipos.map(t => ({ label: t.nome, value: t.id }))
                     ]}
-                    placeholder="Todos os tipos"
-                    allowCustomValue={false}
+                    onChange={(v) => handleFiltroTipoChange(v as string)}
                   />
                 </div>
-                <div>
+
+                {/* Status */}
+                <div className="sm:col-span-3 lg:col-span-3">
                   <Combobox
                     label="Status"
                     value={filtroStatusId}
-                    onChange={(value) => {
-                      const valorFinal = (typeof value === 'string') ? value : (value && typeof value === 'object' && 'value' in value && typeof value.value === 'string') ? value.value : '';
-                      startTransition(() => setFiltroStatusId(valorFinal));
-                    }}
                     options={[
                       { label: 'Todos os status', value: '' },
-                      ...status.sort((a, b) => (a.ordem || 99) - (b.ordem || 99)).map((s) => ({ label: s.nome, value: s.id }))
+                      ...status.map(s => ({ label: s.nome, value: s.id }))
                     ]}
-                    placeholder="Todos os status"
-                    allowCustomValue={false}
+                    onChange={(v) => handleFiltroStatusChange(v as string)}
                   />
                 </div>
               </div>
 
-              {/* Grupo 2 – Classificação / Datas */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 bg-gray-50 dark:bg-slate-800/50 p-2 rounded-lg">
-                <div>
+              {/* Divider */}
+              <div className="h-px bg-gray-200 dark:bg-slate-700" />
+
+              {/* ================= CLASSIFICAÇÃO / DATAS ================= */}
+              <h4 className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">
+                Classificação / Datas
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-6 lg:grid-cols-12 gap-3">
+
+                {/* Raça */}
+                <div className="sm:col-span-6 lg:col-span-6">
                   <Combobox
                     label="Raça"
                     value={filtroRacaId}
-                    onChange={(value) => {
-                      const valorFinal = (typeof value === 'string') ? value : (value && typeof value === 'object' && 'value' in value && typeof value.value === 'string') ? value.value : '';
-                      startTransition(() => setFiltroRacaId(valorFinal));
-                    }}
                     options={[
                       { label: 'Todas as raças', value: '' },
-                      ...racas.sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).map((r) => ({ label: r.nome, value: r.id }))
+                      ...racas.map(r => ({ label: r.nome, value: r.id }))
                     ]}
-                    placeholder="Todas as raças"
-                    allowCustomValue={false}
+                    onChange={(v) => handleFiltroRacaChange(v as string)}
                   />
                 </div>
-                <div className="relative min-w-0" ref={menuMesesRef}>
-                  <fieldset className="relative rounded-md border px-3 pt-2 pb-2 border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 min-w-0">
-                    <legend className="absolute -top-2 left-3 px-1 text-[11px] font-medium bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">
-                      Mês de Nascimento
-                    </legend>
-                    <button
-                      type="button"
-                      onClick={() => setMenuMesesAberto(!menuMesesAberto)}
-                      className="w-full px-0 py-0.5 text-sm leading-tight bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none flex items-center justify-between"
-                    >
-                      <span className="truncate">
-                        {filtroMesesNascimento.length === 0 ? 'Todos os meses' : filtroMesesNascimento.length === 1 ? nomeMes(filtroMesesNascimento[0]) : `${filtroMesesNascimento.length} meses`}
-                      </span>
-                      <Icons.ChevronDown className={`w-4 h-4 transition-transform ${menuMesesAberto ? 'rotate-180' : ''}`} />
-                    </button>
-                    {menuMesesAberto && (
-                      <div className="absolute z-50 w-full left-0 mt-1 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 max-h-64 overflow-y-auto">
-                        <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-700">
-                          <button type="button" onClick={() => { setFiltroMesesNascimento([]); setMenuMesesAberto(false); }} className={`w-full text-left text-sm ${getTitleTextClass(primaryColor)} font-medium hover:underline`}>
-                            Limpar (Todos)
-                          </button>
-                        </div>
-                        <div className="py-1">
-                          {Array.from({ length: 12 }, (_, i) => {
-                            const mes = i + 1;
-                            const isSelected = filtroMesesNascimento.includes(mes);
-                            return (
-                              <label key={mes} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className={`h-4 w-4 ${getTitleTextClass(primaryColor)} border-gray-300 rounded`}
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) setFiltroMesesNascimento([...filtroMesesNascimento, mes].sort((a, b) => a - b));
-                                    else setFiltroMesesNascimento(filtroMesesNascimento.filter((m) => m !== mes));
-                                  }}
-                                />
-                                <span>{nomeMes(mes)}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </fieldset>
-                </div>
-                <div className="min-w-0">
+
+                {/* Ano */}
+                <div className="sm:col-span-3 lg:col-span-3">
                   <Combobox
                     label="Ano"
                     value={filtroAno}
@@ -945,20 +1016,133 @@ export default function Animais() {
                     allowCustomValue={true}
                   />
                 </div>
+
+                {/* Mês de nascimento */}
+                <div className="sm:col-span-3 lg:col-span-3" ref={menuMesesRef}>
+                  <fieldset className="relative rounded-md border px-3 pt-2 pb-2 border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 min-w-0">
+                    <legend className="absolute -top-2 left-3 px-1 text-[11px] font-medium bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">
+                      Mês de Nascimento
+                    </legend>
+                    <button
+                      type="button"
+                      onClick={() => setMenuMesesAberto(!menuMesesAberto)}
+                      className="w-full px-0 py-0.5 text-sm leading-tight bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none flex items-center justify-between"
+                    >
+                      <span className="truncate">
+                        {filtroMesesNascimento.length === 0 ? 'Todos os meses' : filtroMesesNascimento.length === 1 ? nomeMes(filtroMesesNascimento[0]) : `${filtroMesesNascimento.length} meses`}
+                      </span>
+                      <Icons.ChevronDown className={`w-4 h-4 transition-transform ${menuMesesAberto ? 'rotate-180' : ''}`} />
+                    </button>
+                    {menuMesesAberto && (
+                      <div className="absolute z-[100] w-full left-0 mt-1 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 max-h-64 overflow-y-auto">
+                        {/* "Limpar (Todos)" — mesmo estilo azul do Combobox "Todos os anos" */}
+                        <div className="py-1">
+                          <button
+                            type="button"
+                            onClick={() => { setFiltroMesesNascimento([]); setMenuMesesAberto(false); }}
+                            className="w-full text-left px-3 py-2 text-sm font-medium transition-colors bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 hover:opacity-90"
+                          >
+                            Limpar (Todos)
+                          </button>
+                          {Array.from({ length: 12 }, (_, i) => {
+                            const mes = i + 1;
+                            const isSelected = filtroMesesNascimento.includes(mes);
+                            return (
+                              <label
+                                key={mes}
+                                className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors ${
+                                  isSelected
+                                    ? 'bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-medium'
+                                    : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded accent-blue-600 border-gray-300 dark:border-slate-600"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setFiltroMesesNascimento([...filtroMesesNascimento, mes].sort((a, b) => a - b));
+                                    else setFiltroMesesNascimento(filtroMesesNascimento.filter((m) => m !== mes));
+                                  }}
+                                />
+                                <span>{nomeMes(mes)}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </fieldset>
+                </div>
               </div>
 
-              {/* Tags + Limpar filtros */}
-              <div className="flex flex-wrap items-center gap-2">
-                <TagFilter selectedTags={selectedTags} onTagsChange={(tags) => startTransition(() => setSelectedTags(tags))} filterMode={tagFilterMode} onFilterModeChange={(mode) => startTransition(() => setTagFilterMode(mode))} category="animal" />
-                {(busca || filtroSexo || filtroTipoId || filtroStatusId || filtroRacaId || filtroSomenteBezerros || filtroMesesNascimento.length > 0 || filtroAno || selectedTags.length > 0) && (
-                  <button onClick={handleLimparFiltros} className="text-sm px-2 py-1 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 underline">
-                    Limpar filtros
+              {/* ================= TAGS + LIMPAR ================= */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+
+                <div className="flex flex-wrap gap-2">
+                  {busca.trim() && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Busca: {busca.trim()}
+                    </span>
+                  )}
+                  {filtroSexo && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Sexo: {filtroSexo === 'F' ? 'Fêmea' : 'Macho'}
+                    </span>
+                  )}
+                  {filtroTipoId && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Tipo: {tipoMap.get(filtroTipoId) || '—'}
+                    </span>
+                  )}
+                  {filtroStatusId && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Status: {statusMap.get(filtroStatusId) || '—'}
+                    </span>
+                  )}
+                  {filtroRacaId && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Raça: {racaMap.get(filtroRacaId) || '—'}
+                    </span>
+                  )}
+                  {filtroMesesNascimento.length > 0 && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Meses: {filtroMesesNascimento.map(m => nomeMes(m)).join(', ')}
+                    </span>
+                  )}
+                  {filtroAno && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Ano: {filtroAno}
+                    </span>
+                  )}
+                  {selectedTags.length > 0 && (
+                    <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      Tags: {selectedTags.length} {selectedTags.length === 1 ? 'selecionada' : 'selecionadas'}
+                    </span>
+                  )}
+                </div>
+
+                {(busca.trim() || filtroSexo || filtroTipoId || filtroStatusId || filtroRacaId || filtroMesesNascimento.length > 0 || filtroAno || selectedTags.length > 0) && (
+                  <button
+                    onClick={handleLimparFiltros}
+                    title="Limpar filtros"
+                    className="flex items-center gap-1 px-3 py-1.5
+                       rounded-md border border-amber-300
+                       text-amber-700 text-sm
+                       hover:bg-amber-50 transition"
+                  >
+                    <Icons.X className="w-4 h-4" />
+                    <span className="hidden sm:inline">Limpar filtros</span>
                   </button>
                 )}
               </div>
+
             </div>
           )}
         </div>
+
+
+
 
 
         {/* Total da lista filtrada (mesma fonte da tabela e dos cards) — para conferência visual */}
@@ -1154,76 +1338,242 @@ export default function Animais() {
             <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
               Animais cadastrados
             </span>
+            
             <div className="flex items-center gap-2">
-              {podeExportarDados && (
+{/*               {podeExportarDados && (
                 <>
                   <button
                     onClick={handleExportarExcel}
                     disabled={animaisFiltrados.length === 0}
-                    className="flex items-center gap-2 px-2.5 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center justify-center gap-2 w-9 h-9 md:w-auto md:px-2.5 md:py-1.5 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     title="Exportar para Excel"
                   >
-                    <Icons.FileSpreadsheet className="w-4 h-4" />
-                    Excel
+                    <Icons.FileSpreadsheet className="w-4 h-4 flex-shrink-0" />
+                    <span className="hidden md:inline text-sm font-medium">Excel</span>
                   </button>
                   <button
                     onClick={handleExportarCSV}
                     disabled={animaisFiltrados.length === 0}
-                    className="flex items-center gap-2 px-2.5 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center justify-center gap-2 w-9 h-9 md:w-auto md:px-2.5 md:py-1.5 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     title="Exportar para CSV"
                   >
-                    <Icons.FileText className="w-4 h-4" />
-                    CSV
+                    <Icons.FileText className="w-4 h-4 flex-shrink-0" />
+                    <span className="hidden md:inline text-sm font-medium">CSV</span>
                   </button>
                 </>
-              )}
+              )} */}
               <div className="relative" ref={colunasPopoverRef}>
                 <button
                   type="button"
                   onClick={() => setColunasPopoverOpen(!colunasPopoverOpen)}
-                  className="flex items-center gap-2 px-2.5 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+                  className="flex items-center justify-center gap-2 w-9 h-9 md:w-auto md:px-2.5 md:py-1.5 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
                   title="Selecionar colunas visíveis"
                 >
-                  <Icons.SlidersHorizontal className="w-4 h-4" />
-                  Colunas
-                  <Icons.ChevronDown className={`w-4 h-4 transition-transform ${colunasPopoverOpen ? 'rotate-180' : ''}`} />
+                  <Icons.SlidersHorizontal className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden md:inline text-sm font-medium">Colunas</span>
+                  <Icons.ChevronDown className={`hidden md:block w-4 h-4 transition-transform flex-shrink-0 ${colunasPopoverOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {colunasPopoverOpen && (
-                <div className="absolute right-0 top-full mt-1 z-50 w-56 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg">
-                  <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-600">
-                    <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Colunas visíveis</span>
-                  </div>
-                  <div className="max-h-72 overflow-y-auto py-1">
-                    {COLUNAS_TABELA.map((col) => (
-                      <label
-                        key={col.id}
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
+                  <div className="absolute right-0 top-full mt-1 z-[100] w-56 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg">
+                    <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-600">
+                      <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Colunas visíveis</span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto py-1">
+                      {COLUNAS_TABELA.map((col) => (
+                        <label
+                          key={col.id}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+                            checked={visibleColumns[col.id]}
+                            onChange={(e) => setVisibleColumns((prev) => ({ ...prev, [col.id]: e.target.checked }))}
+                          />
+                          <span>{col.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="px-3 py-2 border-t border-gray-200 dark:border-slate-600">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleColumns({ ...VISIBLE_COLUMNS_DEFAULT })}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                       >
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
-                          checked={visibleColumns[col.id]}
-                          onChange={(e) => setVisibleColumns((prev) => ({ ...prev, [col.id]: e.target.checked }))}
-                        />
-                        <span>{col.label}</span>
-                      </label>
-                    ))}
+                        Restaurar todas
+                      </button>
+                    </div>
                   </div>
-                  <div className="px-3 py-2 border-t border-gray-200 dark:border-slate-600">
-                    <button
-                      type="button"
-                      onClick={() => setVisibleColumns({ ...VISIBLE_COLUMNS_DEFAULT })}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Restaurar todas
-                    </button>
-                  </div>
-                </div>
                 )}
               </div>
             </div>
+
           </div>
-          <div className="overflow-x-auto min-w-0">
+          {/* Versão Mobile - Cards */}
+          <div className="md:hidden space-y-3 mb-4">
+            {animaisPagina.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-500 dark:text-slate-400">
+                Nenhum animal cadastrado ainda.
+              </div>
+            ) : (
+              animaisPagina.map((animal) => {
+                const genealogia = genealogiaMap.get(animal.id);
+                const matrizId = genealogia?.matrizId || animal.matrizId;
+                const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
+                const matrizIdentificador = matrizAnimal?.brinco || '';
+                const matrizNome = matrizAnimal?.nome || '';
+                const tipoMatrizId = genealogia?.tipoMatrizId || matrizAnimal?.tipoId;
+                const tipoMatrizNome = tipoMatrizId ? tipoMap.get(tipoMatrizId) : null;
+                const isMatriz = animaisMatrizes.has(animal.id);
+                const isBezerro = !!matrizId;
+                return (
+                  <div
+                    key={animal.id}
+                    className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">
+                            {animal.brinco}
+                          </span>
+                          {isMatriz && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 shrink-0">
+                              Matriz
+                            </span>
+                          )}
+                          {isBezerro && !isMatriz && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 shrink-0">
+                              Bezerro
+                            </span>
+                          )}
+                        </div>
+                        {animal.nome && (
+                          <p className="text-sm text-gray-700 dark:text-slate-300 truncate">
+                            {animal.nome}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        <button
+                          onClick={() => { setHistoricoEntityId(animal.id); setHistoricoOpen(true); }}
+                          className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                          title="Ver histórico"
+                        >
+                          <Icons.History className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (matrizId) {
+                              setArvoreAnimalId(matrizAnimal?.id || matrizId);
+                              setArvoreOpen(true);
+                            }
+                          }}
+                          disabled={!matrizId}
+                          className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                          title="Ver árvore genealógica"
+                        >
+                          <Icons.GitBranch className="w-4 h-4" />
+                        </button>
+                        {podeEditarAnimal && (
+                          <button
+                            onClick={() => handleEditarAnimal(animal)}
+                            className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                            title="Editar animal"
+                          >
+                            <Icons.Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        {podeExcluirAnimal && (
+                          <button
+                            onClick={() => handleExcluirAnimal(animal)}
+                            className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                            title="Excluir animal"
+                          >
+                            <Icons.Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {visibleColumns.tipo && (
+                        <div>
+                          <span className="text-gray-500 dark:text-slate-400">Tipo:</span>
+                          <span className="ml-1 text-gray-900 dark:text-slate-100">
+                            {animal.tipoId ? tipoMap.get(animal.tipoId) : '-'}
+                          </span>
+                        </div>
+                      )}
+                      {visibleColumns.status && (
+                        <div>
+                          <span className="text-gray-500 dark:text-slate-400">Status:</span>
+                          <span className="ml-1 text-gray-900 dark:text-slate-100">
+                            {animal.statusId ? statusMap.get(animal.statusId) : '-'}
+                          </span>
+                        </div>
+                      )}
+                      {visibleColumns.sexo && (
+                        <div>
+                          <span className="text-gray-500 dark:text-slate-400">Sexo:</span>
+                          <span className={`ml-1 font-medium ${animal.sexo === 'M' ? 'text-blue-600 dark:text-blue-400' : 'text-pink-600 dark:text-pink-400'}`}>
+                            {animal.sexo === 'M' ? 'Macho' : 'Fêmea'}
+                          </span>
+                        </div>
+                      )}
+                      {visibleColumns.raca && (
+                        <div>
+                          <span className="text-gray-500 dark:text-slate-400">Raça:</span>
+                          <span className="ml-1 text-gray-900 dark:text-slate-100">
+                            {animal.racaId ? racaMap.get(animal.racaId) : '-'}
+                          </span>
+                        </div>
+                      )}
+                      {visibleColumns.fazenda && (
+                        <div className="col-span-2">
+                          <span className="text-gray-500 dark:text-slate-400">Fazenda:</span>
+                          <span className="ml-1 text-gray-900 dark:text-slate-100 truncate">
+                            {fazendaMap.get(animal.fazendaId) || '-'}
+                          </span>
+                        </div>
+                      )}
+                      {visibleColumns.matriz && matrizIdentificador && (
+                        <div className="col-span-2">
+                          <span className="text-gray-500 dark:text-slate-400">Matriz:</span>
+                          <span className="ml-1 text-gray-900 dark:text-slate-100 font-medium">
+                            {matrizIdentificador}
+                          </span>
+                          {matrizNome && (
+                            <span className="ml-1 text-xs text-gray-500 dark:text-slate-400">
+                              ({matrizNome})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {visibleColumns.tipoMatriz && tipoMatrizNome && (
+                        <div className="col-span-2">
+                          <span className="text-gray-500 dark:text-slate-400">Tipo Matriz:</span>
+                          <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                            {tipoMatrizNome}
+                          </span>
+                        </div>
+                      )}
+                      {visibleColumns.tags && (
+                        <div className="col-span-2">
+                          <span className="text-gray-500 dark:text-slate-400">Tags:</span>
+                          <span className="ml-1">
+                            <AnimalTags tags={animalTagsMap.get(animal.id)} />
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Versão Desktop - Tabela */}
+          <div className="hidden md:block overflow-x-auto min-w-0 -mx-2 sm:mx-0 max-w-full">
             {useVirtual ? (
               <>
                 <div
@@ -1287,209 +1637,209 @@ export default function Animais() {
                 />
               </>
             ) : (
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800">
-              <thead className="sticky top-0 z-10 bg-gray-100 dark:bg-slate-800">
-                <tr>
-                  {visibleColumns.brinco && (
-                    <th
-                      className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                      onClick={() => handleSort('brinco')}
-                    >
-                      <div className="flex items-center gap-2">Brinco{sortField === 'brinco' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
-                    </th>
-                  )}
-                  {visibleColumns.nome && (
-                    <th
-                      className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                      onClick={() => handleSort('nome')}
-                    >
-                      <div className="flex items-center gap-2">Nome{sortField === 'nome' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
-                    </th>
-                  )}
-                  {visibleColumns.tipo && (
-                    <th
-                      className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                      onClick={() => handleSort('tipo')}
-                    >
-                      <div className="flex items-center gap-2">Tipo{sortField === 'tipo' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
-                    </th>
-                  )}
-                  {visibleColumns.status && (
-                    <th
-                      className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                      onClick={() => handleSort('status')}
-                    >
-                      <div className="flex items-center gap-2">Status{sortField === 'status' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
-                    </th>
-                  )}
-                  {visibleColumns.matriz && (
-                    <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase whitespace-nowrap">Matriz</th>
-                  )}
-                  {visibleColumns.tipoMatriz && (
-                    <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase whitespace-nowrap">Tipo Matriz</th>
-                  )}
-                  {visibleColumns.sexo && (
-                    <th
-                      className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                      onClick={() => handleSort('sexo')}
-                    >
-                      <div className="flex items-center gap-2">Sexo{sortField === 'sexo' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
-                    </th>
-                  )}
-                  {visibleColumns.raca && (
-                    <th
-                      className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                      onClick={() => handleSort('raca')}
-                    >
-                      <div className="flex items-center gap-1">Raça{sortField === 'raca' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
-                    </th>
-                  )}
-                  {visibleColumns.fazenda && (
-                    <th
-                      className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
-                      onClick={() => handleSort('fazenda')}
-                    >
-                      <div className="flex items-center gap-2">Fazenda{sortField === 'fazenda' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
-                    </th>
-                  )}
-                  {visibleColumns.tags && (
-                    <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase whitespace-nowrap">Tags</th>
-                  )}
-                  {visibleColumns.acoes && (
-                    <th className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 text-center text-xs font-medium text-gray-500 min-w-[150px]
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800">
+                <thead className="sticky top-0 z-10 bg-gray-100 dark:bg-slate-800">
+                  <tr>
+                    {visibleColumns.brinco && (
+                      <th
+                        className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        onClick={() => handleSort('brinco')}
+                      >
+                        <div className="flex items-center gap-2">Brinco{sortField === 'brinco' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
+                      </th>
+                    )}
+                    {visibleColumns.nome && (
+                      <th
+                        className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        onClick={() => handleSort('nome')}
+                      >
+                        <div className="flex items-center gap-2">Nome{sortField === 'nome' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
+                      </th>
+                    )}
+                    {visibleColumns.tipo && (
+                      <th
+                        className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        onClick={() => handleSort('tipo')}
+                      >
+                        <div className="flex items-center gap-2">Tipo{sortField === 'tipo' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
+                      </th>
+                    )}
+                    {visibleColumns.status && (
+                      <th
+                        className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        onClick={() => handleSort('status')}
+                      >
+                        <div className="flex items-center gap-2">Status{sortField === 'status' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
+                      </th>
+                    )}
+                    {visibleColumns.matriz && (
+                      <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase whitespace-nowrap">Matriz</th>
+                    )}
+                    {visibleColumns.tipoMatriz && (
+                      <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase whitespace-nowrap">Tipo Matriz</th>
+                    )}
+                    {visibleColumns.sexo && (
+                      <th
+                        className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        onClick={() => handleSort('sexo')}
+                      >
+                        <div className="flex items-center gap-2">Sexo{sortField === 'sexo' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
+                      </th>
+                    )}
+                    {visibleColumns.raca && (
+                      <th
+                        className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        onClick={() => handleSort('raca')}
+                      >
+                        <div className="flex items-center gap-1">Raça{sortField === 'raca' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
+                      </th>
+                    )}
+                    {visibleColumns.fazenda && (
+                      <th
+                        className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+                        onClick={() => handleSort('fazenda')}
+                      >
+                        <div className="flex items-center gap-2">Fazenda{sortField === 'fazenda' && (sortAsc ? <Icons.ArrowUp className="w-3 h-3" /> : <Icons.ArrowDown className="w-3 h-3" />)}</div>
+                      </th>
+                    )}
+                    {visibleColumns.tags && (
+                      <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase whitespace-nowrap">Tags</th>
+                    )}
+                    {visibleColumns.acoes && (
+                      <th className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 text-center text-xs font-medium text-gray-500 min-w-[150px]
                      dark:text-slate-300 uppercase whitespace-nowrap bg-gray-100 dark:bg-slate-800 border-l border-gray-200 
                      dark:border-slate-700">Ações</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-                {animaisPagina.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={Math.max(1, COLUNAS_TABELA.filter((c) => visibleColumns[c.id]).length)}
-                      className="px-4 py-6 text-center text-sm text-gray-500 dark:text-slate-400"
-                    >
-                      Nenhum animal cadastrado ainda.
-                    </td>
+                    )}
                   </tr>
-                ) : (
-                  animaisPagina.map((animal) => {
-                    const genealogia = genealogiaMap.get(animal.id);
-                    const matrizId = genealogia?.matrizId || animal.matrizId;
-                    const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
-                    const matrizIdentificador = matrizAnimal?.brinco || '';
-                    const matrizNome = matrizAnimal?.nome || '';
-                    const tipoMatrizId = genealogia?.tipoMatrizId || matrizAnimal?.tipoId;
-                    const tipoMatrizNome = tipoMatrizId ? tipoMap.get(tipoMatrizId) : null;
-                    const isMatriz = animaisMatrizes.has(animal.id);
-                    const isBezerro = !!matrizId;
-                    return (
-                      <tr key={animal.id} className="odd:bg-white even:bg-gray-50 dark:odd:bg-slate-900 dark:even:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700">
-                        {visibleColumns.brinco && (
-                          <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-slate-100">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="truncate">{animal.brinco}</span>
-                              {isMatriz && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 shrink-0" title="Matriz (tem filhos)">Matriz</span>
-                              )}
-                              {isBezerro && !isMatriz && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 shrink-0" title="Bezerro (tem mãe)">Bezerro</span>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                        {visibleColumns.nome && (
-                          <td className="px-2 sm:px-3 py-1.5 text-sm text-gray-700 dark:text-slate-200 sm:max-w-none truncate" title={animal.nome || undefined}>{animal.nome || '-'}</td>
-                        )}
-                        {visibleColumns.tipo && (
-                          <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200">{animal.tipoId ? tipoMap.get(animal.tipoId) : '-'}</td>
-                        )}
-                        {visibleColumns.status && (
-                          <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200">{animal.statusId ? statusMap.get(animal.statusId) : '-'}</td>
-                        )}
-                        {visibleColumns.matriz && (
-                          <td className="px-2 sm:px-3 py-1.5 text-sm text-gray-700 dark:text-slate-200">
-                            {matrizIdentificador ? (
-                              <div className="min-w-0">
-                                <div className="font-medium truncate">{matrizIdentificador}</div>
-                                {matrizNome?.trim() && <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{matrizNome}</div>}
+                </thead>
+                <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
+                  {animaisPagina.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={Math.max(1, COLUNAS_TABELA.filter((c) => visibleColumns[c.id]).length)}
+                        className="px-4 py-6 text-center text-sm text-gray-500 dark:text-slate-400"
+                      >
+                        Nenhum animal cadastrado ainda.
+                      </td>
+                    </tr>
+                  ) : (
+                    animaisPagina.map((animal) => {
+                      const genealogia = genealogiaMap.get(animal.id);
+                      const matrizId = genealogia?.matrizId || animal.matrizId;
+                      const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
+                      const matrizIdentificador = matrizAnimal?.brinco || '';
+                      const matrizNome = matrizAnimal?.nome || '';
+                      const tipoMatrizId = genealogia?.tipoMatrizId || matrizAnimal?.tipoId;
+                      const tipoMatrizNome = tipoMatrizId ? tipoMap.get(tipoMatrizId) : null;
+                      const isMatriz = animaisMatrizes.has(animal.id);
+                      const isBezerro = !!matrizId;
+                      return (
+                        <tr key={animal.id} className="odd:bg-white even:bg-gray-50 dark:odd:bg-slate-900 dark:even:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700">
+                          {visibleColumns.brinco && (
+                            <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-slate-100">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="truncate">{animal.brinco}</span>
+                                {isMatriz && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 shrink-0" title="Matriz (tem filhos)">Matriz</span>
+                                )}
+                                {isBezerro && !isMatriz && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 shrink-0" title="Bezerro (tem mãe)">Bezerro</span>
+                                )}
                               </div>
-                            ) : '-'}
-                          </td>
-                        )}
-                        {visibleColumns.tipoMatriz && (
-                          <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm">
-                            {tipoMatrizNome ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">{tipoMatrizNome}</span>
-                            ) : (
-                              <span className="text-gray-400 dark:text-slate-500">-</span>
-                            )}
-                          </td>
-                        )}
-                        {visibleColumns.sexo && (
-                          <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm">
-                            <span className={animal.sexo === 'M' ? 'text-blue-600 dark:text-blue-400' : 'text-pink-600 dark:text-pink-400'}>{animal.sexo === 'M' ? 'M' : 'F'}</span>
-                          </td>
-                        )}
-                        {visibleColumns.raca && (
-                          <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200">{animal.racaId ? racaMap.get(animal.racaId) : '-'}</td>
-                        )}
-                        {visibleColumns.fazenda && (
-                          <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200 sm:max-w-none truncate" title={fazendaMap.get(animal.fazendaId)}>{fazendaMap.get(animal.fazendaId) || '-'}</td>
-                        )}
-                        {visibleColumns.tags && (
-                          <td className="px-2 sm:px-3 py-1.5 text-sm min-w-0 align-middle"><AnimalTags tags={animalTagsMap.get(animal.id)} /></td>
-                        )}
-                        {visibleColumns.acoes && (
-                          <td className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 whitespace-nowrap text-center align-middle bg-white dark:bg-slate-900 odd:bg-white even:bg-gray-50 dark:odd:bg-slate-900 dark:even:bg-slate-800 border-l border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700">
-                            <div className="flex items-center justify-center gap-2 flex-wrap">
-                              <button
-                                onClick={() => { setHistoricoEntityId(animal.id); setHistoricoOpen(true); }}
-                                className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
-                                title="Ver histórico"
-                              >
-                                <Icons.History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (matrizId) {
-                                    setArvoreAnimalId(matrizAnimal?.id || matrizId);
-                                    setArvoreOpen(true);
-                                  }
-                                }}
-                                disabled={!matrizId}
-                                className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
-                                title="Ver árvore genealógica"
-                              >
-                                <Icons.GitBranch className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                              </button>
-                              {podeEditarAnimal && (
-                                <button
-                                  onClick={() => handleEditarAnimal(animal)}
-                                  className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
-                                  title="Editar animal"
-                                >
-                                  <Icons.Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                </button>
+                            </td>
+                          )}
+                          {visibleColumns.nome && (
+                            <td className="px-2 sm:px-3 py-1.5 text-sm text-gray-700 dark:text-slate-200 sm:max-w-none truncate" title={animal.nome || undefined}>{animal.nome || '-'}</td>
+                          )}
+                          {visibleColumns.tipo && (
+                            <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200">{animal.tipoId ? tipoMap.get(animal.tipoId) : '-'}</td>
+                          )}
+                          {visibleColumns.status && (
+                            <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200">{animal.statusId ? statusMap.get(animal.statusId) : '-'}</td>
+                          )}
+                          {visibleColumns.matriz && (
+                            <td className="px-2 sm:px-3 py-1.5 text-sm text-gray-700 dark:text-slate-200">
+                              {matrizIdentificador ? (
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">{matrizIdentificador}</div>
+                                  {matrizNome?.trim() && <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{matrizNome}</div>}
+                                </div>
+                              ) : '-'}
+                            </td>
+                          )}
+                          {visibleColumns.tipoMatriz && (
+                            <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm">
+                              {tipoMatrizNome ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">{tipoMatrizNome}</span>
+                              ) : (
+                                <span className="text-gray-400 dark:text-slate-500">-</span>
                               )}
-                              {podeExcluirAnimal && (
+                            </td>
+                          )}
+                          {visibleColumns.sexo && (
+                            <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm">
+                              <span className={animal.sexo === 'M' ? 'text-blue-600 dark:text-blue-400' : 'text-pink-600 dark:text-pink-400'}>{animal.sexo === 'M' ? 'M' : 'F'}</span>
+                            </td>
+                          )}
+                          {visibleColumns.raca && (
+                            <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200">{animal.racaId ? racaMap.get(animal.racaId) : '-'}</td>
+                          )}
+                          {visibleColumns.fazenda && (
+                            <td className="px-2 sm:px-3 py-1.5 whitespace-nowrap text-sm text-gray-700 dark:text-slate-200 sm:max-w-none truncate" title={fazendaMap.get(animal.fazendaId)}>{fazendaMap.get(animal.fazendaId) || '-'}</td>
+                          )}
+                          {visibleColumns.tags && (
+                            <td className="px-2 sm:px-3 py-1.5 text-sm min-w-0 align-middle"><AnimalTags tags={animalTagsMap.get(animal.id)} /></td>
+                          )}
+                          {visibleColumns.acoes && (
+                            <td className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 whitespace-nowrap text-center align-middle bg-white dark:bg-slate-900 odd:bg-white even:bg-gray-50 dark:odd:bg-slate-900 dark:even:bg-slate-800 border-l border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700">
+                              <div className="flex items-center justify-center gap-2 flex-wrap">
                                 <button
-                                  onClick={() => handleExcluirAnimal(animal)}
+                                  onClick={() => { setHistoricoEntityId(animal.id); setHistoricoOpen(true); }}
                                   className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
-                                  title="Excluir animal"
+                                  title="Ver histórico"
                                 >
-                                  <Icons.Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  <Icons.History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                                <button
+                                  onClick={() => {
+                                    if (matrizId) {
+                                      setArvoreAnimalId(matrizAnimal?.id || matrizId);
+                                      setArvoreOpen(true);
+                                    }
+                                  }}
+                                  disabled={!matrizId}
+                                  className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                                  title="Ver árvore genealógica"
+                                >
+                                  <Icons.GitBranch className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                </button>
+                                {podeEditarAnimal && (
+                                  <button
+                                    onClick={() => handleEditarAnimal(animal)}
+                                    className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                                    title="Editar animal"
+                                  >
+                                    <Icons.Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  </button>
+                                )}
+                                {podeExcluirAnimal && (
+                                  <button
+                                    onClick={() => handleExcluirAnimal(animal)}
+                                    className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                                    title="Excluir animal"
+                                  >
+                                    <Icons.Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             )}
           </div>
 
@@ -1585,7 +1935,7 @@ export default function Animais() {
               setModalOpen(false);
               setAnimalEditando(null);
             }}
-            onSaved={() => {}}
+            onSaved={() => { }}
           />
         </Suspense>
       )}

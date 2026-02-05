@@ -2,13 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root { height: 100%; }
+html, body, #root { 
+  height: 100%; 
+  overflow-x: hidden;
+  max-width: 100vw;
+}
 body { 
   @apply bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100;
   /* Compatibilidade com diferentes navegadores */
   -webkit-text-size-adjust: 100%; /* Safari, Chrome antigo */
   -moz-text-size-adjust: 100%; /* Firefox */
   text-size-adjust: 100%; /* Padrão moderno */
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* Animação para o prompt de instalação */

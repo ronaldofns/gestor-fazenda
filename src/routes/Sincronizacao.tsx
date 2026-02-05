@@ -472,9 +472,18 @@ export default function Sincronizacao() {
 
     try {
       // Usar syncAll diretamente (mesmo código que sidebar e topbar)
-      await syncAll();
+      const { ran } = await syncAll();
       
-      // Aguardar evento com estatísticas
+      if (!ran) {
+        showToast({
+          type: 'info',
+          title: 'Sincronização em andamento',
+          message: 'Uma sincronização já está em execução. Aguarde a conclusão.'
+        });
+        return;
+      }
+      
+      // Aguardar evento com estatísticas (só dispara quando sync realmente rodou)
       const { stats } = await syncCompletedPromise;
       
       const fim = new Date();
@@ -643,7 +652,7 @@ export default function Sincronizacao() {
   }, []);
 
   return (
-    <div className="p-4 sm:p-4 lg:p-4 max-w-8xl mx-auto">
+    <div className="p-2 sm:p-4 md:p-6 max-w-full mx-auto overflow-x-hidden">
       {/* Cabeçalho */}
       <div className="mb-4">
         <div className="flex items-center gap-3 mb-2">

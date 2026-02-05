@@ -139,7 +139,7 @@ export default function ListaFazendas() {
   };
 
   return (
-    <div className="p-4 sm:p-4 text-gray-900 dark:text-slate-100">
+    <div className="p-2 sm:p-3 md:p-4 text-gray-900 dark:text-slate-100 max-w-full overflow-x-hidden">
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden">
         {fazendas.length === 0 ? (
           <div className="p-8 text-center text-gray-500 dark:text-slate-400 text-sm">
@@ -157,7 +157,7 @@ export default function ListaFazendas() {
         ) : (
           <>
             {/* Tabela Desktop */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto -mx-2 sm:mx-0 max-w-full">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
                 <thead className="bg-gray-100 dark:bg-slate-800">
               <tr>

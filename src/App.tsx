@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import InstallPrompt from './components/InstallPrompt';
 import OfflineIndicator from './components/OfflineIndicator';
@@ -92,21 +93,23 @@ export default function App() {
         <InstallPrompt />
         <PWAUpdatePrompt />
         <KeyboardShortcutsHelp />
-        <Suspense fallback={<RouteLoader />}>
-          <Routes>
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoader />}>
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/setup" element={<SetupInicial />} />
             <Route
               path="/*"
               element={
                 <ProtectedRoute>
-                  <div className={`flex min-h-screen transition-[padding] ${!online ? 'pt-12' : ''} ${appSettings.modoCurral ? 'mode-curral' : ''}`}>
+                  <div className={`flex min-h-screen transition-[padding] ${!online ? 'pt-12' : ''} ${appSettings.modoCurral ? 'mode-curral' : ''} overflow-x-hidden`}>
                     <Sidebar />
-                    <div className={`flex-1 min-h-screen transition-all duration-300 flex flex-col ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+                    <div className={`flex-1 min-h-screen transition-all duration-300 flex flex-col ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'} overflow-x-hidden`}>
                       <TopBar />
-                      <main className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-950">
-                        <Suspense fallback={<RouteLoader />}>
-                          <Routes>
+                      <main className="flex-1 overflow-auto overflow-x-hidden bg-gray-50 dark:bg-slate-950">
+                        <ErrorBoundary>
+                          <Suspense fallback={<RouteLoader />}>
+                            <Routes>
                             <Route path="/" element={<Navigate to="/dashboard" replace />} />
                             <Route path="/dashboard" element={
                               <ProtectedRoute requiredPermission="ver_dashboard">
@@ -158,16 +161,18 @@ export default function App() {
                                 <Sincronizacao />
                               </ProtectedRoute>
                             } />
-                          </Routes>
-                        </Suspense>
+                            </Routes>
+                          </Suspense>
+                        </ErrorBoundary>
                       </main>
                     </div>
                   </div>
                 </ProtectedRoute>
               }
             />
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </FazendaContextProvider>
   );

@@ -21,6 +21,7 @@ import AnimalSearchCombobox from './AnimalSearchCombobox';
 import MatrizSearchCombobox from './MatrizSearchCombobox';
 import TipoAnimalModal from './TipoAnimalModal';
 import StatusAnimalModal from './StatusAnimalModal';
+import ModalRaca from './ModalRaca';
 import TagSelector from './TagSelector';
 import Input from './Input';
 import Textarea from './Textarea';
@@ -159,6 +160,8 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
 
   const { hasPermission } = usePermissions();
   const podeGerenciarRacas = hasPermission('gerenciar_racas');
+  const podeGerenciarTipos = hasPermission('gerenciar_tipos_animais');
+  const podeGerenciarStatus = hasPermission('gerenciar_status_animais');
 
   const refetchRacas = useCallback(() => {
     db.racas.toArray().then(setRacas);
@@ -1065,22 +1068,22 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
   return (
     <>
       <Modal open={open} onClose={onClose}>
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
-          <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 pt-5 pb-4 flex items-center justify-between z-10">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+        <div className="bg-white dark:bg-slate-900 rounded-none sm:rounded-lg shadow-xl w-full h-full sm:w-[80vw] sm:h-[80vh] flex flex-col overflow-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+          <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-3 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 flex items-center justify-between z-10">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate pr-2">
               {mode === 'create' ? 'Cadastrar Novo Animal' : 'Editar Animal'}
             </h2>
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
             >
               <Icons.X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Abas */}
-          <div className="border-b border-gray-200 dark:border-slate-700 px-6">
-            <nav className="flex -mb-px flex-wrap gap-1" aria-label="Tabs">
+          <div className="flex-shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 sm:px-6">
+            <nav className="flex -mb-px flex-wrap gap-1 overflow-x-auto" aria-label="Tabs">
               {[
                 { id: 'identificacao' as TabType, label: 'Identificação', icon: Icons.Tag },
                 { id: 'classificacao' as TabType, label: 'Classificação', icon: Icons.List },
@@ -1103,24 +1106,25 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
                     className={`
-                      flex items-center gap-2 py-4 px-4 border-b-2 font-medium text-sm transition-colors whitespace-nowrap
+                      flex items-center gap-1 md:gap-2 py-3 md:py-4 px-2 md:px-4 border-b-2 font-medium text-xs md:text-sm transition-colors whitespace-nowrap
                       ${activeTab === tab.id
                         ? `${getThemeClasses(primaryColor, 'border')} ${getThemeClasses(primaryColor, 'text')}`
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                       }
                       ${temErro ? 'text-red-600 dark:text-red-400' : ''}
                     `}
+                    title={tab.label}
                   >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                    {temErro && <Icons.AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />}
+                    <Icon className="w-4 h-4 md:w-4 md:h-4 flex-shrink-0" />
+                    <span className="hidden md:inline">{tab.label}</span>
+                    {temErro && <Icons.AlertCircle className="w-3 h-3 md:w-4 md:h-4 text-red-600 dark:text-red-400 flex-shrink-0" />}
                   </button>
                 );
               })}
             </nav>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit, (errors) => {
+          <form id="animal-form" onSubmit={handleSubmit(onSubmit, (errors) => {
             console.error('❌ Erros de validação do formulário:', errors);
             focarAbaComErro(errors);
             const primeiroErro = Object.values(errors)[0];
@@ -1131,7 +1135,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                 message: primeiroErro.message || 'Verifique os campos do formulário'
               });
             }
-          })} className="px-6 pt-6 pb-6 space-y-4">
+          })} className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-4 sm:pb-6 space-y-4">
             {/* ABA: Identificação */}
             {activeTab === 'identificacao' && (
               <div className="space-y-4">
@@ -1324,17 +1328,6 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Tipo */}
                 <div>
-                  <div className="flex items-center justify-end mb-1">
-                    <button
-                      type="button"
-                      onClick={() => setTipoModalOpen(true)}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                      title="Cadastrar novo tipo"
-                    >
-                      <Icons.Plus className="w-3 h-3" />
-                      Novo
-                    </button>
-                  </div>
                   <Controller
                     name="tipoId"
                     control={control}
@@ -1354,6 +1347,8 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                           }}
                           placeholder="Selecione o tipo"
                           error={errors.tipoId?.message}
+                          onAddNew={podeGerenciarTipos ? () => setTipoModalOpen(true) : undefined}
+                          addNewLabel="Novo tipo"
                         />
                       );
                     }}
@@ -1362,17 +1357,6 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
 
                 {/* Status */}
                 <div>
-                  <div className="flex items-center justify-end mb-1">
-                    <button
-                      type="button"
-                      onClick={() => setStatusModalOpen(true)}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                      title="Cadastrar novo status"
-                    >
-                      <Icons.Plus className="w-3 h-3" />
-                      Novo
-                    </button>
-                  </div>
                   <Controller
                     name="statusId"
                     control={control}
@@ -1392,6 +1376,8 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                           }}
                           placeholder="Selecione o status"
                           error={errors.statusId?.message}
+                          onAddNew={podeGerenciarStatus ? () => setStatusModalOpen(true) : undefined}
+                          addNewLabel="Novo status"
                         />
                       );
                     }}
@@ -2368,35 +2354,39 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
               </div>
             )}
 
-            {/* Botões Finais */}
-            <div className="flex gap-3 pt-4 pb-2 border-t border-gray-200 dark:border-slate-700">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={saving}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className={`flex-1 px-4 py-2.5 ${getPrimaryButtonClass(primaryColor)} text-white rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2`}
-              >
-                {saving ? (
-                  <>
-                    <Icons.Loader2 className="w-4 h-4 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <Icons.Check className="w-4 h-4" />
-                    {mode === 'create' ? 'Cadastrar Animal' : 'Salvar Alterações'}
-                  </>
-                )}
-              </button>
-            </div>
           </form>
+          
+          {/* Footer com Botões */}
+          <div className="flex-shrink-0 flex gap-2 md:gap-3 px-3 sm:px-6 py-3 md:py-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Icons.X className="w-4 h-4" />
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="animal-form"
+              disabled={saving}
+              className={`flex-1 px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base ${getPrimaryButtonClass(primaryColor)} text-white rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2`}
+            >
+              {saving ? (
+                <>
+                  <Icons.Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="hidden sm:inline">Salvando...</span>
+                </>
+              ) : (
+                <>
+                  <Icons.Check className="w-4 h-4" />
+                  <span className="hidden sm:inline">{mode === 'create' ? 'Cadastrar Animal' : 'Salvar Alterações'}</span>
+                  <span className="sm:hidden">{mode === 'create' ? 'Salvar' : 'Salvar'}</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </Modal>
 

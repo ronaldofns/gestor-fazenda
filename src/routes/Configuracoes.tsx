@@ -235,8 +235,8 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 p-2 sm:p-4 md:p-6 lg:p-8 max-w-full overflow-x-hidden">
+      <div className="max-w-6xl mx-auto w-full">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-3">
@@ -460,18 +460,20 @@ export default function Configuracoes() {
                     {podeExportarDados && (
                     <button
                       onClick={handleExportBackup}
+                      title="Exportar Backup Completo"
                       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white ${getPrimaryButtonClass(primaryColor)} rounded-lg hover:shadow-lg transition-all`}
                     >
                       <Icons.Download className="w-4 h-4" />
-                      Exportar Backup Completo
+                      <span className="hidden sm:inline">Exportar Backup Completo</span>
                     </button>
                     )}
                     <button
                       onClick={handleImportBackup}
+                      title="Importar Backup"
                       className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 hover:shadow-md transition-all"
                     >
                       <Icons.Upload className="w-4 h-4" />
-                      Importar Backup
+                      <span className="hidden sm:inline">Importar Backup</span>
                     </button>
                   </div>
                 </div>
@@ -737,18 +739,20 @@ export default function Configuracoes() {
           <button
             type="button"
             onClick={handleResetAll}
-            className="px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all"
+            title="Restaurar Padrões"
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all"
           >
-            <Icons.RotateCcw className="w-4 h-4 inline mr-2" />
-            Restaurar Padrões
+            <Icons.RotateCcw className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Restaurar Padrões</span>
           </button>
           <button
             type="button"
             onClick={handleSaveAll}
-            className={`px-6 py-2.5 text-sm font-semibold text-white ${getPrimaryButtonClass(primaryColor)} rounded-lg hover:shadow-lg transform hover:scale-105 transition-all`}
+            title="Salvar Alterações"
+            className={`flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white ${getPrimaryButtonClass(primaryColor)} rounded-lg hover:shadow-lg transform hover:scale-105 transition-all`}
           >
-            <Icons.Check className="w-4 h-4 inline mr-2" />
-            Salvar Alterações
+            <Icons.Check className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Salvar Alterações</span>
           </button>
         </div>
       </div>

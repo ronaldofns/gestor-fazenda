@@ -131,7 +131,7 @@ export default function Dashboard() {
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
-      <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
+      <div className="p-2 sm:p-4 md:p-6 text-gray-900 dark:text-slate-100 max-w-full overflow-x-hidden">
         
         {/* Header com título e info */}
         <div className="mb-6">
@@ -147,13 +147,8 @@ export default function Dashboard() {
                 Visão geral do rebanho baseada em dados reais
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {fazendaAtivaId && (
-                <div className="text-sm text-gray-600 dark:text-slate-400">
-                  <Icons.Building2 className="inline w-4 h-4 mr-1" />
-                  Fazenda ativa selecionada
-                </div>
-              )}
+            <div className="flex items-center gap-2 flex-wrap flex-1 justify-end min-w-0">
+              <div className="flex items-center gap-2 ml-auto">
               {/* Botão Filtros (PROPOSTA_DASHBOARD_MODERNA) */}
               <div className="relative">
                 <button
@@ -165,16 +160,16 @@ export default function Dashboard() {
                       : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                   }`}
                 >
-                  <Icons.Filter className="w-4 h-4" />
-                  Filtros
+                  <Icons.Filter className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Filtros</span>
                   {temFiltrosAtivos && (
                     <span className="w-2 h-2 rounded-full bg-blue-500" />
                   )}
                 </button>
                 {menuFiltrosAberto && (
                   <>
-                    <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setMenuFiltrosAberto(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 w-72 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-lg p-4">
+                    <div className="fixed inset-0 z-[90]" aria-hidden="true" onClick={() => setMenuFiltrosAberto(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-[100] w-72 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-lg p-4">
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">Filtros</span>
                         {temFiltrosAtivos && (
@@ -247,13 +242,13 @@ export default function Dashboard() {
                   onClick={() => setMenuExportarAberto(!menuExportarAberto)}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
                 >
-                  <Icons.Download className="w-4 h-4" />
-                  Exportar
+                  <Icons.Download className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Exportar</span>
                 </button>
                 {menuExportarAberto && (
                   <>
-                    <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setMenuExportarAberto(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 w-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-lg py-1">
+                    <div className="fixed inset-0 z-[90]" aria-hidden="true" onClick={() => setMenuExportarAberto(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-[100] w-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-lg py-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -303,6 +298,7 @@ export default function Dashboard() {
                 )}
               </div>
               )}
+              </div>
             </div>
           </div>
         </div>
@@ -656,7 +652,7 @@ export default function Dashboard() {
               </div>
               <Icons.TrendingUp className="w-5 h-5 text-gray-400" />
             </div>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={250} className="min-w-0">
               <LineChart data={metrics.evolucaoRebanho} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                 <XAxis
@@ -681,8 +677,11 @@ export default function Dashboard() {
                   }}
                 />
                 <Legend
-                  wrapperStyle={{ fontSize: 11, color: textColor }}
+                  wrapperStyle={{ fontSize: 11, color: textColor, paddingTop: '10px' }}
                   iconSize={12}
+                  formatter={(value: string) => (
+                    <span style={{ color: textColor, fontSize: '12px' }}>{value}</span>
+                  )}
                 />
                 <Line
                   type="monotone"
@@ -727,7 +726,7 @@ export default function Dashboard() {
               <Icons.BarChart3 className="w-5 h-5 text-gray-400" />
             </div>
             {pieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={250} className="min-w-0">
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -796,8 +795,9 @@ export default function Dashboard() {
               </div>
               <Icons.Building2 className="w-5 h-5 text-gray-400" />
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            {/* Versão Desktop - Tabela */}
+            <div className="hidden md:block overflow-x-auto -mx-2 sm:mx-0 max-w-full">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-slate-700">
                     <th className="text-left py-3 px-2 font-semibold text-gray-700 dark:text-slate-300">Fazenda</th>
@@ -851,6 +851,55 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+
+            {/* Versão Mobile - Cards */}
+            <div className="md:hidden space-y-3">
+              {metrics.distribuicaoPorFazenda.map((fazenda, index) => (
+                <div
+                  key={fazenda.fazendaId}
+                  className={`bg-white dark:bg-slate-900 rounded-lg p-4 border-2 ${
+                    index === 0 
+                      ? 'border-blue-300 dark:border-blue-700 bg-blue-50/30 dark:bg-blue-900/10' 
+                      : 'border-gray-200 dark:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-gray-900 dark:text-slate-100">{fazenda.nome}</h4>
+                    <span className="text-sm font-bold text-gray-700 dark:text-slate-300">{fazenda.percentual.toFixed(1)}%</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-slate-400">Total:</span>
+                      <span className="font-semibold text-gray-900 dark:text-slate-100">{fazenda.total}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-slate-400">Vivos:</span>
+                      <span className="font-semibold text-green-600 dark:text-green-400">{fazenda.vivos}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-slate-400">Mortos:</span>
+                      <span className="font-semibold text-red-600 dark:text-red-400">{fazenda.mortos}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-purple-600 dark:text-purple-400">Vacas:</span>
+                      <span className="font-semibold text-purple-600 dark:text-purple-400">{fazenda.vacas}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-600 dark:text-amber-400">Bezerros:</span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">{fazenda.bezerros}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-cyan-600 dark:text-cyan-400">Novilhas:</span>
+                      <span className="font-semibold text-cyan-600 dark:text-cyan-400">{fazenda.novilhas}</span>
+                    </div>
+                    <div className="flex justify-between col-span-2">
+                      <span className="text-gray-600 dark:text-slate-400">Outros:</span>
+                      <span className="font-semibold text-gray-700 dark:text-slate-300">{fazenda.outros}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -868,8 +917,9 @@ export default function Dashboard() {
               </div>
               <Icons.Award className="w-5 h-5 text-amber-500" />
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            {/* Versão Desktop - Tabela */}
+            <div className="hidden md:block overflow-x-auto -mx-2 sm:mx-0 max-w-full">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-slate-700">
                     <th className="text-left py-3 px-2 font-semibold text-gray-700 dark:text-slate-300">Fazenda</th>
@@ -910,6 +960,55 @@ export default function Dashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Versão Mobile - Cards */}
+            <div className="md:hidden space-y-3">
+              {metrics.benchmarkingFazendas.map((fazenda, index) => (
+                <div
+                  key={fazenda.fazendaId}
+                  className={`bg-white dark:bg-slate-900 rounded-lg p-4 border-2 ${
+                    index === 0 
+                      ? 'border-amber-300 dark:border-amber-700 bg-amber-50/30 dark:bg-amber-900/10' 
+                      : 'border-gray-200 dark:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-gray-900 dark:text-slate-100">{fazenda.nome}</h4>
+                    {index === 0 && (
+                      <span className="text-xs px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 rounded-full font-medium">
+                        #1
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-slate-400">Total:</span>
+                      <span className="font-semibold text-gray-900 dark:text-slate-100">{fazenda.total}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-green-600 dark:text-green-400">Nasc. 12m:</span>
+                      <span className="font-semibold text-green-600 dark:text-green-400">{fazenda.nascimentos12m}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-red-600 dark:text-red-400">Mortes 12m:</span>
+                      <span className="font-semibold text-red-600 dark:text-red-400">{fazenda.mortes12m}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-purple-600 dark:text-purple-400">GMD:</span>
+                      <span className="font-semibold text-purple-600 dark:text-purple-400">
+                        {fazenda.gmdMedio > 0 ? `${fazenda.gmdMedio.toFixed(2)} kg/dia` : '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between col-span-2">
+                      <span className="text-cyan-600 dark:text-cyan-400">Taxa Desmama:</span>
+                      <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+                        {fazenda.taxaDesmama > 0 ? `${fazenda.taxaDesmama.toFixed(1)}%` : '-'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

@@ -87,7 +87,7 @@ export default function Notificacoes() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
-      <div className="p-4 sm:p-6 text-gray-900 dark:text-slate-100">
+      <div className="p-2 sm:p-4 md:p-6 text-gray-900 dark:text-slate-100 max-w-full overflow-x-hidden">
         
         {/* Header */}
         <div className="mb-6">
@@ -263,10 +263,11 @@ export default function Notificacoes() {
             {totalNaoLidos > 0 && (
               <button
                 onClick={marcarTodosComoLidos}
+                title="Marcar Todos como Lidos"
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                <Icons.CheckCircle className="w-4 h-4" />
-                Marcar Todos como Lidos
+                <Icons.CheckCircle className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">Marcar Todos como Lidos</span>
               </button>
             )}
           </div>

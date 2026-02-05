@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
 import { showToast } from '../utils/toast';
@@ -49,9 +50,9 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+  const modalContent = (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full">
         <div className="p-4 sm:p-6">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
             Cadastro Rápido de Raça
@@ -91,5 +92,7 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
       </div>
     </div>
   );
+
+  return open ? createPortal(modalContent, document.body) : null;
 }
 

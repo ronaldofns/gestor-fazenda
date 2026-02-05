@@ -68,9 +68,10 @@ export default function AlertasBanner({ fazendaId }: AlertasBannerProps) {
         
         <Link
           to="/notificacoes"
-          className="flex-shrink-0 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 transition-colors flex items-center gap-2"
+          title="Ver Todos"
+          className="flex-shrink-0 p-2 sm:px-4 sm:py-2 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 transition-colors flex items-center gap-2"
         >
-          Ver Todos
+          <span className="hidden sm:inline">Ver Todos</span>
           <Icons.ChevronRight className="w-4 h-4" />
         </Link>
       </div>

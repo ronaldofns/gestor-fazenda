@@ -78,7 +78,7 @@ export default function Relatorios() {
 
   const fazendasData = useMemo(() =>
     metrics.distribuicaoPorFazenda.slice(0, 10).map((f) => ({
-      nome: f.nome.length > 15 ? f.nome.slice(0, 15) + '…' : f.nome,
+      nome: f.nome,
       total: f.total,
       vivos: f.vivos,
       bezerros: f.bezerros,
@@ -118,7 +118,7 @@ export default function Relatorios() {
   }), [metrics]);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-2 sm:p-4 md:p-6 space-y-6 max-w-full overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className={`text-2xl font-bold ${getTitleTextClass(primaryColor)}`}>
@@ -144,13 +144,13 @@ export default function Relatorios() {
               onClick={() => setMenuExportarAberto((v) => !v)}
               className={`${getPrimaryButtonClass(primaryColor)} text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm`}
             >
-              <Icons.Download className="w-4 h-4" />
-              Exportar
+              <Icons.Download className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Exportar</span>
             </button>
             {menuExportarAberto && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuExportarAberto(false)} />
-                <div className="absolute right-0 mt-1 py-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-20">
+                <div className="fixed inset-0 z-[90]" onClick={() => setMenuExportarAberto(false)} />
+                <div className="absolute right-0 mt-1 py-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-[100]">
                   <button
                     onClick={() => {
                       exportarDashboardPDF(dadosParaExportar);
@@ -178,41 +178,47 @@ export default function Relatorios() {
       </div>
 
       {/* Resumo */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
-          <p className="text-xs text-gray-500 dark:text-slate-400">Total de animais</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics.totalAnimais}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mb-1">Total de animais</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-slate-100">{metrics.totalAnimais}</p>
         </div>
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
-          <p className="text-xs text-gray-500 dark:text-slate-400">Vivos</p>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">{metrics.totalVivos}</p>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mb-1">Vivos</p>
+          <p className="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">{metrics.totalVivos}</p>
         </div>
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
-          <p className="text-xs text-gray-500 dark:text-slate-400">Matrizes</p>
-          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{metrics.totalMatrizes}</p>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mb-1">Matrizes</p>
+          <p className="text-2xl sm:text-3xl font-bold text-purple-600 dark:text-purple-400">{metrics.totalMatrizes}</p>
         </div>
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
-          <p className="text-xs text-gray-500 dark:text-slate-400">Variação (mês)</p>
-          <p className={`text-2xl font-bold ${metrics.variacaoMes >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mb-1">Variação (mês)</p>
+          <p className={`text-2xl sm:text-3xl font-bold ${metrics.variacaoMes >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
             {metrics.variacaoMes >= 0 ? '+' : ''}{metrics.variacaoMes}
           </p>
         </div>
       </div>
 
       {/* Evolução temporal */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Evolução do rebanho</h2>
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-slate-100 mb-4">Evolução do rebanho</h2>
         <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={evolucaoData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <ResponsiveContainer width="100%" height="100%" className="min-w-0">
+            <LineChart data={evolucaoData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis dataKey="mes" tick={{ fill: textColor }} fontSize={12} />
-              <YAxis tick={{ fill: textColor }} fontSize={12} />
+              <XAxis dataKey="mes" tick={{ fill: textColor }} fontSize={10} />
+              <YAxis tick={{ fill: textColor }} fontSize={10} />
               <Tooltip
                 contentStyle={{ backgroundColor: isDark ? '#1e293b' : '#fff', border: `1px solid ${gridColor}` }}
                 labelStyle={{ color: textColor }}
               />
-              <Legend />
+              <Legend 
+                wrapperStyle={{ paddingTop: '10px' }}
+                iconSize={12}
+                formatter={(value: string) => (
+                  <span style={{ color: textColor, fontSize: '10px' }}>{value}</span>
+                )}
+              />
               <Line type="monotone" dataKey="total" name="Total" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="nascimentos" name="Nascimentos" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="mortes" name="Mortes" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
@@ -221,20 +227,20 @@ export default function Relatorios() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Distribuição por tipo */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Distribuição por tipo</h2>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-slate-100 mb-4">Distribuição por tipo</h2>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" className="min-w-0">
               <PieChart>
                 <Pie
                   data={pieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
+                  innerRadius={25}
+                  outerRadius={50}
+                  paddingAngle={1}
                   dataKey="value"
                   nameKey="name"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -250,18 +256,32 @@ export default function Relatorios() {
         </div>
 
         {/* Por fazenda */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Animais por fazenda (top 10)</h2>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-slate-100 mb-4">Animais por fazenda (top 10)</h2>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={fazendasData} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+            <ResponsiveContainer width="100%" height="100%" className="min-w-0">
+              <BarChart data={fazendasData} layout="vertical" margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis type="number" tick={{ fill: textColor }} fontSize={12} />
-                <YAxis type="category" dataKey="nome" tick={{ fill: textColor }} fontSize={11} width={55} />
+                <XAxis type="number" tick={{ fill: textColor }} fontSize={10} />
+                <YAxis 
+                  type="category" 
+                  dataKey="nome" 
+                  tick={{ fill: textColor, fontSize: 10 }} 
+                  width={120}
+                  interval={0}
+                  angle={0}
+                  dx={-10}
+                />
                 <Tooltip
                   contentStyle={{ backgroundColor: isDark ? '#1e293b' : '#fff', border: `1px solid ${gridColor}` }}
                 />
-                <Legend />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '10px' }}
+                  iconSize={12}
+                  formatter={(value: string) => (
+                    <span style={{ color: textColor, fontSize: '12px' }}>{value}</span>
+                  )}
+                />
                 <Bar dataKey="total" name="Total" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                 <Bar dataKey="vivos" name="Vivos" fill="#10b981" radius={[0, 4, 4, 0]} />
                 <Bar dataKey="bezerros" name="Bezerros" fill="#8b5cf6" radius={[0, 4, 4, 0]} />

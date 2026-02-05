@@ -32,7 +32,7 @@ const Modal = memo(function Modal({ children, open, onClose, ariaLabel = 'Diálo
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}
@@ -42,7 +42,7 @@ const Modal = memo(function Modal({ children, open, onClose, ariaLabel = 'Diálo
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative z-10 w-full max-w-4xl max-h-[90vh] flex items-center justify-center">
+      <div className="relative z-10 w-full h-full sm:w-[80vw] sm:h-[80vh] flex items-center justify-center overflow-hidden">
         {children}
       </div>
     </div>

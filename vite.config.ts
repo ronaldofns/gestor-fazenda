@@ -164,7 +164,9 @@ export default defineConfig({
     hmr: {
       protocol: 'ws',
       host: 'localhost',
-      port: 5173
+      port: 5173,
+      // Desabilita overlay de erros que causa crash (Cannot read properties of undefined 'nodeName')
+      overlay: false
     }
   },
   build: {

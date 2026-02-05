@@ -97,7 +97,7 @@ export default function PendenciasCurral() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+    <div className="p-2 sm:p-4 md:p-6 max-w-4xl mx-auto w-full overflow-x-hidden">
       <div className="mb-6">
         <h1 className={getTitleTextClass(primaryColor) + ' text-xl font-bold'}>
           Pendências do Curral
@@ -121,30 +121,71 @@ export default function PendenciasCurral() {
           const num = secao.itens.length;
           if (num === 0) return null;
 
+          const corClasses = {
+            red: {
+              bg: 'bg-red-50 dark:bg-red-900/20',
+              border: 'border-red-200 dark:border-red-800',
+              icon: 'text-red-600 dark:text-red-400',
+              badgeBg: 'bg-red-100 dark:bg-red-900/40',
+              badgeText: 'text-red-800 dark:text-red-200',
+              badgeBorder: 'border-red-200 dark:border-red-800',
+              headerBg: 'bg-red-50 dark:bg-red-900/20'
+            },
+            purple: {
+              bg: 'bg-purple-50 dark:bg-purple-900/20',
+              border: 'border-purple-200 dark:border-purple-800',
+              icon: 'text-purple-600 dark:text-purple-400',
+              badgeBg: 'bg-purple-100 dark:bg-purple-900/40',
+              badgeText: 'text-purple-800 dark:text-purple-200',
+              badgeBorder: 'border-purple-200 dark:border-purple-800',
+              headerBg: 'bg-purple-50 dark:bg-purple-900/20'
+            },
+            amber: {
+              bg: 'bg-amber-50 dark:bg-amber-900/20',
+              border: 'border-amber-200 dark:border-amber-800',
+              icon: 'text-amber-600 dark:text-amber-400',
+              badgeBg: 'bg-amber-100 dark:bg-amber-900/40',
+              badgeText: 'text-amber-800 dark:text-amber-200',
+              badgeBorder: 'border-amber-200 dark:border-amber-800',
+              headerBg: 'bg-amber-50 dark:bg-amber-900/20'
+            }
+          }[secao.cor as 'red' | 'purple' | 'amber'] || {
+            bg: 'bg-gray-50 dark:bg-slate-800/80',
+            border: 'border-gray-200 dark:border-slate-700',
+            icon: 'text-gray-600 dark:text-slate-400',
+            badgeBg: 'bg-gray-200 dark:bg-slate-600',
+            badgeText: 'text-gray-800 dark:text-slate-200',
+            badgeBorder: 'border-gray-200 dark:border-slate-700',
+            headerBg: 'bg-gray-50 dark:bg-slate-800/80'
+          };
+
           return (
             <section
               key={secao.id}
-              className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden"
+              className={`rounded-xl border-2 ${corClasses.border} ${corClasses.bg} overflow-hidden shadow-sm`}
             >
-              <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 bg-gray-50 dark:bg-slate-800/80">
-                <Icon className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-                <div>
+              <div className={`px-4 py-3 border-b ${corClasses.border} flex items-center gap-3 ${corClasses.headerBg}`}>
+                <div className={`p-2 rounded-lg ${corClasses.bg} border ${corClasses.border}`}>
+                  <Icon className={`w-5 h-5 ${corClasses.icon}`} />
+                </div>
+                <div className="flex-1 min-w-0">
                   <h2 className="font-semibold text-gray-900 dark:text-slate-100">
                     {secao.titulo}
                   </h2>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">{secao.descricao}</p>
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5">{secao.descricao}</p>
                 </div>
-                <span className="ml-auto rounded-full bg-gray-200 dark:bg-slate-600 text-gray-800 dark:text-slate-200 text-sm font-medium px-2.5 py-0.5">
-                  {num} {num === 1 ? 'animal' : 'animais'}
-                </span>
+                <div className={`flex flex-col items-center justify-center rounded-lg border ${corClasses.badgeBorder} ${corClasses.badgeBg} ${corClasses.badgeText} px-3 py-1.5 min-w-[60px]`}>
+                  <span className="text-lg font-bold leading-none">{num}</span>
+                  <span className="text-xs font-medium leading-tight mt-0.5">{num === 1 ? 'animal' : 'animais'}</span>
+                </div>
               </div>
-              <ul className="divide-y divide-gray-200 dark:divide-slate-700">
+              <ul className={`divide-y ${corClasses.border} bg-white dark:bg-slate-800`}>
                 {secao.itens.slice(0, 50).map((item: { id: string; brinco?: string; nome?: string }) => (
                   <li key={item.id}>
                     {podeVerAnimais ? (
                       <Link
                         to={`/animais?animalId=${item.id}`}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors bg-white dark:bg-slate-800"
                       >
                         <span className="font-mono font-medium text-gray-900 dark:text-slate-100">
                           {item.brinco ?? '—'}
@@ -155,8 +196,8 @@ export default function PendenciasCurral() {
                         <Icons.ChevronRight className="w-4 h-4 ml-auto text-gray-400" />
                       </Link>
                     ) : (
-                      <div className="flex items-center gap-3 px-4 py-3">
-                        <span className="font-mono font-medium">{item.brinco ?? '—'}</span>
+                      <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800">
+                        <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{item.brinco ?? '—'}</span>
                         {item.nome && <span className="text-gray-600 dark:text-slate-400 truncate">{item.nome}</span>}
                       </div>
                     )}
@@ -164,7 +205,7 @@ export default function PendenciasCurral() {
                 ))}
               </ul>
               {secao.itens.length > 50 && (
-                <div className="px-4 py-2 bg-gray-50 dark:bg-slate-800/80 text-sm text-gray-500 dark:text-slate-400">
+                <div className={`px-4 py-2 ${corClasses.headerBg} text-sm text-gray-600 dark:text-slate-400 border-t ${corClasses.border}`}>
                   Mostrando 50 de {secao.itens.length}. Filtre em Animais para ver todos.
                 </div>
               )}
@@ -177,10 +218,12 @@ export default function PendenciasCurral() {
         <div className="mt-6">
           <Link
             to="/animais"
-            className={getPrimaryButtonClass(primaryColor) + ' inline-flex items-center gap-2 px-4 py-2 rounded-lg'}
+            title="Ver todos os animais"
+            className={`${getPrimaryButtonClass(primaryColor)} w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium text-white shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]`}
           >
-            <Icons.Cow className="w-4 h-4" />
-            Ver todos os animais
+            <Icons.Cow className="w-5 h-5" />
+            <span className="hidden sm:inline">Ver todos os animais</span>
+            <Icons.ChevronRight className="w-4 h-4" />
           </Link>
         </div>
       )}

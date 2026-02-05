@@ -141,10 +141,10 @@ export function KeyboardShortcutsHelp() {
         </div>
       </Modal>
 
-      {/* Botão flutuante de ajuda */}
+      {/* Botão flutuante de ajuda - apenas desktop */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-4 z-30 p-3 bg-gray-800 dark:bg-slate-700 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all group"
+        className="hidden md:flex fixed bottom-20 right-4 z-30 p-3 bg-gray-800 dark:bg-slate-700 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all group items-center justify-center"
         title="Atalhos de Teclado (Shift + ?)"
         aria-label="Mostrar atalhos de teclado"
       >

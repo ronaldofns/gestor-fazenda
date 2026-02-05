@@ -3563,11 +3563,10 @@ export async function pullUsuarios() {
 // Guard para evitar múltiplas sincronizações simultâneas
 let isSyncing = false;
 
-export async function syncAll() {
+export async function syncAll(): Promise<{ ran: boolean }> {
   // Evitar múltiplas sincronizações simultâneas
   if (isSyncing) {
-    console.warn('⏭️ Sincronização já em andamento, ignorando...');
-    return;
+    return { ran: false };
   }
 
   isSyncing = true;
@@ -3582,9 +3581,10 @@ export async function syncAll() {
   console.log('🚀 INICIANDO SINCRONIZAÇÃO COMPLETA');
   console.log('🚀 ========================================');
   
-  // Atualizar estado global de sincronização via evento customizado
+  // Atualizar estado global de sincronização (usado por TopBar e página Sincronização)
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('syncStateChange', { detail: { syncing: true } }));
+    const { setGlobalSyncing } = await import('../utils/syncState');
+    setGlobalSyncing(true);
   }
   
   try {
@@ -3635,9 +3635,10 @@ export async function syncAll() {
           timestamp, 
           success: true,
           stats: currentSyncStats
-        } 
+        }
       }));
     }
+    return { ran: true };
   } catch (error) {
     console.error('❌ ========================================');
     console.error('❌ ERRO DURANTE SINCRONIZAÇÃO');
@@ -3661,12 +3662,12 @@ export async function syncAll() {
         } 
       }));
     }
-    throw error;
+    throw error; // Propagar erro para o caller
   } finally {
     isSyncing = false;
-    // Sempre atualizar estado para false ao finalizar
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('syncStateChange', { detail: { syncing: false } }));
+      const { setGlobalSyncing } = await import('../utils/syncState');
+      setGlobalSyncing(false);
     }
   }
 }

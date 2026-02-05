@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
+import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import { showToast } from '../utils/toast';
@@ -371,25 +371,27 @@ const TagsManager = memo(function TagsManager({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowForm(!showForm)}
+              title="Nova Tag"
               className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:shadow-lg transform hover:scale-105 ${getPrimaryButtonClass(primaryColor)}`}
             >
               <Icons.Plus className="w-4 h-4" />
-              <span>Nova Tag</span>
+              <span className="hidden sm:inline">Nova Tag</span>
             </button>
 
             {podeExportarDados && (
               <button
                 onClick={handleExport}
+                title="Exportar"
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all"
               >
                 <Icons.Download className="w-4 h-4" />
-                Exportar
+                <span className="hidden sm:inline">Exportar</span>
               </button>
             )}
 
-            <label className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all cursor-pointer">
+            <label title="Importar" className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 hover:shadow-md transition-all cursor-pointer">
               <Icons.Upload className="w-4 h-4" />
-              Importar
+              <span className="hidden sm:inline">Importar</span>
               <input
                 type="file"
                 accept=".json"
@@ -401,10 +403,11 @@ const TagsManager = memo(function TagsManager({
             {tags.length > 0 && (
               <button
                 onClick={handleClearAll}
+                title="Limpar Tudo"
                 className="ml-auto flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 bg-white dark:bg-slate-800 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 hover:shadow-md transition-all"
               >
                 <Icons.Trash className="w-4 h-4" />
-                Limpar Tudo
+                <span className="hidden sm:inline">Limpar Tudo</span>
               </button>
             )}
           </div>
@@ -707,10 +710,11 @@ const TagsManager = memo(function TagsManager({
     <>
       <button
         onClick={() => setIsOpen(true)}
+        title={buttonLabel}
         className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:shadow-lg ${getPrimaryButtonClass(primaryColor)}`}
       >
         <Icons.Tag className="w-4 h-4" />
-        {buttonLabel}
+        <span className="hidden sm:inline">{buttonLabel}</span>
       </button>
 
       <Modal open={isOpen} onClose={() => setIsOpen(false)}>
