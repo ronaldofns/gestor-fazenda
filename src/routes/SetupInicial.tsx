@@ -10,14 +10,15 @@ import { showToast } from '../utils/toast';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getThemeClasses, getPrimaryButtonClass, getPrimaryBgClass } from '../utils/themeHelpers';
+import { msg } from '../utils/validationMessages';
 
 const schema = z.object({
-  nome: z.string().min(1, 'Informe o nome'),
-  email: z.string().min(1, 'Informe o email').email('Email inválido'),
-  senha: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres'),
-  confirmarSenha: z.string().min(1, 'Confirme a senha')
+  nome: z.string().min(1, msg.obrigatorio),
+  email: z.string().min(1, msg.obrigatorio).email(msg.emailInvalido),
+  senha: z.string().min(6, msg.senhaMinima),
+  confirmarSenha: z.string().min(1, msg.confirmeSenha)
 }).refine((data) => data.senha === data.confirmarSenha, {
-  message: 'As senhas não coincidem',
+  message: msg.senhasNaoCoincidem,
   path: ['confirmarSenha']
 });
 
@@ -183,7 +184,7 @@ export default function SetupInicial() {
         {/* Card de Cadastro */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-slate-800">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6 text-center">Criar Administrador</h2>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Nome *</label>
               <input

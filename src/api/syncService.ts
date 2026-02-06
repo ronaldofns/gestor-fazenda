@@ -1,6 +1,7 @@
 import { db } from '../db/dexieDB';
 import { supabase } from './supabaseClient';
 import { processSyncQueue } from '../utils/syncEvents';
+import { pullEntity, pullEntitySimple, fetchAllPaginated } from './syncEngine';
 import { formatDateBR } from '../utils/date';
 import { converterDataParaFormatoBanco } from '../utils/dateInput';
 
@@ -230,43 +231,37 @@ export async function pushPending() {
     console.error('Erro geral ao sincronizar exclusões:', err);
   }
 
-  // Sincronizar categorias, raças e fazendas em paralelo (tabelas independentes)
+  // Sincronizar categorias, raças e fazendas em paralelo (bulk upsert + bulkUpdate)
+  const PUSH_BATCH = 100;
   await Promise.all([
     // Sincronizar categorias
     (async () => {
       try {
         const todasCategorias = await db.categorias.toArray();
         const pendCategorias = todasCategorias.filter(c => c.synced === false);
-        for (const c of pendCategorias) {
-          try {
-            const { data, error } = await supabase
-              .from('categorias_online')
-              .upsert(
-                {
-                  uuid: c.id,
-                  nome: c.nome,
-                  created_at: c.createdAt,
-                  updated_at: c.updatedAt
-                },
-                { onConflict: 'uuid' }
-              )
-              .select('id, uuid');
-
-            if (!error && data && data.length) {
-              await db.categorias.update(c.id, { synced: true, remoteId: data[0].id });
-            } else if (error) {
-              console.error('Erro ao sincronizar categoria:', {
-                error: error,
-                message: error.message,
-                code: error.code,
-                details: error.details,
-                hint: error.hint,
-                categoriaId: c.id,
-                nome: c.nome
-              });
-            }
-          } catch (err) {
-            console.error('Erro ao processar categoria:', err, c.id);
+        for (let i = 0; i < pendCategorias.length; i += PUSH_BATCH) {
+          const batch = pendCategorias.slice(i, i + PUSH_BATCH);
+          const payload = batch.map(c => ({
+            uuid: c.id,
+            nome: c.nome,
+            created_at: c.createdAt,
+            updated_at: c.updatedAt
+          }));
+          const { data, error } = await supabase
+            .from('categorias_online')
+            .upsert(payload, { onConflict: 'uuid' })
+            .select('id, uuid');
+          if (!error && data?.length) {
+            const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+            const updates = batch
+              .map(c => {
+                const remoteId = uuidToRemoteId.get(c.id);
+                return remoteId != null ? { key: c.id, changes: { synced: true, remoteId } } : null;
+              })
+              .filter((u): u is NonNullable<typeof u> => u !== null);
+            if (updates.length > 0) await db.categorias.bulkUpdate(updates);
+          } else if (error) {
+            console.error('Erro ao sincronizar categorias:', error?.message, error?.details);
           }
         }
       } catch (err) {
@@ -278,36 +273,29 @@ export async function pushPending() {
       try {
         const todasRacas = await db.racas.toArray();
         const pendRacas = todasRacas.filter(r => r.synced === false);
-        for (const r of pendRacas) {
-          try {
-            const { data, error } = await supabase
-              .from('racas_online')
-              .upsert(
-                {
-                  uuid: r.id,
-                  nome: r.nome,
-                  created_at: r.createdAt,
-                  updated_at: r.updatedAt
-                },
-                { onConflict: 'uuid' }
-              )
-              .select('id, uuid');
-
-            if (!error && data && data.length) {
-              await db.racas.update(r.id, { synced: true, remoteId: data[0].id });
-            } else if (error) {
-              console.error('Erro ao sincronizar raça:', {
-                error: error,
-                message: error.message,
-                code: error.code,
-                details: error.details,
-                hint: error.hint,
-                racaId: r.id,
-                nome: r.nome
-              });
-            }
-          } catch (err) {
-            console.error('Erro ao processar raça:', err, r.id);
+        for (let i = 0; i < pendRacas.length; i += PUSH_BATCH) {
+          const batch = pendRacas.slice(i, i + PUSH_BATCH);
+          const payload = batch.map(r => ({
+            uuid: r.id,
+            nome: r.nome,
+            created_at: r.createdAt,
+            updated_at: r.updatedAt
+          }));
+          const { data, error } = await supabase
+            .from('racas_online')
+            .upsert(payload, { onConflict: 'uuid' })
+            .select('id, uuid');
+          if (!error && data?.length) {
+            const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+            const updates = batch
+              .map(r => {
+                const remoteId = uuidToRemoteId.get(r.id);
+                return remoteId != null ? { key: r.id, changes: { synced: true, remoteId } } : null;
+              })
+              .filter((u): u is NonNullable<typeof u> => u !== null);
+            if (updates.length > 0) await db.racas.bulkUpdate(updates);
+          } else if (error) {
+            console.error('Erro ao sincronizar raças:', error?.message, error?.details);
           }
         }
       } catch (err) {
@@ -319,37 +307,30 @@ export async function pushPending() {
       try {
         const todasFazendas = await db.fazendas.toArray();
         const pendFaz = todasFazendas.filter(f => f.synced === false);
-        for (const f of pendFaz) {
-          try {
-            const { data, error } = await supabase
-              .from('fazendas_online')
-              .upsert(
-                {
-                  uuid: f.id,
-                  nome: f.nome,
-                  logo_url: f.logoUrl,
-                  created_at: f.createdAt,
-                  updated_at: f.updatedAt
-                },
-                { onConflict: 'uuid' }
-              )
-              .select('id, uuid');
-
-            if (!error && data && data.length) {
-              await db.fazendas.update(f.id, { synced: true, remoteId: data[0].id });
-            } else if (error) {
-              console.error('Erro ao sincronizar fazenda:', {
-                error: error,
-                message: error.message,
-                details: error.details,
-                hint: error.hint,
-                code: error.code,
-                fazendaId: f.id,
-                nome: f.nome
-              });
-            }
-          } catch (err) {
-            console.error('Erro ao processar fazenda:', err, f.id);
+        for (let i = 0; i < pendFaz.length; i += PUSH_BATCH) {
+          const batch = pendFaz.slice(i, i + PUSH_BATCH);
+          const payload = batch.map(f => ({
+            uuid: f.id,
+            nome: f.nome,
+            logo_url: f.logoUrl,
+            created_at: f.createdAt,
+            updated_at: f.updatedAt
+          }));
+          const { data, error } = await supabase
+            .from('fazendas_online')
+            .upsert(payload, { onConflict: 'uuid' })
+            .select('id, uuid');
+          if (!error && data?.length) {
+            const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+            const updates = batch
+              .map(f => {
+                const remoteId = uuidToRemoteId.get(f.id);
+                return remoteId != null ? { key: f.id, changes: { synced: true, remoteId } } : null;
+              })
+              .filter((u): u is NonNullable<typeof u> => u !== null);
+            if (updates.length > 0) await db.fazendas.bulkUpdate(updates);
+          } else if (error) {
+            console.error('Erro ao sincronizar fazendas:', error?.message, error?.details);
           }
         }
       } catch (err) {
@@ -519,34 +500,34 @@ export async function pushPending() {
   }
 
   try {
-    // Query mais segura para desmamas também
     const todasDesmamas = await db.desmamas.toArray();
     const pendDesm = todasDesmamas.filter(d => d.synced === false);
-  for (const d of pendDesm) {
-      try {
-    const { data, error } = await supabase
-      .from('desmamas_online')
-      .upsert(
-        {
-          uuid: d.id,
-          nascimento_uuid: d.nascimentoId,
-          animal_id: d.animalId || null,
-          data_desmama: toIsoDate(d.dataDesmama),
-          peso_desmama: d.pesoDesmama,
-          created_at: d.createdAt,
-          updated_at: d.updatedAt
-        },
-        { onConflict: 'uuid' }
-      )
-      .select('id, uuid');
-
-    if (!error && data && data.length) {
-      await db.desmamas.update(d.id, { synced: true, remoteId: data[0].id });
-        } else if (error) {
-          console.error('Erro ao sincronizar desmama:', error, d.id);
-        }
-      } catch (err) {
-        console.error('Erro ao processar desmama:', err, d.id);
+    for (let i = 0; i < pendDesm.length; i += PUSH_BATCH) {
+      const batch = pendDesm.slice(i, i + PUSH_BATCH);
+      const payload = batch.map(d => ({
+        uuid: d.id,
+        nascimento_uuid: d.nascimentoId,
+        animal_id: d.animalId || null,
+        data_desmama: toIsoDate(d.dataDesmama),
+        peso_desmama: d.pesoDesmama,
+        created_at: d.createdAt,
+        updated_at: d.updatedAt
+      }));
+      const { data, error } = await supabase
+        .from('desmamas_online')
+        .upsert(payload, { onConflict: 'uuid' })
+        .select('id, uuid');
+      if (!error && data?.length) {
+        const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+        const updates = batch
+          .map(d => {
+            const remoteId = uuidToRemoteId.get(d.id);
+            return remoteId != null ? { key: d.id, changes: { synced: true, remoteId } } : null;
+          })
+          .filter((u): u is NonNullable<typeof u> => u !== null);
+        if (updates.length > 0) await db.desmamas.bulkUpdate(updates);
+      } else if (error) {
+        console.error('Erro ao sincronizar desmamas:', error?.message, error?.details);
       }
     }
   } catch (err) {
@@ -556,127 +537,101 @@ export async function pushPending() {
 
   // Sincronizar pesagens e vacinações em paralelo (tabelas independentes)
   await Promise.all([
-    // Sincronizar pesagens
+    // Sincronizar pesagens (bulk)
     (async () => {
       try {
         const todasPesagens = await db.pesagens.toArray();
-        const pendPesagens = todasPesagens.filter(p => p.synced === false);
-
+        const pendPesagens = todasPesagens.filter(p => {
+          if (p.synced) return false;
+          if (!p.nascimentoId && !p.animalId) {
+            console.error('Pesagem sem nascimentoId nem animalId, ignorando:', p.id);
+            return false;
+          }
+          const dataFormatada = toIsoDate(p.dataPesagem);
+          if (!dataFormatada) {
+            console.error('Pesagem sem data válida, ignorando:', p.id);
+            return false;
+          }
+          return true;
+        });
         if (pendPesagens.length > 0) {
           console.log(`📊 Sincronizando ${pendPesagens.length} pesagem(ns) pendente(s)`);
         }
-
-        for (const p of pendPesagens) {
-          try {
-            // Validar dados antes de sincronizar
-            if (!p.nascimentoId && !p.animalId) {
-              console.error('Pesagem sem nascimentoId nem animalId, ignorando:', p.id, p);
-              continue;
-            }
-
-            const dataPesagemFormatada = toIsoDate(p.dataPesagem);
-            if (!dataPesagemFormatada) {
-              console.error('Pesagem sem data válida, ignorando:', p.id, p);
-              continue;
-            }
-
-            const { data, error } = await supabase
-              .from('pesagens_online')
-              .upsert(
-                {
-                  uuid: p.id,
-                  nascimento_id: p.nascimentoId || null,
-                  animal_id: p.animalId || null,
-                  data_pesagem: dataPesagemFormatada,
-                  peso: p.peso,
-                  observacao: p.observacao || null,
-                  created_at: p.createdAt,
-                  updated_at: p.updatedAt
-                },
-                { onConflict: 'uuid' }
-              )
-              .select('id, uuid');
-
-            if (!error && data && data.length) {
-              await db.pesagens.update(p.id, { synced: true, remoteId: data[0].id });
-              console.log(`✅ Pesagem sincronizada: ${p.id} -> remoteId: ${data[0].id}`);
-            } else if (error) {
-              console.error('❌ Erro ao sincronizar pesagem:', {
-                pesagemId: p.id,
-                nascimentoId: p.nascimentoId,
-                dataPesagem: p.dataPesagem,
-                peso: p.peso,
-                error: {
-                  message: error.message || 'Erro desconhecido',
-                  code: error.code || 'Sem código',
-                  details: error.details || null,
-                  hint: error.hint || null
-                }
-              });
-            }
-          } catch (err: any) {
-            console.error('❌ Erro ao processar pesagem:', {
-              pesagemId: p.id,
-              error: err?.message || err,
-              stack: err?.stack
-            });
+        for (let i = 0; i < pendPesagens.length; i += PUSH_BATCH) {
+          const batch = pendPesagens.slice(i, i + PUSH_BATCH);
+          const payload = batch.map(p => ({
+            uuid: p.id,
+            nascimento_id: p.nascimentoId || null,
+            animal_id: p.animalId || null,
+            data_pesagem: toIsoDate(p.dataPesagem)!,
+            peso: p.peso,
+            observacao: p.observacao || null,
+            created_at: p.createdAt,
+            updated_at: p.updatedAt
+          }));
+          const { data, error } = await supabase
+            .from('pesagens_online')
+            .upsert(payload, { onConflict: 'uuid' })
+            .select('id, uuid');
+          if (!error && data?.length) {
+            const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+            const updates = batch
+              .map(p => {
+                const remoteId = uuidToRemoteId.get(p.id);
+                return remoteId != null ? { key: p.id, changes: { synced: true, remoteId } } : null;
+              })
+              .filter((u): u is NonNullable<typeof u> => u !== null);
+            if (updates.length > 0) await db.pesagens.bulkUpdate(updates);
+          } else if (error) {
+            console.error('❌ Erro ao sincronizar pesagens:', error?.message, error?.details);
           }
         }
       } catch (err) {
         console.error('❌ Erro geral ao fazer push de pesagens:', err);
       }
     })(),
-    // Sincronizar vacinações
+    // Sincronizar vacinações (bulk)
     (async () => {
       try {
         const todasVacinacoes = await db.vacinacoes.toArray();
         const pendVacinacoes = todasVacinacoes.filter(v => v.synced === false);
-
-        for (const v of pendVacinacoes) {
-          try {
-            const { data, error } = await supabase
-              .from('vacinacoes_online')
-              .upsert(
-                {
-                  uuid: v.id,
-                  nascimento_id: v.nascimentoId || null,
-                  animal_id: v.animalId || null,
-                  vacina: v.vacina,
-                  data_aplicacao: toIsoDate(v.dataAplicacao),
-                  data_vencimento: v.dataVencimento ? toIsoDate(v.dataVencimento) : null,
-                  lote: v.lote || null,
-                  responsavel: v.responsavel || null,
-                  observacao: v.observacao || null,
-                  created_at: v.createdAt,
-                  updated_at: v.updatedAt
-                },
-                { onConflict: 'uuid' }
-              )
-              .select('id, uuid');
-
-            if (!error && data && data.length) {
-              await db.vacinacoes.update(v.id, { synced: true, remoteId: data[0].id });
-            } else if (error) {
-              // Se a tabela não existe, apenas logar e continuar
-              if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('Could not find the table')) {
-                console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
-                break; // Parar o loop para não tentar todas as vacinações
-              } else {
-                console.error('Erro ao sincronizar vacinação:', error, v.id);
-              }
-            }
-          } catch (err: any) {
-            // Se a tabela não existe, apenas logar e continuar
-            if (err?.code === 'PGRST205' || err?.code === '42P01' || err?.message?.includes('Could not find the table')) {
+        for (let i = 0; i < pendVacinacoes.length; i += PUSH_BATCH) {
+          const batch = pendVacinacoes.slice(i, i + PUSH_BATCH);
+          const payload = batch.map(v => ({
+            uuid: v.id,
+            nascimento_id: v.nascimentoId || null,
+            animal_id: v.animalId || null,
+            vacina: v.vacina,
+            data_aplicacao: toIsoDate(v.dataAplicacao),
+            data_vencimento: v.dataVencimento ? toIsoDate(v.dataVencimento) : null,
+            lote: v.lote || null,
+            responsavel: v.responsavel || null,
+            observacao: v.observacao || null,
+            created_at: v.createdAt,
+            updated_at: v.updatedAt
+          }));
+          const { data, error } = await supabase
+            .from('vacinacoes_online')
+            .upsert(payload, { onConflict: 'uuid' })
+            .select('id, uuid');
+          if (!error && data?.length) {
+            const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+            const updates = batch
+              .map(v => {
+                const remoteId = uuidToRemoteId.get(v.id);
+                return remoteId != null ? { key: v.id, changes: { synced: true, remoteId } } : null;
+              })
+              .filter((u): u is NonNullable<typeof u> => u !== null);
+            if (updates.length > 0) await db.vacinacoes.bulkUpdate(updates);
+          } else if (error) {
+            if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('Could not find the table')) {
               console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
-              break; // Parar o loop
-            } else {
-              console.error('Erro ao processar vacinação:', err, v.id);
+              break;
             }
+            console.error('Erro ao sincronizar vacinações:', error?.message, error?.details);
           }
         }
       } catch (err: any) {
-        // Se a tabela não existe, apenas logar e continuar (não quebrar a sincronização)
         if (err?.code === 'PGRST205' || err?.code === '42P01' || err?.message?.includes('Could not find the table')) {
           console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
         } else {
@@ -686,52 +641,38 @@ export async function pushPending() {
     })()
   ]);
 
-  // Sincronizar usuários
+  // Sincronizar usuários (bulk)
   try {
     const todosUsuarios = await db.usuarios.toArray();
     const pendUsuarios = todosUsuarios.filter(u => u.synced === false);
-    
-    for (const u of pendUsuarios) {
-      try {
-        const { data, error } = await supabase
-          .from('usuarios_online')
-          .upsert(
-            {
-              uuid: u.id,
-              nome: u.nome,
-              email: u.email,
-              senha_hash: u.senhaHash,
-              role: u.role,
-              fazenda_uuid: u.fazendaId || null,
-              ativo: u.ativo,
-              created_at: u.createdAt,
-              updated_at: u.updatedAt
-            },
-            { onConflict: 'uuid' }
-          )
-          .select('id, uuid');
-
-        if (!error && data && data.length) {
-          await db.usuarios.update(u.id, { synced: true, remoteId: data[0].id });
-        } else if (error) {
-          console.error('Erro ao sincronizar usuário:', {
-            error: error,
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-            usuarioId: u.id,
-            email: u.email
-          });
-        }
-      } catch (err: any) {
-        console.error('Erro ao processar usuário:', {
-          error: err,
-          message: err?.message,
-          stack: err?.stack,
-          usuarioId: u.id,
-          email: u.email
-        });
+    for (let i = 0; i < pendUsuarios.length; i += PUSH_BATCH) {
+      const batch = pendUsuarios.slice(i, i + PUSH_BATCH);
+      const payload = batch.map(u => ({
+        uuid: u.id,
+        nome: u.nome,
+        email: u.email,
+        senha_hash: u.senhaHash,
+        role: u.role,
+        fazenda_uuid: u.fazendaId || null,
+        ativo: u.ativo,
+        created_at: u.createdAt,
+        updated_at: u.updatedAt
+      }));
+      const { data, error } = await supabase
+        .from('usuarios_online')
+        .upsert(payload, { onConflict: 'uuid' })
+        .select('id, uuid');
+      if (!error && data?.length) {
+        const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+        const updates = batch
+          .map(u => {
+            const remoteId = uuidToRemoteId.get(u.id);
+            return remoteId != null ? { key: u.id, changes: { synced: true, remoteId } } : null;
+          })
+          .filter((u): u is NonNullable<typeof u> => u !== null);
+        if (updates.length > 0) await db.usuarios.bulkUpdate(updates);
+      } else if (error) {
+        console.error('Erro ao sincronizar usuários:', error?.message, error?.details);
       }
     }
   } catch (err) {
@@ -739,49 +680,41 @@ export async function pushPending() {
     throw err;
   }
 
-  // Sincronizar auditoria (somente push - não puxa de volta)
+  // Sincronizar auditoria (bulk - somente push)
   try {
     if (db.audits) {
       const todosAudits = await db.audits.toArray();
       const pendAudits = todosAudits.filter((a) => a.synced === false);
-
-      for (const a of pendAudits) {
-        try {
-          const { data, error } = await supabase
-            .from('audits_online')
-            .upsert(
-              {
-                uuid: a.id,
-                entity: a.entity,
-                entity_id: a.entityId,
-                action: a.action,
-                timestamp: a.timestamp,
-                user_uuid: a.userId || null,
-                user_nome: a.userNome || null,
-                before_json: a.before ? JSON.parse(a.before) : null,
-                after_json: a.after ? JSON.parse(a.after) : null,
-                description: a.description || null,
-                created_at: a.timestamp
-              },
-              { onConflict: 'uuid' }
-            )
-            .select('id, uuid');
-
-          if (!error && data && data.length) {
-            await db.audits.update(a.id, { synced: true, remoteId: data[0].id });
-          } else if (error) {
-            console.error('Erro ao sincronizar audit log:', {
-              message: error.message || 'Erro desconhecido',
-              code: error.code || 'Sem código',
-              details: error.details || null,
-              hint: error.hint || null,
-              auditId: a.id,
-              entity: a.entity,
-              entityId: a.entityId
-            });
-          }
-        } catch (err) {
-          console.error('Erro ao processar audit log:', err, a.id);
+      for (let i = 0; i < pendAudits.length; i += PUSH_BATCH) {
+        const batch = pendAudits.slice(i, i + PUSH_BATCH);
+        const payload = batch.map(a => ({
+          uuid: a.id,
+          entity: a.entity,
+          entity_id: a.entityId,
+          action: a.action,
+          timestamp: a.timestamp,
+          user_uuid: a.userId || null,
+          user_nome: a.userNome || null,
+          before_json: a.before ? JSON.parse(a.before) : null,
+          after_json: a.after ? JSON.parse(a.after) : null,
+          description: a.description || null,
+          created_at: a.timestamp
+        }));
+        const { data, error } = await supabase
+          .from('audits_online')
+          .upsert(payload, { onConflict: 'uuid' })
+          .select('id, uuid');
+        if (!error && data?.length) {
+          const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+          const updates = batch
+            .map(a => {
+              const remoteId = uuidToRemoteId.get(a.id);
+              return remoteId != null ? { key: a.id, changes: { synced: true, remoteId } } : null;
+            })
+            .filter((u): u is NonNullable<typeof u> => u !== null);
+          if (updates.length > 0) await db.audits.bulkUpdate(updates);
+        } else if (error) {
+          console.error('Erro ao sincronizar auditoria:', error?.message, error?.details);
         }
       }
     }
@@ -789,177 +722,120 @@ export async function pushPending() {
     console.error('Erro geral ao fazer push de auditoria:', err);
   }
 
-  // Sincronizar notificações lidas
+  // Sincronizar notificações lidas (bulk)
   try {
     if (db.notificacoesLidas) {
       const todasNotificacoes = await db.notificacoesLidas.toArray();
       const pendNotificacoes = todasNotificacoes.filter(n => n.synced === false);
-
-      for (const n of pendNotificacoes) {
-        try {
-          const { data, error } = await supabase
-            .from('notificacoes_lidas_online')
-            .upsert(
-              {
-                uuid: n.id,
-                tipo: n.tipo,
-                marcada_em: n.marcadaEm,
-                created_at: n.marcadaEm,
-                updated_at: n.marcadaEm
-              },
-              { onConflict: 'uuid' }
-            )
-            .select('id, uuid');
-
-          if (!error && data && data.length) {
-            await db.notificacoesLidas.update(n.id, { synced: true, remoteId: data[0].id });
-          } else if (error) {
-            console.error('Erro ao sincronizar notificação lida:', {
-              error: error,
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
-              notificacaoId: n.id,
-              tipo: n.tipo
-            });
-          }
-        } catch (err: any) {
-          console.error('Erro ao processar notificação lida:', {
-            error: err,
-            message: err?.message,
-            stack: err?.stack,
-            notificacaoId: n.id,
-            tipo: n.tipo
-          });
+      for (let i = 0; i < pendNotificacoes.length; i += PUSH_BATCH) {
+        const batch = pendNotificacoes.slice(i, i + PUSH_BATCH);
+        const payload = batch.map(n => ({
+          uuid: n.id,
+          tipo: n.tipo,
+          marcada_em: n.marcadaEm,
+          created_at: n.marcadaEm,
+          updated_at: n.marcadaEm
+        }));
+        const { data, error } = await supabase
+          .from('notificacoes_lidas_online')
+          .upsert(payload, { onConflict: 'uuid' })
+          .select('id, uuid');
+        if (!error && data?.length) {
+          const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+          const updates = batch
+            .map(n => {
+              const remoteId = uuidToRemoteId.get(n.id);
+              return remoteId != null ? { key: n.id, changes: { synced: true, remoteId } } : null;
+            })
+            .filter((u): u is NonNullable<typeof u> => u !== null);
+          if (updates.length > 0) await db.notificacoesLidas.bulkUpdate(updates);
+        } else if (error) {
+          console.error('Erro ao sincronizar notificações lidas:', error?.message, error?.details, error?.hint);
+          // Se a constraint CHECK falhar, o tipo pode não estar permitido no banco (ex: peso, vacina).
+          // Migration 049 corrige isso.
         }
       }
     }
   } catch (err: any) {
-    console.error('Erro geral ao fazer push de notificações lidas:', {
-      error: err,
-      message: err?.message,
-      stack: err?.stack
-    });
+    console.error('Erro geral ao fazer push de notificações lidas:', err?.message, err?.stack);
   }
 
-  // Sincronizar configurações de alerta
+  // Sincronizar configurações de alerta (bulk)
   try {
     if (db.alertSettings) {
       const todasSettings = await db.alertSettings.toArray();
       const pendSettings = todasSettings.filter(s => s.synced === false);
-      
-      for (const s of pendSettings) {
-        try {
-          // Sempre usar timestamp atual para garantir que seja mais recente
-          const now = new Date().toISOString();
-          const { data, error } = await supabase
-            .from('alert_settings_online')
-            .upsert(
-              {
-                uuid: s.id,
-                limite_meses_desmama: s.limiteMesesDesmama,
-                janela_meses_mortalidade: s.janelaMesesMortalidade,
-                limiar_mortalidade: s.limiarMortalidade,
-                created_at: s.createdAt || now,
-                updated_at: now // Sempre atualizar para garantir que seja mais recente
-              },
-              { onConflict: 'uuid' }
-            )
-            .select('id, uuid, updated_at');
-
-          if (!error && data && data.length) {
-            // Atualizar com o updated_at retornado pelo servidor
-            await db.alertSettings.update(s.id, { 
-              synced: true, 
-              remoteId: data[0].id,
-              updatedAt: data[0].updated_at || now
-            });
-          } else if (error) {
-            console.error('Erro ao sincronizar configurações de alerta:', {
-              error: error,
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
-              settingsId: s.id
-            });
-          }
-        } catch (err: any) {
-          console.error('Erro ao processar configurações de alerta:', {
-            error: err,
-            message: err?.message,
-            stack: err?.stack,
-            settingsId: s.id
-          });
+      const now = new Date().toISOString();
+      for (let i = 0; i < pendSettings.length; i += PUSH_BATCH) {
+        const batch = pendSettings.slice(i, i + PUSH_BATCH);
+        const payload = batch.map(s => ({
+          uuid: s.id,
+          limite_meses_desmama: s.limiteMesesDesmama,
+          janela_meses_mortalidade: s.janelaMesesMortalidade,
+          limiar_mortalidade: s.limiarMortalidade,
+          created_at: s.createdAt || now,
+          updated_at: now
+        }));
+        const { data, error } = await supabase
+          .from('alert_settings_online')
+          .upsert(payload, { onConflict: 'uuid' })
+          .select('id, uuid, updated_at');
+        if (!error && data?.length) {
+          const uuidToData = new Map(data.map((d: any) => [d.uuid, d]));
+          const updates = batch
+            .map(s => {
+              const d = uuidToData.get(s.id);
+              if (!d) return null;
+              return { key: s.id, changes: { synced: true, remoteId: d.id, updatedAt: d.updated_at || now } };
+            })
+            .filter((u): u is NonNullable<typeof u> => u !== null);
+          if (updates.length > 0) await db.alertSettings.bulkUpdate(updates);
+        } else if (error) {
+          console.error('Erro ao sincronizar alert settings:', error?.message, error?.details);
         }
       }
     }
   } catch (err: any) {
-    console.error('Erro geral ao fazer push de configurações de alerta:', {
-      error: err,
-      message: err?.message,
-      stack: err?.stack
-    });
+    console.error('Erro geral ao fazer push de configurações de alerta:', err?.message, err?.stack);
   }
 
-  // Sincronizar configurações do app
+  // Sincronizar configurações do app (bulk)
   try {
     if (db.appSettings) {
       const todasSettings = await db.appSettings.toArray();
       const pendSettings = todasSettings.filter(s => s.synced === false);
-      
-      for (const s of pendSettings) {
-        try {
-          // Sempre usar timestamp atual para garantir que seja mais recente
-          const now = new Date().toISOString();
-          const { data, error } = await supabase
-            .from('app_settings_online')
-            .upsert(
-              {
-                uuid: s.id,
-                timeout_inatividade: s.timeoutInatividade,
-                intervalo_sincronizacao: s.intervaloSincronizacao ?? 30,
-                primary_color: s.primaryColor || 'gray',
-                created_at: s.createdAt || now,
-                updated_at: now // Sempre atualizar para garantir que seja mais recente
-              },
-              { onConflict: 'uuid' }
-            )
-            .select('id, uuid, updated_at');
-
-          if (!error && data && data.length) {
-            // Atualizar com o updated_at retornado pelo servidor
-            await db.appSettings.update(s.id, { 
-              synced: true, 
-              remoteId: data[0].id,
-              updatedAt: data[0].updated_at || now
-            });
-          } else if (error) {
-            console.error('Erro ao sincronizar configurações do app:', {
-              error: error,
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
-              settingsId: s.id
-            });
-          }
-        } catch (err: any) {
-          console.error('Erro ao processar configurações do app:', {
-            error: err,
-            message: err?.message,
-            stack: err?.stack
-          });
+      const now = new Date().toISOString();
+      for (let i = 0; i < pendSettings.length; i += PUSH_BATCH) {
+        const batch = pendSettings.slice(i, i + PUSH_BATCH);
+        const payload = batch.map(s => ({
+          uuid: s.id,
+          timeout_inatividade: s.timeoutInatividade,
+          intervalo_sincronizacao: s.intervaloSincronizacao ?? 30,
+          primary_color: s.primaryColor || 'gray',
+          created_at: s.createdAt || now,
+          updated_at: now
+        }));
+        const { data, error } = await supabase
+          .from('app_settings_online')
+          .upsert(payload, { onConflict: 'uuid' })
+          .select('id, uuid, updated_at');
+        if (!error && data?.length) {
+          const uuidToData = new Map(data.map((d: any) => [d.uuid, d]));
+          const updates = batch
+            .map(s => {
+              const d = uuidToData.get(s.id);
+              if (!d) return null;
+              return { key: s.id, changes: { synced: true, remoteId: d.id, updatedAt: d.updated_at || now } };
+            })
+            .filter((u): u is NonNullable<typeof u> => u !== null);
+          if (updates.length > 0) await db.appSettings.bulkUpdate(updates);
+        } else if (error) {
+          console.error('Erro ao sincronizar app settings:', error?.message, error?.details);
         }
       }
     }
   } catch (err: any) {
-    console.error('Erro geral ao fazer push de configurações do app:', {
-      error: err,
-      message: err?.message,
-      stack: err?.stack
-    });
+    console.error('Erro geral ao fazer push de configurações do app:', err?.message, err?.stack);
   }
 
   // Sincronizar permissões por role (otimizado com batch upsert)
@@ -997,15 +873,14 @@ export async function pushPending() {
           }
         });
 
-        // Atualizar todas as permissões sincronizadas de uma vez
-        await Promise.all(
-          pendPermissoes.map(async (p) => {
+        // Atualizar todas as permissões sincronizadas de uma vez (bulkUpdate)
+        const updates = pendPermissoes
+          .map(p => {
             const remoteId = uuidToRemoteId.get(p.id);
-            if (remoteId) {
-              await db.rolePermissions.update(p.id, { synced: true, remoteId });
-            }
+            return remoteId != null ? { key: p.id, changes: { synced: true, remoteId } } : null;
           })
-        );
+          .filter((u): u is NonNullable<typeof u> => u !== null);
+        if (updates.length > 0) await db.rolePermissions.bulkUpdate(updates);
       } else if (error) {
         console.error('Erro ao sincronizar permissões em lote:', {
           message: error.message || 'Erro desconhecido',
@@ -1149,16 +1024,15 @@ export async function pushPending() {
               })
               .select('id, uuid');
 
-            if (!error && data) {
-              for (const tipo of pendTipos) {
-                const remote = data.find(d => d.uuid === tipo.id);
-                if (remote) {
-                  await db.tiposAnimal.update(tipo.id, {
-                    remoteId: remote.id,
-                    synced: true
-                  });
-                }
-              }
+            if (!error && data?.length) {
+              const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+              const updates = pendTipos
+                .map(t => {
+                  const remoteId = uuidToRemoteId.get(t.id);
+                  return remoteId != null ? { key: t.id, changes: { remoteId, synced: true } } : null;
+                })
+                .filter((u): u is NonNullable<typeof u> => u !== null);
+              if (updates.length > 0) await db.tiposAnimal.bulkUpdate(updates);
             } else if (error) {
               console.error('❌ Erro ao sincronizar tipos de animal:', error);
             }
@@ -1197,16 +1071,15 @@ export async function pushPending() {
               })
               .select('id, uuid');
 
-            if (!error && data) {
-              for (const status of pendStatus) {
-                const remote = data.find(d => d.uuid === status.id);
-                if (remote) {
-                  await db.statusAnimal.update(status.id, {
-                    remoteId: remote.id,
-                    synced: true
-                  });
-                }
-              }
+            if (!error && data?.length) {
+              const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+              const updates = pendStatus
+                .map(s => {
+                  const remoteId = uuidToRemoteId.get(s.id);
+                  return remoteId != null ? { key: s.id, changes: { remoteId, synced: true } } : null;
+                })
+                .filter((u): u is NonNullable<typeof u> => u !== null);
+              if (updates.length > 0) await db.statusAnimal.bulkUpdate(updates);
             } else if (error) {
               console.error('❌ Erro ao sincronizar status de animal:', error);
             }
@@ -1244,16 +1117,15 @@ export async function pushPending() {
               })
               .select('id, uuid');
 
-            if (!error && data) {
-              for (const origem of pendOrigens) {
-                const remote = data.find(d => d.uuid === origem.id);
-                if (remote) {
-                  await db.origens.update(origem.id, {
-                    remoteId: remote.id,
-                    synced: true
-                  });
-                }
-              }
+            if (!error && data?.length) {
+              const uuidToRemoteId = new Map(data.map((d: any) => [d.uuid, d.id]));
+              const updates = pendOrigens
+                .map(o => {
+                  const remoteId = uuidToRemoteId.get(o.id);
+                  return remoteId != null ? { key: o.id, changes: { remoteId, synced: true } } : null;
+                })
+                .filter((u): u is NonNullable<typeof u> => u !== null);
+              if (updates.length > 0) await db.origens.bulkUpdate(updates);
             } else if (error) {
               console.error('❌ Erro ao sincronizar origens:', error);
             }
@@ -1493,248 +1365,61 @@ export async function pullUpdates() {
   const totalSteps = 24; // Total de etapas no pull
   let currentStep = 0;
 
-  // Buscar categorias primeiro
+  // Buscar categorias (motor genérico) — forceFullPull: tabela pequena
   try {
     currentStep++;
     startSyncStep('Pull Categorias');
     emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Categorias...');
-    
-    const { data: servCategorias, error: errorCategorias } = await supabase.from('categorias_online').select('*');
-    if (errorCategorias) {
-      console.error('Erro ao buscar categorias do servidor:', {
-        error: errorCategorias,
-        message: errorCategorias.message,
-        code: errorCategorias.code,
-        details: errorCategorias.details,
-        hint: errorCategorias.hint
-      });
-    } else if (servCategorias && servCategorias.length > 0) {
-      const servUuids = new Set(servCategorias.map(c => c.uuid));
-      
-      const todasCategoriasLocais = await db.categorias.toArray();
-      const categoriasSincronizadas = todasCategoriasLocais.filter(c => c.remoteId != null);
-      
-      for (const local of categoriasSincronizadas) {
-        if (!servUuids.has(local.id)) {
-          await db.categorias.delete(local.id);
-        }
-      }
-      
-        for (const s of servCategorias) {
-        if (!s.uuid) {
-          console.warn('Categoria do servidor sem UUID, ignorando:', s);
-          continue;
-        }
-
-        const local = await db.categorias.get(s.uuid);
-        if (!local) {
-          // Usar put ao invés de add para evitar erro de chave duplicada
-          try {
-            await db.categorias.put({
-              id: s.uuid,
-              nome: s.nome,
-              createdAt: s.created_at,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } catch (putError: any) {
-            if (putError.name === 'ConstraintError') {
-              await db.categorias.update(s.uuid, {
-                nome: s.nome,
-                updatedAt: s.updated_at,
-                synced: true,
-                remoteId: s.id
-              });
-            } else {
-              throw putError;
-            }
-          }
-        } else {
-          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
-            await db.categorias.update(local.id, {
-              nome: s.nome,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          }
-        }
-      }
-    }
-    endSyncStep('Pull Categorias', servCategorias?.length || 0);
+    const n = await pullEntity({
+      remoteTable: 'categorias_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.categorias as any,
+      mapper: (s: any) => ({ id: s.uuid, nome: s.nome, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id }),
+      forceFullPull: true
+    });
+    endSyncStep('Pull Categorias', n);
   } catch (err) {
     console.error('Erro ao processar pull de categorias:', err);
     endSyncStep('Pull Categorias', 0);
   }
 
-  // Buscar raças primeiro
+  // Buscar raças (motor genérico) — forceFullPull: tabela pequena, evita perder registros por checkpoint incremental
   try {
     currentStep++;
     startSyncStep('Pull Raças');
     emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Raças...');
-    
-    const { data: servRacas, error: errorRacas } = await supabase.from('racas_online').select('*');
-    if (errorRacas) {
-      console.error('Erro ao buscar raças do servidor:', {
-        error: errorRacas,
-        message: errorRacas.message,
-        code: errorRacas.code,
-        details: errorRacas.details,
-        hint: errorRacas.hint
-      });
-      // Não excluir dados locais em caso de erro
-    } else if (servRacas && servRacas.length > 0) {
-      // IMPORTANTE: Só processar se houver dados no servidor
-      // Se servRacas for [] (vazio), preservar dados locais
-      
-      // Criar conjunto de UUIDs que existem no servidor
-      const servUuids = new Set(servRacas.map(r => r.uuid));
-      
-      // Buscar todas as raças locais que foram sincronizadas (têm remoteId)
-      const todasRacasLocais = await db.racas.toArray();
-      const racasSincronizadas = todasRacasLocais.filter(r => r.remoteId != null);
-      
-      // Excluir localmente as que não existem mais no servidor
-      // Mas só se o servidor retornou dados (não está vazio)
-      for (const local of racasSincronizadas) {
-        if (!servUuids.has(local.id)) {
-          await db.racas.delete(local.id);
-        }
-      }
-      
-      // Adicionar/atualizar raças do servidor
-      for (const s of servRacas) {
-        if (!s.uuid) {
-          console.warn('Raça do servidor sem UUID, ignorando:', s);
-          continue;
-        }
-
-        const local = await db.racas.get(s.uuid);
-        if (!local) {
-          // Usar put ao invés de add para evitar erro de chave duplicada
-          try {
-            await db.racas.put({
-              id: s.uuid,
-              nome: s.nome,
-              createdAt: s.created_at,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } catch (putError: any) {
-            if (putError.name === 'ConstraintError') {
-              await db.racas.update(s.uuid, {
-                nome: s.nome,
-                updatedAt: s.updated_at,
-                synced: true,
-                remoteId: s.id
-              });
-            } else {
-              throw putError;
-            }
-          }
-        } else {
-          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
-            await db.racas.update(local.id, {
-              nome: s.nome,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          }
-        }
-      }
-    }
-    endSyncStep('Pull Raças', servRacas?.length || 0);
+    const n = await pullEntity({
+      remoteTable: 'racas_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.racas as any,
+      mapper: (s: any) => ({ id: s.uuid, nome: s.nome, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id }),
+      forceFullPull: true
+    });
+    endSyncStep('Pull Raças', n);
   } catch (err) {
     console.error('Erro ao processar pull de raças:', err);
     endSyncStep('Pull Raças', 0);
   }
 
-  // Buscar fazendas
+  // Buscar fazendas (motor genérico) — forceFullPull: tabela pequena
   try {
     currentStep++;
     startSyncStep('Pull Fazendas');
     emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Fazendas...');
-    
-    const { data: servFaz, error: errorFaz } = await supabase.from('fazendas_online').select('*');
-    if (errorFaz) {
-      console.error('Erro ao buscar fazendas do servidor:', {
-        error: errorFaz,
-        message: errorFaz.message,
-        code: errorFaz.code,
-        details: errorFaz.details,
-        hint: errorFaz.hint
-      });
-      // Não excluir dados locais em caso de erro
-    } else if (servFaz && servFaz.length > 0) {
-      // IMPORTANTE: Só processar se houver dados no servidor
-      // Se servFaz for [] (vazio), preservar dados locais
-      
-      // Criar conjunto de UUIDs que existem no servidor
-      const servUuids = new Set(servFaz.map(f => f.uuid));
-      
-      // Buscar todas as fazendas locais que foram sincronizadas (têm remoteId)
-      const todasFazendasLocais = await db.fazendas.toArray();
-      const fazendasSincronizadas = todasFazendasLocais.filter(f => f.remoteId != null);
-      
-      // Excluir localmente as que não existem mais no servidor
-      // Mas só se o servidor retornou dados (não está vazio)
-      for (const local of fazendasSincronizadas) {
-        if (!servUuids.has(local.id)) {
-          await db.fazendas.delete(local.id);
-        }
-      }
-      
-      // Adicionar/atualizar fazendas do servidor
-      for (const s of servFaz) {
-        if (!s.uuid) {
-          console.warn('Fazenda do servidor sem UUID, ignorando:', s);
-          continue;
-        }
-
-        const local = await db.fazendas.get(s.uuid);
-        if (!local) {
-          // Usar put ao invés de add para evitar erro de chave duplicada
-          try {
-            await db.fazendas.put({
-              id: s.uuid,
-              nome: s.nome,
-              logoUrl: s.logo_url,
-              createdAt: s.created_at,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } catch (putError: any) {
-            if (putError.name === 'ConstraintError') {
-              await db.fazendas.update(s.uuid, {
-                nome: s.nome,
-                logoUrl: s.logo_url,
-                updatedAt: s.updated_at,
-                synced: true,
-                remoteId: s.id
-              });
-            } else {
-              throw putError;
-            }
-          }
-        } else {
-          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
-            await db.fazendas.update(local.id, {
-              nome: s.nome,
-              logoUrl: s.logo_url,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          }
-        }
-      }
-    }
+    const n = await pullEntity({
+      remoteTable: 'fazendas_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.fazendas as any,
+      mapper: (s: any) => ({ id: s.uuid, nome: s.nome, logoUrl: s.logo_url, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id }),
+      forceFullPull: true
+    });
+    endSyncStep('Pull Fazendas', n);
   } catch (err) {
     console.error('Erro ao processar pull de fazendas:', err);
+    endSyncStep('Pull Fazendas', 0);
   }
 
   // Buscar matrizes — desativado: uso apenas animais
@@ -2473,201 +2158,40 @@ export async function pullUpdates() {
     }
   }
 
-  // Buscar usuários
+  // Buscar usuários (motor genérico: incremental + batch)
   try {
     currentStep++;
     startSyncStep('Pull Usuários');
     emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Usuários...');
-    
-    const { data: servUsuarios, error: errorUsuarios } = await supabase.from('usuarios_online').select('*');
-    if (errorUsuarios) {
-      console.error('Erro ao buscar usuários do servidor:', errorUsuarios);
-      // Não excluir dados locais em caso de erro
-    } else if (servUsuarios && servUsuarios.length > 0) {
-      // IMPORTANTE: Só processar se houver dados no servidor
-      // Se servUsuarios for [] (vazio), preservar dados locais
-      
-      // Criar conjunto de UUIDs que existem no servidor
-      const servUuids = new Set(servUsuarios.map(u => u.uuid));
-      
-      // Buscar todos os usuários locais que foram sincronizados (têm remoteId)
-      const todosUsuariosLocais = await db.usuarios.toArray();
-      const usuariosSincronizados = todosUsuariosLocais.filter(u => u.remoteId != null);
-      
-      // Excluir localmente os que não existem mais no servidor
-      // Mas só se o servidor retornou dados (não está vazio)
-      for (const local of usuariosSincronizados) {
-        if (!servUuids.has(local.id)) {
-          await db.usuarios.delete(local.id);
-        }
-      }
-      
-      // Adicionar/atualizar usuários do servidor
-      for (const s of servUsuarios) {
-        if (!s.uuid) {
-          console.warn('Usuário do servidor sem UUID, ignorando:', s);
-          continue;
-        }
-
-        const local = await db.usuarios.get(s.uuid);
-        if (!local) {
-          // Usar put ao invés de add para evitar erro de chave duplicada
-          try {
-            await db.usuarios.put({
-              id: s.uuid,
-              nome: s.nome,
-              email: s.email,
-              senhaHash: s.senha_hash,
-              role: s.role,
-              fazendaId: s.fazenda_uuid || undefined,
-              ativo: s.ativo,
-              createdAt: s.created_at,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } catch (putError: any) {
-            if (putError.name === 'ConstraintError') {
-              await db.usuarios.update(s.uuid, {
-                nome: s.nome,
-                email: s.email,
-                senhaHash: s.senha_hash,
-                role: s.role,
-                fazendaId: s.fazenda_uuid || undefined,
-                ativo: s.ativo,
-                updatedAt: s.updated_at,
-                synced: true,
-                remoteId: s.id
-              });
-            } else {
-              throw putError;
-            }
-          }
-        } else {
-          // Atualizar apenas se a versão do servidor for mais recente
-          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
-            await db.usuarios.update(local.id, {
-              nome: s.nome,
-              email: s.email,
-              senhaHash: s.senha_hash, // Atualizar hash se mudou no servidor
-              role: s.role,
-              fazendaId: s.fazenda_uuid || undefined,
-              ativo: s.ativo,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          }
-        }
-      }
-    }
-    endSyncStep('Pull Usuários', servUsuarios?.length || 0);
+    const nUsuarios = await pullEntity({
+      remoteTable: 'usuarios_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.usuarios as any,
+      mapper: (s: any) => ({ id: s.uuid, nome: s.nome, email: s.email, senhaHash: s.senha_hash, role: s.role, fazendaId: s.fazenda_uuid || undefined, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id })
+    });
+    endSyncStep('Pull Usuários', nUsuarios);
   } catch (err) {
     console.error('Erro ao processar pull de usuários:', err);
     endSyncStep('Pull Usuários', 0);
     throw err;
   }
 
-  // Buscar auditoria (pull) - sincronizar logs de auditoria de outros dispositivos
+  // Pull de auditoria (motor genérico: incremental + batch, limit 1000)
   try {
     if (db.audits) {
-      const { data: servAudits, error: errorAudits } = await supabase
-        .from('audits_online')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(1000); // Limitar a 1000 registros mais recentes para evitar sobrecarga
-
-      if (errorAudits) {
-        console.error('Erro ao buscar auditoria do servidor:', {
-          error: errorAudits,
-          message: errorAudits.message,
-          code: errorAudits.code,
-          details: errorAudits.details,
-          hint: errorAudits.hint
-        });
-      } else if (servAudits && servAudits.length > 0) {
-        // Criar conjunto de UUIDs que existem no servidor
-        const servUuids = new Set(servAudits.map(a => a.uuid));
-
-        // Buscar todos os audits locais que foram sincronizados (têm remoteId)
-        const todosAuditsLocais = await db.audits.toArray();
-        const auditsSincronizados = todosAuditsLocais.filter(a => a.remoteId != null);
-
-        // Excluir localmente os que não existem mais no servidor
-        // (apenas se foram sincronizados anteriormente)
-        for (const local of auditsSincronizados) {
-          if (!servUuids.has(local.id)) {
-            await db.audits.delete(local.id);
-          }
-        }
-
-        // Adicionar/atualizar audits do servidor
-        for (const s of servAudits) {
-          const local = await db.audits.get(s.uuid);
-          if (!local) {
-            try {
-              // Usar put ao invés de add para evitar erro de chave duplicada
-              await db.audits.put({
-                id: s.uuid,
-                entity: s.entity,
-                entityId: s.entity_id,
-                action: s.action,
-                timestamp: s.timestamp,
-                userId: s.user_uuid || null,
-                userNome: s.user_nome || null,
-                before: s.before_json ? JSON.stringify(s.before_json) : null,
-                after: s.after_json ? JSON.stringify(s.after_json) : null,
-                description: s.description || null,
-                synced: true,
-                remoteId: s.id
-              });
-            } catch (putError: any) {
-              // Se ainda der erro, tentar atualizar
-              if (putError.name === 'ConstraintError' || putError.message?.includes('already exists')) {
-                const existing = await db.audits.get(s.uuid);
-                if (existing) {
-                  await db.audits.update(s.uuid, {
-                    entity: s.entity,
-                    entityId: s.entity_id,
-                    action: s.action,
-                    timestamp: s.timestamp,
-                    userId: s.user_uuid || null,
-                    userNome: s.user_nome || null,
-                    before: s.before_json ? JSON.stringify(s.before_json) : null,
-                    after: s.after_json ? JSON.stringify(s.after_json) : null,
-                    description: s.description || null,
-                    synced: true,
-                    remoteId: s.id
-                  });
-                }
-              } else {
-                console.error('Erro ao adicionar audit do servidor:', putError);
-              }
-            }
-          } else {
-            // Atualizar apenas se o servidor tem versão mais recente ou se não tem remoteId
-            if (!local.remoteId || new Date(local.timestamp) < new Date(s.timestamp)) {
-              await db.audits.update(local.id, {
-                entity: s.entity,
-                entityId: s.entity_id,
-                action: s.action,
-                timestamp: s.timestamp,
-                userId: s.user_uuid || null,
-                userNome: s.user_nome || null,
-                before: s.before_json ? JSON.stringify(s.before_json) : null,
-                after: s.after_json ? JSON.stringify(s.after_json) : null,
-                description: s.description || null,
-                synced: true,
-                remoteId: s.id
-              });
-            }
-          }
-        }
-      }
+      await pullEntity({
+        remoteTable: 'audits_online',
+        orderBy: 'timestamp',
+        updatedAtField: 'timestamp',
+        updatedAtFieldLocal: 'timestamp',
+        localTable: db.audits as any,
+        limit: 1000,
+        mapper: (s: any) => ({ id: s.uuid, entity: s.entity, entityId: s.entity_id, action: s.action, timestamp: s.timestamp, userId: s.user_uuid || null, userNome: s.user_nome || null, before: s.before_json ? JSON.stringify(s.before_json) : null, after: s.after_json ? JSON.stringify(s.after_json) : null, description: s.description || null, synced: true, remoteId: s.id })
+      });
     }
   } catch (err) {
     console.error('Erro ao processar pull de auditoria:', err);
-    // Não lançar erro - auditoria não é crítica para funcionamento
   }
 
   // Buscar configurações de alerta
@@ -2893,84 +2417,15 @@ export async function pullUpdates() {
     // Não lançar erro - configurações não são críticas para funcionamento
   }
 
-  // Buscar permissões por role
+  // Buscar permissões por role (motor genérico: incremental + batch)
   try {
-    const { data: servPermissoes, error: errorPermissoes } = await supabase
-      .from('role_permissions_online')
-      .select('*')
-      .order('role, permission');
-
-    if (errorPermissoes) {
-      console.error('Erro ao buscar permissões do servidor:', {
-        error: errorPermissoes,
-        message: errorPermissoes.message,
-        code: errorPermissoes.code
-      });
-    } else if (servPermissoes && servPermissoes.length > 0) {
-      const servUuids = new Set(servPermissoes.map(p => p.uuid));
-
-      // Excluir localmente as que não existem mais no servidor (apenas as sincronizadas)
-      const todasPermissoesLocais = await db.rolePermissions.toArray();
-      const permissoesSincronizadas = todasPermissoesLocais.filter(p => p.remoteId != null);
-
-      for (const local of permissoesSincronizadas) {
-        if (!servUuids.has(local.id)) {
-          await db.rolePermissions.delete(local.id);
-        }
-      }
-
-      // Adicionar/atualizar permissões do servidor
-      for (const s of servPermissoes) {
-        if (!s.uuid) {
-          console.warn('Permissão do servidor sem UUID, ignorando:', s);
-          continue;
-        }
-
-        const local = await db.rolePermissions.get(s.uuid);
-        if (!local) {
-          // Usar put ao invés de add para evitar erro de chave duplicada
-          try {
-            await db.rolePermissions.put({
-              id: s.uuid,
-              role: s.role,
-              permission: s.permission,
-              granted: s.granted,
-              createdAt: s.created_at,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } catch (err: any) {
-            // Se ainda der erro, tentar atualizar (pode ter sido criado entre a verificação e o put)
-            if (err.name === 'ConstraintError') {
-              await db.rolePermissions.update(s.uuid, {
-                role: s.role,
-                permission: s.permission,
-                granted: s.granted,
-                updatedAt: s.updated_at,
-                synced: true,
-                remoteId: s.id
-              });
-            } else {
-              throw err;
-            }
-          }
-        } else {
-          // Atualizar se a versão do servidor é mais recente
-          if (new Date(local.updatedAt) < new Date(s.updated_at)) {
-            await db.rolePermissions.update(local.id, {
-              granted: s.granted,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } else if (local.synced && local.remoteId !== s.id) {
-            // Atualizar apenas remoteId se mudou
-            await db.rolePermissions.update(local.id, { remoteId: s.id });
-          }
-        }
-      }
-    }
+    await pullEntity({
+      remoteTable: 'role_permissions_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.rolePermissions as any,
+      mapper: (s: any) => ({ id: s.uuid, role: s.role, permission: s.permission, granted: s.granted, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id })
+    });
   } catch (err) {
     console.error('Erro ao processar pull de permissões:', err);
     // Não lançar erro - permissões não são críticas para funcionamento básico
@@ -2980,72 +2435,19 @@ export async function pullUpdates() {
   // PULL SISTEMA DE ANIMAIS
   // ========================================
 
-  // Pull tipos de animal
+  // Pull tipos, status e origens (motor genérico - bulkPut)
   try {
-    const { data: servTipos } = await supabase.from('tipos_animal_online').select('*');
-    if (servTipos && servTipos.length > 0) {
-      for (const s of servTipos) {
-        await db.tiposAnimal.put({
-          id: s.uuid,
-          nome: s.nome,
-          descricao: s.descricao,
-          ordem: s.ordem,
-          ativo: s.ativo,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          deletedAt: s.deleted_at,
-          synced: true,
-          remoteId: s.id
-        });
-      }
-    }
+    await pullEntitySimple('tipos_animal_online', db.tiposAnimal as any, (s: any) => ({ id: s.uuid, nome: s.nome, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }));
   } catch (err) {
     console.error('Erro ao fazer pull de tipos de animal:', err);
   }
-
-  // Pull status de animal
   try {
-    const { data: servStatus } = await supabase.from('status_animal_online').select('*');
-    if (servStatus && servStatus.length > 0) {
-      for (const s of servStatus) {
-        await db.statusAnimal.put({
-          id: s.uuid,
-          nome: s.nome,
-          cor: s.cor,
-          descricao: s.descricao,
-          ordem: s.ordem,
-          ativo: s.ativo,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          deletedAt: s.deleted_at,
-          synced: true,
-          remoteId: s.id
-        });
-      }
-    }
+    await pullEntitySimple('status_animal_online', db.statusAnimal as any, (s: any) => ({ id: s.uuid, nome: s.nome, cor: s.cor, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }));
   } catch (err) {
     console.error('Erro ao fazer pull de status de animal:', err);
   }
-
-  // Pull origens
   try {
-    const { data: servOrigens } = await supabase.from('origens_online').select('*');
-    if (servOrigens && servOrigens.length > 0) {
-      for (const s of servOrigens) {
-        await db.origens.put({
-          id: s.uuid,
-          nome: s.nome,
-          descricao: s.descricao,
-          ordem: s.ordem,
-          ativo: s.ativo,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          deletedAt: s.deleted_at,
-          synced: true,
-          remoteId: s.id
-        });
-      }
-    }
+    await pullEntitySimple('origens_online', db.origens as any, (s: any) => ({ id: s.uuid, nome: s.nome, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }));
   } catch (err) {
     console.error('Erro ao fazer pull de origens:', err);
   }
@@ -3061,97 +2463,63 @@ export async function pullUpdates() {
     console.log(`📊 Raças disponíveis no Dexie antes do pull de animais: ${racasDisponiveis.length}`, 
                 racasDisponiveis.map(r => ({ id: r.id, remoteId: r.remoteId, nome: r.nome })));
     
-    // Buscar todos os animais com paginação (Supabase limita a 1000 por padrão)
-    let servAnimais: any[] = [];
-    let from = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-                  // Log removido para reduzir verbosidade
-                  // console.log('📥 Buscando animais do servidor (com paginação)...');
-    
-    while (hasMore) {
-      const { data: page, error } = await supabase
-        .from('animais_online')
-        .select('*')
-        .range(from, from + pageSize - 1)
-        .order('id', { ascending: true });
-
-      if (error) {
-        console.error('Erro ao buscar animais do servidor:', error);
-        break;
-      }
-
-      if (page && page.length > 0) {
-        servAnimais = servAnimais.concat(page);
-                  // Log removido para reduzir verbosidade
-                  // console.log(`  ✓ Página ${Math.floor(from / pageSize) + 1}: ${page.length} animais (total: ${servAnimais.length})`);
-        
-        // Se retornou menos que pageSize, chegamos ao fim
-        hasMore = page.length === pageSize;
-        from += pageSize;
-      } else {
-        hasMore = false;
-      }
-    }
-
-    // Log removido para reduzir verbosidade (executa toda vez que há sync)
-    // console.log(`✅ Total de animais buscados do servidor: ${servAnimais.length}`);
+    // Buscar animais com paginação + incremental
+    const { getLastPulledAt, setLastPulledAt } = await import('../utils/syncCheckpoints');
+    const lastPulledAnimais = getLastPulledAt('animais_online');
+    const servAnimais = await fetchAllPaginated<any>('animais_online', {
+      orderBy: 'id',
+      updatedAtField: lastPulledAnimais ? 'updated_at' : undefined,
+      lastPulledAt: lastPulledAnimais || undefined
+    });
 
     if (servAnimais && servAnimais.length > 0) {
-      // 🚀 OTIMIZAÇÃO: Usar Maps para lookups O(1) ao invés de find() O(n)
-      const tiposLocais = await db.tiposAnimal.toArray();
-      const statusLocais = await db.statusAnimal.toArray();
-      const origensLocais = await db.origens.toArray();
-      const fazendasLocais = await db.fazendas.toArray();
-      const racasLocais = await db.racas.toArray();
-      
-      // Criar Maps para lookups eficientes
+      // 🚀 OTIMIZAÇÃO: Carregar todos locais em memória (evita 1857× get individuais)
+      const [tiposLocais, statusLocais, origensLocais, fazendasLocais, racasLocais, animaisLocais] = await Promise.all([
+        db.tiposAnimal.toArray(),
+        db.statusAnimal.toArray(),
+        db.origens.toArray(),
+        db.fazendas.toArray(),
+        db.racas.toArray(),
+        db.animais.toArray()
+      ]);
       const tiposMap = new Map(tiposLocais.map(t => [t.remoteId, t]));
       const statusMap = new Map(statusLocais.map(st => [st.remoteId, st]));
       const origensMap = new Map(origensLocais.map(o => [o.remoteId, o]));
       const fazendasMap = new Map(fazendasLocais.map(f => [f.remoteId, f]));
       const racasMap = new Map(racasLocais.map(r => [r.remoteId, r]));
+      const animaisLocaisMap = new Map(animaisLocais.map(a => [a.id, a]));
 
+      // Buscar racas ausentes em batch (evita await no loop)
+      const racasIdsAusentes = [...new Set(servAnimais.map((s: any) => s.raca_id).filter(Boolean))].filter(
+        (id: number) => !racasMap.has(id)
+      );
+      if (racasIdsAusentes.length > 0) {
+        try {
+          const { data: racasSupabase } = await supabase.from('racas_online').select('*').in('id', racasIdsAusentes);
+          if (racasSupabase) {
+            const toPutRacas = racasSupabase.map((r: any) => ({ id: r.uuid, nome: r.nome, createdAt: r.created_at, updatedAt: r.updated_at, synced: true, remoteId: r.id }));
+            await db.racas.bulkPut(toPutRacas);
+            toPutRacas.forEach(r => racasMap.set(r.remoteId!, r));
+          }
+        } catch (_) { /* ignora */ }
+      }
+
+      const margemTimestamp = 1000;
+      const toPut: any[] = [];
       for (const s of servAnimais) {
-        // Verificar se o animal foi deletado localmente e não foi sincronizado ainda
-        const animalLocal = await db.animais.get(s.uuid);
-        
-        // Se o animal foi deletado localmente e ainda não foi sincronizado (synced: false),
-        // não sobrescrever com dados do servidor (aguardar sincronização local primeiro)
-        if (animalLocal && animalLocal.deletedAt && !animalLocal.synced) {
-          console.log(`⏸️ Animal ${s.uuid} deletado localmente aguardando sincronização, pulando pull`);
-          continue;
-        }
-        
-        // IMPORTANTE: Não sobrescrever se há alterações locais não sincronizadas
-        // ou se os dados locais são mais recentes que os do servidor
+        const animalLocal = animaisLocaisMap.get(s.uuid);
+        if (animalLocal && animalLocal.deletedAt && !animalLocal.synced) continue;
         if (animalLocal && !animalLocal.synced) {
-          // Verificar se os dados locais são mais recentes
           const servUpdated = s.updated_at ? new Date(s.updated_at).getTime() : 0;
           const localUpdated = animalLocal.updatedAt ? new Date(animalLocal.updatedAt).getTime() : 0;
-          const margemTimestamp = 1000; // 1 segundo de margem para evitar problemas de precisão
-          
-          // Se dados locais são mais recentes ou iguais (dentro da margem), não sobrescrever
-          if (localUpdated >= servUpdated - margemTimestamp) {
-            console.log(`⏸️ Animal ${s.uuid} tem alterações locais não sincronizadas, pulando pull`);
-            continue;
-          }
+          if (localUpdated >= servUpdated - margemTimestamp) continue;
         }
-        
-        // 🚀 OTIMIZAÇÃO: Usar Maps para lookup O(1)
         const tipoLocal = tiposMap.get(s.tipo_id);
         const statusLocal = statusMap.get(s.status_id);
         const origemLocal = origensMap.get(s.origem_id);
         const fazendaLocal = fazendasMap.get(s.fazenda_id);
         const racaLocal = s.raca_id ? racasMap.get(s.raca_id) : null;
-        
-        // Debug: Log quando raça não é encontrada
-        if (s.raca_id && !racaLocal) {
-          console.warn(`⚠️ Raça não encontrada no local para animal ${s.uuid}. raca_id: ${s.raca_id}, racas disponíveis:`, racasLocais.map(r => ({ id: r.id, remoteId: r.remoteId, nome: r.nome })));
-        }
-
-        await db.animais.put({
+        toPut.push({
           id: s.uuid,
           brinco: s.brinco,
           nome: s.nome,
@@ -3178,21 +2546,34 @@ export async function pullUpdates() {
           obs: s.obs,
           createdAt: s.created_at,
           updatedAt: s.updated_at,
-          deletedAt: s.deleted_at, // Respeitar deleted_at do servidor
+          deletedAt: s.deleted_at,
           synced: true,
           remoteId: s.id
         });
       }
+      // bulkPut em lotes de 300 (IndexedDB performa melhor com lotes moderados)
+      const BATCH_ANIMAIS = 300;
+      for (let i = 0; i < toPut.length; i += BATCH_ANIMAIS) {
+        await db.animais.bulkPut(toPut.slice(i, i + BATCH_ANIMAIS));
+      }
     }
+    const maxUpdatedAnimais = servAnimais?.length ? servAnimais.reduce((max, a) => a.updated_at && (!max || a.updated_at > max) ? a.updated_at : max, null as string | null) : null;
+    if (maxUpdatedAnimais) setLastPulledAt('animais_online', maxUpdatedAnimais);
     endSyncStep('Pull Animais', servAnimais?.length || 0);
   } catch (err) {
     console.error('Erro ao fazer pull de animais:', err);
     endSyncStep('Pull Animais', 0);
   }
 
-  // Pull genealogias
+  // Pull genealogias (paginação + incremental)
   try {
-    const servGenealogias = await fetchAllFromSupabase('genealogias_online', 'id');
+    const { getLastPulledAt: getCheckpoint, setLastPulledAt: setCheckpoint } = await import('../utils/syncCheckpoints');
+    const lastPulledGenealogias = getCheckpoint('genealogias_online');
+    const servGenealogias = await fetchAllPaginated<any>('genealogias_online', {
+      orderBy: 'id',
+      updatedAtField: lastPulledGenealogias ? 'updated_at' : undefined,
+      lastPulledAt: lastPulledGenealogias || undefined
+    });
     if (servGenealogias && servGenealogias.length > 0) {
       // Mapear remoteIds para UUIDs locais - criar Map para lookup O(1)
       const tiposLocais = await db.tiposAnimal.toArray();
@@ -3251,6 +2632,8 @@ export async function pullUpdates() {
       if (genealogiasParaInserir.length > 0) {
         await db.genealogias.bulkPut(genealogiasParaInserir);
       }
+      const maxUpdatedGenealogias = servGenealogias?.length ? servGenealogias.reduce((max, g) => g.updated_at && (!max || g.updated_at > max) ? g.updated_at : max, null as string | null) : null;
+      if (maxUpdatedGenealogias) setCheckpoint('genealogias_online', maxUpdatedGenealogias);
     }
   } catch (err) {
     console.error('Erro ao fazer pull de genealogias:', err);
@@ -3272,71 +2655,42 @@ export async function pullUsuarios() {
     }
     if (servUsuarios && servUsuarios.length > 0) {
       // IMPORTANTE: Não excluir usuários locais nesta função!
-      // Esta função é usada na inicialização e não deve perder dados locais
-      // Apenas adicionar/atualizar usuários do servidor
-      
-      // Adicionar/atualizar usuários do servidor
+      const usuariosLocais = await db.usuarios.toArray();
+      const usuariosMap = new Map(usuariosLocais.map(u => [u.id, u]));
+      const toPut: any[] = [];
+      const toUpdate: Array<{ key: string; changes: any }> = [];
       for (const s of servUsuarios) {
-        const local = await db.usuarios.get(s.uuid);
+        const local = usuariosMap.get(s.uuid);
+        const rec = {
+          id: s.uuid,
+          nome: s.nome,
+          email: s.email,
+          senhaHash: s.senha_hash,
+          role: s.role,
+          fazendaId: s.fazenda_uuid || undefined,
+          ativo: s.ativo,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+          synced: true,
+          remoteId: s.id
+        };
         if (!local) {
-          // Adicionar novo usuário do servidor - usar put para evitar erro de chave duplicada
-          try {
-            await db.usuarios.put({
-              id: s.uuid,
-              nome: s.nome,
-              email: s.email,
-              senhaHash: s.senha_hash,
-              role: s.role,
-              fazendaId: s.fazenda_uuid || undefined,
-              ativo: s.ativo,
-              createdAt: s.created_at,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } catch (putError: any) {
-            if (putError.name === 'ConstraintError') {
-              await db.usuarios.update(s.uuid, {
-                nome: s.nome,
-                email: s.email,
-                senhaHash: s.senha_hash,
-                role: s.role,
-                fazendaId: s.fazenda_uuid || undefined,
-                ativo: s.ativo,
-                updatedAt: s.updated_at,
-                synced: true,
-                remoteId: s.id
-              });
-            } else {
-              throw putError;
-            }
-          }
-        } else {
-          // Atualizar apenas se a versão do servidor for mais recente
-          // Mas preservar dados locais se o servidor não tiver remoteId
-          if (local.remoteId && new Date(local.updatedAt) < new Date(s.updated_at)) {
-            await db.usuarios.update(local.id, {
-              nome: s.nome,
-              email: s.email,
-              senhaHash: s.senha_hash, // Atualizar hash se mudou no servidor
-              role: s.role,
-              fazendaId: s.fazenda_uuid || undefined,
-              ativo: s.ativo,
-              updatedAt: s.updated_at,
-              synced: true,
-              remoteId: s.id
-            });
-          } else if (!local.remoteId) {
-            // Se o usuário local não tem remoteId, atualizar para ter
-            await db.usuarios.update(local.id, {
+          toPut.push(rec);
+        } else if (local.remoteId && new Date(local.updatedAt) < new Date(s.updated_at)) {
+          toUpdate.push({ key: s.uuid, changes: rec });
+        } else if (!local.remoteId) {
+          toUpdate.push({
+            key: s.uuid,
+            changes: {
               synced: true,
               remoteId: s.id,
-              // Atualizar outros campos apenas se necessário
               updatedAt: s.updated_at > local.updatedAt ? s.updated_at : local.updatedAt
-            });
-          }
+            }
+          });
         }
       }
+      if (toPut.length > 0) await db.usuarios.bulkPut(toPut);
+      if (toUpdate.length > 0) await db.usuarios.bulkUpdate(toUpdate);
     }
     // Se servUsuarios for null ou vazio, não fazer nada (preservar dados locais)
   } catch (err) {
@@ -3345,118 +2699,20 @@ export async function pullUsuarios() {
     // Apenas logar o erro e continuar com dados locais
   }
 
-  // Buscar notificações lidas
+  // Buscar notificações lidas (motor genérico: incremental + batch)
   try {
-    let servNotificacoes: any[] = [];
-    try {
-      servNotificacoes = await fetchAllFromSupabase('notificacoes_lidas_online', 'id');
-    } catch (errorNotificacoes: any) {
-      console.error('Erro ao buscar notificações lidas do servidor:', {
-        error: errorNotificacoes,
-        message: errorNotificacoes?.message,
-        code: errorNotificacoes?.code,
-        details: errorNotificacoes?.details,
-        hint: errorNotificacoes?.hint
+    if (db.notificacoesLidas) {
+      await pullEntity({
+        remoteTable: 'notificacoes_lidas_online',
+        orderBy: 'marcada_em',
+        updatedAtField: 'marcada_em',
+        updatedAtFieldLocal: 'marcadaEm',
+        localTable: db.notificacoesLidas as any,
+        mapper: (s: any) => ({ id: s.uuid, tipo: s.tipo, usuarioId: s.usuario_uuid || s.usuario_id || '', marcadaEm: s.marcada_em, synced: true, remoteId: s.id })
       });
-      // Não excluir dados locais em caso de erro
-    }
-    
-    if (servNotificacoes && servNotificacoes.length > 0) {
-      // Processar mesmo se o array estiver vazio (para garantir que dados locais não sincronizados sejam preservados)
-      // Mas só fazer merge se houver dados no servidor
-      if (servNotificacoes.length > 0) {
-        // IMPORTANTE: Só processar se houver dados no servidor
-        // Se servNotificacoes for [] (vazio), preservar dados locais
-        
-        // Criar conjunto de UUIDs que existem no servidor
-        const servUuids = new Set(servNotificacoes.map(n => n.uuid));
-        
-        // Buscar todas as notificações locais que foram sincronizadas (têm remoteId)
-        if (db.notificacoesLidas) {
-          const todasNotificacoesLocais = await db.notificacoesLidas.toArray();
-          const notificacoesSincronizadas = todasNotificacoesLocais.filter(n => n.remoteId != null);
-          
-          // Excluir localmente as que não existem mais no servidor
-          // Mas só se o servidor retornou dados (não está vazio)
-          for (const local of notificacoesSincronizadas) {
-            if (!servUuids.has(local.id)) {
-              await db.notificacoesLidas.delete(local.id);
-            }
-          }
-          
-          // Adicionar/atualizar notificações do servidor
-          for (const s of servNotificacoes) {
-            if (!s.uuid) {
-              console.warn('Notificação do servidor sem UUID, ignorando:', s);
-              continue;
-            }
-
-            const local = await db.notificacoesLidas.get(s.uuid);
-            if (!local) {
-              // Adicionar notificação do servidor que não existe localmente
-              try {
-                // Usar put ao invés de add para evitar erro de chave duplicada
-                await db.notificacoesLidas.put({
-                  id: s.uuid,
-                  tipo: s.tipo,
-                  marcadaEm: s.marcada_em,
-                  synced: true,
-                  remoteId: s.id
-                });
-              } catch (putError: any) {
-                // Se ainda der erro, tentar atualizar
-                if (putError.name === 'ConstraintError' || putError.message?.includes('already exists')) {
-                  const existing = await db.notificacoesLidas.get(s.uuid);
-                  if (existing) {
-                    await db.notificacoesLidas.update(s.uuid, {
-                      tipo: s.tipo,
-                      marcadaEm: s.marcada_em,
-                      synced: true,
-                      remoteId: s.id
-                    });
-                  }
-                } else {
-                  console.error('Erro ao adicionar notificação lida do servidor:', putError);
-                }
-              }
-            } else {
-              // Atualizar notificação existente
-              // Se não tem remoteId OU se a versão do servidor for mais recente
-              const servidorMaisRecente = !local.remoteId || new Date(local.marcadaEm) < new Date(s.marcada_em);
-              if (servidorMaisRecente) {
-                await db.notificacoesLidas.update(local.id, {
-                  tipo: s.tipo,
-                  marcadaEm: s.marcada_em,
-                  synced: true,
-                  remoteId: s.id
-                });
-              } else if (!local.remoteId) {
-                // Se não tem remoteId mas a versão local é mais recente, apenas adicionar remoteId
-                // Mas manter synced: false para que seja enviado ao servidor na próxima sincronização
-                await db.notificacoesLidas.update(local.id, {
-                  synced: false, // Manter como não sincronizado se a versão local é mais recente
-                  remoteId: s.id
-                });
-              } else if (local.remoteId && local.remoteId !== s.id) {
-                // Se tem remoteId diferente, pode ser um duplicado - atualizar para usar o do servidor
-                await db.notificacoesLidas.update(local.id, {
-                  synced: true,
-                  remoteId: s.id
-                });
-              }
-            }
-          }
-        }
-      }
-      // Se servNotificacoes.length === 0, não fazer nada (preservar dados locais)
     }
   } catch (err: any) {
-    console.error('Erro ao processar pull de notificações lidas:', {
-      error: err,
-      message: err?.message,
-      stack: err?.stack
-    });
-    // Não lançar erro para não bloquear o pull de outras tabelas
+    console.error('Erro ao processar pull de notificações lidas:', err?.message);
   }
 
   // Pull de auditoria
@@ -3477,81 +2733,40 @@ export async function pullUsuarios() {
           hint: errorAudits.hint
         });
       } else if (servAudits && servAudits.length > 0) {
-        const servUuids = new Set(servAudits.map(a => a.uuid));
+        const servUuids = new Set(servAudits.map((a: any) => a.uuid).filter(Boolean));
         const todosAuditsLocais = await db.audits.toArray();
-        const auditsSincronizados = todosAuditsLocais.filter(a => a.remoteId != null);
-
-        for (const local of auditsSincronizados) {
-          if (!servUuids.has(local.id)) {
-            await db.audits.delete(local.id);
-          }
-        }
-
+        const auditsLocaisMap = new Map(todosAuditsLocais.map(a => [a.id, a]));
+        const idsParaDeletar = todosAuditsLocais
+          .filter(a => a.remoteId != null && !servUuids.has(a.id))
+          .map(a => a.id);
+        if (idsParaDeletar.length > 0) await db.audits.bulkDelete(idsParaDeletar);
+        const toPut: any[] = [];
+        const toUpdate: Array<{ key: string; changes: any }> = [];
         for (const s of servAudits) {
-          if (!s.uuid) {
-            console.warn('Audit do servidor sem UUID, ignorando:', s);
-            continue;
-          }
-
-          const local = await db.audits.get(s.uuid);
+          if (!s.uuid) continue;
+          const local = auditsLocaisMap.get(s.uuid);
+          const rec = {
+            id: s.uuid,
+            entity: s.entity,
+            entityId: s.entity_id,
+            action: s.action,
+            timestamp: s.timestamp,
+            userId: s.user_uuid || null,
+            userNome: s.user_nome || null,
+            before: s.before_json ? JSON.stringify(s.before_json) : null,
+            after: s.after_json ? JSON.stringify(s.after_json) : null,
+            description: s.description || null,
+            synced: true,
+            remoteId: s.id
+          };
           if (!local) {
-            try {
-              // Usar put ao invés de add para evitar erro de chave duplicada
-              await db.audits.put({
-                id: s.uuid,
-                entity: s.entity,
-                entityId: s.entity_id,
-                action: s.action,
-                timestamp: s.timestamp,
-                userId: s.user_uuid || null,
-                userNome: s.user_nome || null,
-                before: s.before_json ? JSON.stringify(s.before_json) : null,
-                after: s.after_json ? JSON.stringify(s.after_json) : null,
-                description: s.description || null,
-                synced: true,
-                remoteId: s.id
-              });
-            } catch (putError: any) {
-              // Se ainda der erro, tentar atualizar
-              if (putError.name === 'ConstraintError' || putError.message?.includes('already exists')) {
-                const existing = await db.audits.get(s.uuid);
-                if (existing) {
-                  await db.audits.update(s.uuid, {
-                    entity: s.entity,
-                    entityId: s.entity_id,
-                    action: s.action,
-                    timestamp: s.timestamp,
-                    userId: s.user_uuid || null,
-                    userNome: s.user_nome || null,
-                    before: s.before_json ? JSON.stringify(s.before_json) : null,
-                    after: s.after_json ? JSON.stringify(s.after_json) : null,
-                    description: s.description || null,
-                    synced: true,
-                    remoteId: s.id
-                  });
-                }
-              } else {
-                console.error('Erro ao adicionar audit do servidor:', putError);
-              }
-            }
-          } else {
-            if (!local.remoteId || new Date(local.timestamp) < new Date(s.timestamp)) {
-              await db.audits.update(local.id, {
-                entity: s.entity,
-                entityId: s.entity_id,
-                action: s.action,
-                timestamp: s.timestamp,
-                userId: s.user_uuid || null,
-                userNome: s.user_nome || null,
-                before: s.before_json ? JSON.stringify(s.before_json) : null,
-                after: s.after_json ? JSON.stringify(s.after_json) : null,
-                description: s.description || null,
-                synced: true,
-                remoteId: s.id
-              });
-            }
+            toPut.push(rec);
+          } else if (!local.remoteId || new Date(local.timestamp) < new Date(s.timestamp)) {
+            toUpdate.push({ key: s.uuid, changes: rec });
           }
         }
+        if (toPut.length > 0) await db.audits.bulkPut(toPut);
+        if (toUpdate.length > 0) await db.audits.bulkUpdate(toUpdate);
       }
     }
   } catch (err) {
@@ -3670,4 +2885,17 @@ export async function syncAll(): Promise<{ ran: boolean }> {
       setGlobalSyncing(false);
     }
   }
+}
+
+/**
+ * Sincronização completa (full pull) - ignora checkpoints e busca todos os registros do servidor.
+ * Use quando houver suspeita de checkpoint corrompido ou dados desatualizados.
+ * Consome mais rede e pode demorar mais que sync incremental.
+ */
+export async function syncAllFull(): Promise<{ ran: boolean }> {
+  if (typeof window !== 'undefined') {
+    const { clearLastPulledAt } = await import('../utils/syncCheckpoints');
+    clearLastPulledAt(); // Limpa todos os checkpoints = full pull em todas as tabelas
+  }
+  return syncAll();
 }

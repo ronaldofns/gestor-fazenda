@@ -7,7 +7,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getPrimaryCardClass, getTitleTextClass } from '../utils/themeHelpers';
 import { Icons } from '../utils/iconMapping';
-import { syncAll, SyncProgress, SyncStats } from '../api/syncService';
+import { syncAll, syncAllFull, SyncProgress, SyncStats } from '../api/syncService';
 import { showToast } from '../utils/toast';
 import { setGlobalSyncing, getGlobalSyncing } from '../components/Sidebar';
 import { getSyncQueueStats } from '../utils/syncEvents';
@@ -83,12 +83,13 @@ export default function Sincronizacao() {
     try {
       // Fazendas
       const fazendas = await db.fazendas.toArray();
-      const pendFazendas = fazendas.filter(f => f.synced === false).length;
-      if (pendFazendas > 0) {
+      const pendFazendas = fazendas.filter(f => f.synced === false);
+      if (pendFazendas.length > 0) {
         pendencias.push({
           nome: 'Fazendas',
-          quantidade: pendFazendas,
-          icone: Icons.Building2
+          quantidade: pendFazendas.length,
+          icone: Icons.Building2,
+          detalhes: pendFazendas.map(f => ({ id: f.id, nome: f.nome }))
         });
       }
     } catch (err) {
@@ -98,12 +99,13 @@ export default function Sincronizacao() {
     try {
       // Raças
       const racas = await db.racas.toArray();
-      const pendRacas = racas.filter(r => r.synced === false).length;
-      if (pendRacas > 0) {
+      const pendRacas = racas.filter(r => r.synced === false);
+      if (pendRacas.length > 0) {
         pendencias.push({
           nome: 'Raças',
-          quantidade: pendRacas,
-          icone: Icons.Tag
+          quantidade: pendRacas.length,
+          icone: Icons.Tag,
+          detalhes: pendRacas.map(r => ({ id: r.id, nome: r.nome }))
         });
       }
     } catch (err) {
@@ -113,12 +115,13 @@ export default function Sincronizacao() {
     try {
       // Categorias
       const categorias = await db.categorias.toArray();
-      const pendCategorias = categorias.filter(c => c.synced === false).length;
-      if (pendCategorias > 0) {
+      const pendCategorias = categorias.filter(c => c.synced === false);
+      if (pendCategorias.length > 0) {
         pendencias.push({
           nome: 'Categorias',
-          quantidade: pendCategorias,
-          icone: Icons.Folder
+          quantidade: pendCategorias.length,
+          icone: Icons.Folder,
+          detalhes: pendCategorias.map(c => ({ id: c.id, nome: c.nome }))
         });
       }
     } catch (err) {
@@ -128,12 +131,13 @@ export default function Sincronizacao() {
     try {
       // Nascimentos
       const nascimentos = await db.nascimentos.toArray();
-      const pendNascimentos = nascimentos.filter(n => n.synced === false).length;
-      if (pendNascimentos > 0) {
+      const pendNascimentos = nascimentos.filter(n => n.synced === false);
+      if (pendNascimentos.length > 0) {
         pendencias.push({
           nome: 'Nascimentos',
-          quantidade: pendNascimentos,
-          icone: Icons.Baby
+          quantidade: pendNascimentos.length,
+          icone: Icons.Baby,
+          detalhes: pendNascimentos.map(n => ({ id: n.id, brincoNumero: n.brincoNumero, mes: n.mes, ano: n.ano }))
         });
       }
     } catch (err) {
@@ -143,12 +147,13 @@ export default function Sincronizacao() {
     try {
       // Desmamas
       const desmamas = await db.desmamas.toArray();
-      const pendDesmamas = desmamas.filter(d => d.synced === false).length;
-      if (pendDesmamas > 0) {
+      const pendDesmamas = desmamas.filter(d => d.synced === false);
+      if (pendDesmamas.length > 0) {
         pendencias.push({
           nome: 'Desmamas',
-          quantidade: pendDesmamas,
-          icone: Icons.Scale
+          quantidade: pendDesmamas.length,
+          icone: Icons.Scale,
+          detalhes: pendDesmamas.map(d => ({ id: d.id, dataDesmama: d.dataDesmama, pesoDesmama: d.pesoDesmama }))
         });
       }
     } catch (err) {
@@ -158,12 +163,13 @@ export default function Sincronizacao() {
     try {
       // Matrizes
       const matrizes = await db.matrizes.toArray();
-      const pendMatrizes = matrizes.filter(m => m.synced === false).length;
-      if (pendMatrizes > 0) {
+      const pendMatrizes = matrizes.filter(m => m.synced === false);
+      if (pendMatrizes.length > 0) {
         pendencias.push({
           nome: 'Matrizes',
-          quantidade: pendMatrizes,
-          icone: Icons.ListTree
+          quantidade: pendMatrizes.length,
+          icone: Icons.ListTree,
+          detalhes: pendMatrizes.map(m => ({ id: m.id, identificador: m.identificador }))
         });
       }
     } catch (err) {
@@ -173,12 +179,13 @@ export default function Sincronizacao() {
     try {
       // Usuários
       const usuarios = await db.usuarios.toArray();
-      const pendUsuarios = usuarios.filter(u => u.synced === false).length;
-      if (pendUsuarios > 0) {
+      const pendUsuarios = usuarios.filter(u => u.synced === false);
+      if (pendUsuarios.length > 0) {
         pendencias.push({
           nome: 'Usuários',
-          quantidade: pendUsuarios,
-          icone: Icons.Users
+          quantidade: pendUsuarios.length,
+          icone: Icons.Users,
+          detalhes: pendUsuarios.map(u => ({ id: u.id, nome: u.nome, email: u.email }))
         });
       }
     } catch (err) {
@@ -188,12 +195,13 @@ export default function Sincronizacao() {
     try {
       // Auditoria
       const audits = await db.audits.toArray();
-      const pendAudits = audits.filter(a => a.synced === false).length;
-      if (pendAudits > 0) {
+      const pendAudits = audits.filter(a => a.synced === false);
+      if (pendAudits.length > 0) {
         pendencias.push({
           nome: 'Auditoria',
-          quantidade: pendAudits,
-          icone: Icons.FileText
+          quantidade: pendAudits.length,
+          icone: Icons.FileText,
+          detalhes: pendAudits.slice(0, 20).map(a => ({ id: a.id, entity: a.entity, entityId: a.entityId?.substring(0, 8), action: a.action }))
         });
       }
     } catch (err) {
@@ -203,12 +211,13 @@ export default function Sincronizacao() {
     try {
       // Notificações Lidas
       const notificacoesLidas = await db.notificacoesLidas.toArray();
-      const pendNotificacoes = notificacoesLidas.filter(n => n.synced === false).length;
-      if (pendNotificacoes > 0) {
+      const pendNotificacoes = notificacoesLidas.filter(n => n.synced === false);
+      if (pendNotificacoes.length > 0) {
         pendencias.push({
           nome: 'Notificações',
-          quantidade: pendNotificacoes,
-          icone: Icons.Bell
+          quantidade: pendNotificacoes.length,
+          icone: Icons.Bell,
+          detalhes: pendNotificacoes.map(n => ({ id: n.id, tipo: n.tipo, marcadaEm: n.marcadaEm }))
         });
       }
     } catch (err) {
@@ -218,12 +227,13 @@ export default function Sincronizacao() {
     try {
       // Configurações de Alerta
       const alertSettings = await db.alertSettings.toArray();
-      const pendAlertSettings = alertSettings.filter(a => a.synced === false).length;
-      if (pendAlertSettings > 0) {
+      const pendAlertSettings = alertSettings.filter(a => a.synced === false);
+      if (pendAlertSettings.length > 0) {
         pendencias.push({
           nome: 'Config. Alertas',
-          quantidade: pendAlertSettings,
-          icone: Icons.AlertCircle
+          quantidade: pendAlertSettings.length,
+          icone: Icons.AlertCircle,
+          detalhes: pendAlertSettings.map(a => ({ id: a.id }))
         });
       }
     } catch (err) {
@@ -233,12 +243,13 @@ export default function Sincronizacao() {
     try {
       // Configurações do App
       const appSettings = await db.appSettings.toArray();
-      const pendAppSettings = appSettings.filter(a => a.synced === false).length;
-      if (pendAppSettings > 0) {
+      const pendAppSettings = appSettings.filter(a => a.synced === false);
+      if (pendAppSettings.length > 0) {
         pendencias.push({
           nome: 'Config. App',
-          quantidade: pendAppSettings,
-          icone: Icons.Settings
+          quantidade: pendAppSettings.length,
+          icone: Icons.Settings,
+          detalhes: pendAppSettings.map(a => ({ id: a.id }))
         });
       }
     } catch (err) {
@@ -249,12 +260,13 @@ export default function Sincronizacao() {
       // Permissões
       if (db.rolePermissions) {
         const rolePermissions = await db.rolePermissions.toArray();
-        const pendPermissoes = rolePermissions.filter((p) => p.synced === false).length;
-        if (pendPermissoes > 0) {
+        const pendPermissoes = rolePermissions.filter((p) => p.synced === false);
+        if (pendPermissoes.length > 0) {
           pendencias.push({
             nome: 'Permissões',
-            quantidade: pendPermissoes,
-            icone: Icons.Shield
+            quantidade: pendPermissoes.length,
+            icone: Icons.Shield,
+            detalhes: pendPermissoes.map(p => ({ id: p.id, role: p.role, permission: p.permission }))
           });
         }
       }
@@ -310,15 +322,142 @@ export default function Sincronizacao() {
     }
 
     try {
+      // Tipos de Animal
+      if (db.tiposAnimal) {
+        const tiposAnimal = await db.tiposAnimal.toArray();
+        const pendTipos = tiposAnimal.filter(t => t.synced === false);
+        if (pendTipos.length > 0) {
+          pendencias.push({
+            nome: 'Tipos de Animal',
+            quantidade: pendTipos.length,
+            icone: Icons.Tag,
+            detalhes: pendTipos.map(t => ({ id: t.id, nome: t.nome }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar tipos de animal:', err);
+    }
+
+    try {
+      // Status de Animal
+      if (db.statusAnimal) {
+        const statusAnimal = await db.statusAnimal.toArray();
+        const pendStatus = statusAnimal.filter(s => s.synced === false);
+        if (pendStatus.length > 0) {
+          pendencias.push({
+            nome: 'Status de Animal',
+            quantidade: pendStatus.length,
+            icone: Icons.Tag,
+            detalhes: pendStatus.map(s => ({ id: s.id, nome: s.nome }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar status de animal:', err);
+    }
+
+    try {
+      // Origens
+      if (db.origens) {
+        const origens = await db.origens.toArray();
+        const pendOrigens = origens.filter(o => o.synced === false);
+        if (pendOrigens.length > 0) {
+          pendencias.push({
+            nome: 'Origens',
+            quantidade: pendOrigens.length,
+            icone: Icons.Tag,
+            detalhes: pendOrigens.map(o => ({ id: o.id, nome: o.nome }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar origens:', err);
+    }
+
+    try {
+      // Tags
+      if (db.tags) {
+        const tags = await db.tags.toArray();
+        const pendTags = tags.filter(t => t.synced === false);
+        if (pendTags.length > 0) {
+          pendencias.push({
+            nome: 'Tags',
+            quantidade: pendTags.length,
+            icone: Icons.Tag,
+            detalhes: pendTags.map(t => ({ id: t.id, name: t.name }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar tags:', err);
+    }
+
+    try {
+      // Atribuições de Tags
+      if (db.tagAssignments) {
+        const tagAssignments = await db.tagAssignments.toArray();
+        const pendAssignments = tagAssignments.filter(a => a.synced === false);
+        if (pendAssignments.length > 0) {
+          pendencias.push({
+            nome: 'Atribuições de Tags',
+            quantidade: pendAssignments.length,
+            icone: Icons.Tag,
+            detalhes: pendAssignments.map(a => ({ id: a.id, entityType: a.entityType, entityId: a.entityId?.substring(0, 8) }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar tag assignments:', err);
+    }
+
+    try {
+      // Animais
+      if (db.animais) {
+        const animais = await db.animais.toArray();
+        const pendAnimais = animais.filter(a => !a.deletedAt && a.synced === false);
+        if (pendAnimais.length > 0) {
+          pendencias.push({
+            nome: 'Animais',
+            quantidade: pendAnimais.length,
+            icone: Icons.Cow,
+            detalhes: pendAnimais.map(a => ({ id: a.id, brinco: a.brinco, nome: a.nome }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar animais:', err);
+    }
+
+    try {
+      // Genealogias
+      if (db.genealogias) {
+        const genealogias = await db.genealogias.toArray();
+        const pendGenealogias = genealogias.filter(g => !g.deletedAt && g.synced === false);
+        if (pendGenealogias.length > 0) {
+          pendencias.push({
+            nome: 'Genealogias',
+            quantidade: pendGenealogias.length,
+            icone: Icons.ListTree,
+            detalhes: pendGenealogias.map(g => ({ id: g.id, animalId: g.animalId?.substring(0, 8), geracoes: g.geracoes }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar genealogias:', err);
+    }
+
+    try {
       // Exclusões
       if (db.deletedRecords) {
         const deletedRecords = await db.deletedRecords.toArray();
-        const pendDeleted = deletedRecords.filter(d => d.synced === false).length;
-        if (pendDeleted > 0) {
+        const pendDeletedList = deletedRecords.filter(d => d.synced === false);
+        if (pendDeletedList.length > 0) {
           pendencias.push({
             nome: 'Exclusões',
-            quantidade: pendDeleted,
-            icone: Icons.Trash2
+            quantidade: pendDeletedList.length,
+            icone: Icons.Trash2,
+            detalhes: pendDeletedList.map(d => ({ id: d.id, uuid: d.uuid?.substring(0, 8) }))
           });
         }
       }
@@ -445,7 +584,7 @@ export default function Sincronizacao() {
     });
   };
 
-  const handleSync = async () => {
+  const handleSync = async (forceFull: boolean = false) => {
     if (!online) {
       showToast({
         type: 'error',
@@ -460,7 +599,6 @@ export default function Sincronizacao() {
     setSyncing(true);
     setGlobalSyncing(true);
 
-    // Criar promise para capturar estatísticas do evento syncCompleted
     const syncCompletedPromise = new Promise<{ stats?: SyncStats }>((resolve) => {
       const handler = (e: Event) => {
         const customEvent = e as CustomEvent<{ timestamp: string; success: boolean; stats?: SyncStats }>;
@@ -471,9 +609,9 @@ export default function Sincronizacao() {
     });
 
     try {
-      // Usar syncAll diretamente (mesmo código que sidebar e topbar)
-      const { ran } = await syncAll();
-      
+      const syncFn = forceFull ? syncAllFull : syncAll;
+      const { ran } = await syncFn();
+
       if (!ran) {
         showToast({
           type: 'info',
@@ -482,19 +620,15 @@ export default function Sincronizacao() {
         });
         return;
       }
-      
-      // Aguardar evento com estatísticas (só dispara quando sync realmente rodou)
+
       const { stats } = await syncCompletedPromise;
-      
       const fim = new Date();
-      
-      // Atualizar último sync (já foi salvo pelo syncAll, mas atualizamos o estado local)
+
       setUltimoSync(fim);
-      
-      // Calcular total de registros e duração das estatísticas
+
       let totalRegistros = 0;
       let duracaoReal = '0.0';
-      
+
       if (stats && stats.duration) {
         duracaoReal = (stats.duration / 1000).toFixed(1);
         totalRegistros = Object.values(stats.steps).reduce(
@@ -502,15 +636,15 @@ export default function Sincronizacao() {
           0
         );
       }
-      
-      const detalhesLog = totalRegistros > 0 
+
+      const detalhesLog = totalRegistros > 0
         ? `Sincronização concluída em ${duracaoReal}s (${totalRegistros} registros)`
         : `Sincronização concluída em ${duracaoReal}s`;
-      
+
       adicionarLog({
         timestamp: fim.toISOString(),
         sucesso: true,
-        detalhes: detalhesLog
+        detalhes: forceFull ? `[Full] ${detalhesLog}` : detalhesLog
       });
 
       const mensagemToast = totalRegistros > 0
@@ -525,7 +659,7 @@ export default function Sincronizacao() {
     } catch (error: any) {
       const fim = new Date();
       const erroMsg = error?.message || 'Erro desconhecido';
-      
+
       adicionarLog({
         timestamp: fim.toISOString(),
         sucesso: false,
@@ -542,6 +676,19 @@ export default function Sincronizacao() {
       setSyncing(false);
       setGlobalSyncing(false);
     }
+  };
+
+  const handleSyncFullClick = () => {
+    setConfirmDialog({
+      open: true,
+      title: 'Forçar sincronização completa',
+      message: 'Isso irá buscar todos os dados do servidor novamente (full pull), ignorando o histórico incremental. Use quando houver suspeita de dados desatualizados ou checkpoint corrompido. Pode demorar mais e consumir mais dados. Deseja continuar?',
+      variant: 'warning',
+      onConfirm: () => {
+        setConfirmDialog({ open: false, message: '', onConfirm: () => {} });
+        handleSync(true);
+      }
+    });
   };
 
   const handleExportarBackup = async () => {
@@ -755,7 +902,7 @@ export default function Sincronizacao() {
         {/* Botão de Sincronização e Backup */}
         <div className="flex items-center justify-center gap-3 flex-wrap pt-3 border-t border-gray-200 dark:border-slate-700">
           <button
-            onClick={handleSync}
+            onClick={() => handleSync(false)}
             disabled={!online || syncing}
             className={`
               ${getPrimaryButtonClass(primaryColor)}
@@ -773,6 +920,16 @@ export default function Sincronizacao() {
                 <span>Sincronizar Agora</span>
               </>
             )}
+          </button>
+
+          <button
+            onClick={handleSyncFullClick}
+            disabled={!online || syncing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-amber-500 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Forçar sincronização completa (full pull de todas as tabelas)"
+          >
+            <Icons.RotateCcw className="w-4 h-4" />
+            <span className="hidden sm:inline">Forçar sync completa</span>
           </button>
 
           {podeExportarDados && (
@@ -892,12 +1049,40 @@ export default function Sincronizacao() {
                               {tabela.nome === 'Pesagens' && detalhe.dataPesagem && detalhe.peso !== undefined ? (
                                 <>Data: {detalhe.dataPesagem} | Peso: {detalhe.peso} kg</>
                               ) : tabela.nome === 'Vacinações' && detalhe.vacina ? (
-                                <>Vacina: {detalhe.vacina}</>
+                                <>Vacina: {detalhe.vacina}{detalhe.dataAplicacao ? ` | ${detalhe.dataAplicacao}` : ''}</>
+                              ) : (tabela.nome === 'Fazendas' || tabela.nome === 'Raças' || tabela.nome === 'Categorias') && detalhe.nome ? (
+                                <>{detalhe.nome}</>
+                              ) : tabela.nome === 'Nascimentos' && (detalhe.brincoNumero || detalhe.mes) ? (
+                                <>Brinco: {detalhe.brincoNumero || '-'} | {detalhe.mes}/{detalhe.ano}</>
+                              ) : tabela.nome === 'Desmamas' && (detalhe.dataDesmama || detalhe.pesoDesmama !== undefined) ? (
+                                <>Data: {detalhe.dataDesmama || '-'} | Peso: {detalhe.pesoDesmama ?? '-'} kg</>
+                              ) : tabela.nome === 'Matrizes' && detalhe.identificador ? (
+                                <>{detalhe.identificador}</>
+                              ) : tabela.nome === 'Usuários' && (detalhe.nome || detalhe.email) ? (
+                                <>{detalhe.nome} {detalhe.email ? `(${detalhe.email})` : ''}</>
+                              ) : tabela.nome === 'Auditoria' && detalhe.entity ? (
+                                <>{detalhe.entity} / {detalhe.entityId} / {detalhe.action}</>
+                              ) : tabela.nome === 'Notificações' && detalhe.tipo ? (
+                                <>{detalhe.tipo}{detalhe.marcadaEm ? ` | ${detalhe.marcadaEm}` : ''}</>
+                              ) : tabela.nome === 'Exclusões' && detalhe.uuid ? (
+                                <>UUID: {detalhe.uuid}...</>
+                              ) : tabela.nome === 'Permissões' && (detalhe.role || detalhe.permission) ? (
+                                <>{detalhe.role} / {detalhe.permission}</>
+                              ) : tabela.nome === 'Animais' && (detalhe.brinco || detalhe.nome) ? (
+                                <>Brinco: {detalhe.brinco} {detalhe.nome ? `- ${detalhe.nome}` : ''}</>
+                              ) : tabela.nome === 'Genealogias' && detalhe.animalId ? (
+                                <>Animal: {detalhe.animalId}... | {detalhe.geracoes} gerações</>
+                              ) : (tabela.nome === 'Tipos de Animal' || tabela.nome === 'Status de Animal' || tabela.nome === 'Origens') && detalhe.nome ? (
+                                <>{detalhe.nome}</>
+                              ) : tabela.nome === 'Tags' && detalhe.name ? (
+                                <>{detalhe.name}</>
+                              ) : tabela.nome === 'Atribuições de Tags' && detalhe.entityType ? (
+                                <>{detalhe.entityType} / {detalhe.entityId}...</>
                               ) : (
                                 <>ID: {detalhe.id?.substring(0, 8)}...</>
                               )}
                             </p>
-                            {detalhe.nascimentoId && (
+                            {detalhe.nascimentoId && tabela.nome === 'Pesagens' && (
                               <p className="text-gray-500 dark:text-gray-400 mt-1">
                                 Nascimento: {detalhe.nascimentoId.substring(0, 8)}...
                               </p>

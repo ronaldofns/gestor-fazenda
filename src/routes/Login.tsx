@@ -132,7 +132,7 @@ export default function Login() {
         {/* Card de Login */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-slate-800">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6 text-center">{t('login.title')}</h2>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" aria-label={t('login.formLabel')}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" aria-label={t('login.formLabel')} noValidate>
             {error && (
               <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-md">
                 <p className="text-red-700 text-sm font-medium">{error}</p>

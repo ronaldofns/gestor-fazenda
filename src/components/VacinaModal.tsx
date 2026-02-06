@@ -18,10 +18,11 @@ import { Icons } from '../utils/iconMapping';
 import { useAuth } from '../hooks/useAuth';
 import { checkLock, lockRecord, unlockRecord } from '../utils/recordLock';
 import { registrarAudit } from '../utils/audit';
+import { msg } from '../utils/validationMessages';
 
 const schemaVacina = z.object({
-  vacina: z.string().min(1, 'Informe o nome da vacina'),
-  dataAplicacao: z.string().min(1, 'Informe a data de aplicação'),
+  vacina: z.string().min(1, msg.obrigatorio),
+  dataAplicacao: z.string().min(1, msg.dataObrigatoria),
   dataVencimento: z.string().optional(),
   lote: z.string().optional(),
   responsavel: z.string().optional(),
@@ -427,7 +428,7 @@ function VacinaModalComponent({
             <Icons.X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4" noValidate>
         {/* Aviso de lock */}
         {lockError && (
           <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">

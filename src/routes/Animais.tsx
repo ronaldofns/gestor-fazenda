@@ -12,10 +12,9 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getTitleTextClass, getPrimaryActionButtonLightClass, getPrimaryCardClass } from '../utils/themeHelpers';
 import { useAllEntityTags } from '../hooks/useAllEntityTags';
-import { useDebounce } from '../hooks/useDebounce';
 import AnimalTags from '../components/AnimalTags';
+import SearchInputDebounced from '../components/SearchInputDebounced';
 import ConfirmDialog from '../components/ConfirmDialog';
-import Input from '../components/Input';
 import Combobox from '../components/Combobox';
 import TagFilter, { TagFilterMode } from '../components/TagFilter';
 import { exportarParaExcel, exportarParaCSV } from '../utils/exportarDados';
@@ -66,8 +65,8 @@ export default function Animais() {
   const podeExcluirAnimal = hasPermission('excluir_animal');
   const podeExportarDados = hasPermission('exportar_dados');
 
-  // Estados
-  const [busca, setBusca] = useState('');
+  // Estados — buscaParaFiltro: valor debounced (vem do SearchInputDebounced), evita re-render do componente inteiro a cada tecla
+  const [buscaParaFiltro, setBuscaParaFiltro] = useState('');
   const [filtroSexo, setFiltroSexo] = useState<'' | 'M' | 'F'>('');
   const [filtroTipoId, setFiltroTipoId] = useState('');
   const [filtroStatusId, setFiltroStatusId] = useState('');
@@ -119,11 +118,8 @@ export default function Animais() {
 
   const [isPending, startTransition] = useTransition();
 
-  // 🚀 OTIMIZAÇÃO: Handlers com startTransition para melhor responsividade
   const handleBuscaChange = useCallback((value: string) => {
-    startTransition(() => {
-      setBusca(value);
-    });
+    setBuscaParaFiltro(value);
   }, []);
 
   const handleFiltroSexoChange = useCallback((value: '' | 'M' | 'F') => {
@@ -273,8 +269,6 @@ export default function Animais() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 🚀 OTIMIZAÇÃO: Debounce na busca
-  const buscaDebounced = useDebounce(busca, 300);
 
   const fazendas = useLiveQuery(() => db.fazendas.toArray(), []) || [];
   const tipos = useLiveQuery(() => db.tiposAnimal.filter(t => !t.deletedAt).toArray(), []) || [];
@@ -418,7 +412,7 @@ export default function Animais() {
   const animaisFiltrados = useMemo(() => {
     if (!animaisRaw || animaisRaw.length === 0) return [];
 
-    const termoBusca = buscaDebounced.trim().toLowerCase();
+    const termoBusca = buscaParaFiltro.trim().toLowerCase();
     const temBusca = termoBusca.length > 0;
     const temFiltroMeses = filtroMesesNascimento.length > 0;
     const temFiltroAno = filtroAno && filtroAno.trim() !== '';
@@ -571,7 +565,7 @@ export default function Animais() {
     });
 
     return filtrados;
-  }, [animaisRaw, fazendaAtivaId, filtroSexo, filtroTipoId, filtroStatusId, filtroRacaId, filtroSomenteBezerros, filtroMesesNascimento, filtroAno, selectedTags, tagFilterMode, buscaDebounced, sortField, sortAsc, fazendaMap, tipoMap, statusMap, racaMap, genealogiaMap, animaisMap, animalTagsMap, dataNascimentoCache]);
+  }, [animaisRaw, fazendaAtivaId, filtroSexo, filtroTipoId, filtroStatusId, filtroRacaId, filtroSomenteBezerros, filtroMesesNascimento, filtroAno, selectedTags, tagFilterMode, buscaParaFiltro, sortField, sortAsc, fazendaMap, tipoMap, statusMap, racaMap, genealogiaMap, animaisMap, animalTagsMap, dataNascimentoCache]);
 
   // Estatísticas de matrizes:
   // - Se a lista filtrada tem animais com mãe (matrizId): mostrar as matrizes distintas desses filhos, por tipo (Vaca/Novilho(a)).
@@ -720,7 +714,7 @@ export default function Animais() {
 
   const handleLimparFiltros = () => {
     startTransition(() => {
-      setBusca('');
+      setBuscaParaFiltro('');
       setFiltroSexo('');
       setFiltroTipoId('');
       setFiltroStatusId('');
@@ -918,13 +912,14 @@ export default function Animais() {
 
               <div className="grid grid-cols-1 sm:grid-cols-6 lg:grid-cols-12 gap-3">
 
-                {/* Busca */}
+                {/* Busca — SearchInputDebounced: estado local, só notifica pai após debounce = digitação fluida */}
                 <div className="sm:col-span-6 lg:col-span-4">
-                  <Input
+                  <SearchInputDebounced
                     label="Busca"
-                    value={busca}
                     placeholder="Buscar por brinco, nome, lote..."
-                    onChange={(e) => handleBuscaChange(e.target.value)}
+                    onSearchChange={handleBuscaChange}
+                    defaultValue={buscaParaFiltro}
+                    delay={300}
                   />
                 </div>
 
@@ -1080,9 +1075,9 @@ export default function Animais() {
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
 
                 <div className="flex flex-wrap gap-2">
-                  {busca.trim() && (
+                  {buscaParaFiltro.trim() && (
                     <span className="px-2 py-1 text-xs rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                      Busca: {busca.trim()}
+                      Busca: {buscaParaFiltro.trim()}
                     </span>
                   )}
                   {filtroSexo && (
@@ -1122,7 +1117,7 @@ export default function Animais() {
                   )}
                 </div>
 
-                {(busca.trim() || filtroSexo || filtroTipoId || filtroStatusId || filtroRacaId || filtroMesesNascimento.length > 0 || filtroAno || selectedTags.length > 0) && (
+                {(buscaParaFiltro.trim() || filtroSexo || filtroTipoId || filtroStatusId || filtroRacaId || filtroMesesNascimento.length > 0 || filtroAno || selectedTags.length > 0) && (
                   <button
                     onClick={handleLimparFiltros}
                     title="Limpar filtros"
@@ -1951,12 +1946,13 @@ export default function Animais() {
       />
 
       {/* Histórico de Alterações (lazy) */}
-      {historicoOpen && (
+      {historicoOpen && historicoEntityId && (
         <Suspense fallback={null}>
           <HistoricoAlteracoes
             open={historicoOpen}
+            entity="animal"
             entityId={historicoEntityId}
-            entityType="animal"
+            entityNome={animaisFiltrados.find(a => a.id === historicoEntityId)?.brinco}
             onClose={() => {
               setHistoricoOpen(false);
               setHistoricoEntityId(null);

@@ -1,4 +1,4 @@
-import { useState, useRef, InputHTMLAttributes } from 'react';
+import { useState, useRef, useCallback, InputHTMLAttributes } from 'react';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getThemeClasses } from '../utils/themeHelpers';
@@ -23,6 +23,7 @@ export default function Input({
   onBlur,
   disabled,
   placeholder,
+  ref: refProp,
   ...props
 }: InputProps) {
   const { appSettings } = useAppSettings();
@@ -30,6 +31,16 @@ export default function Input({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+
+  // Mesclar ref: react-hook-form (register) e ref interno — sem isso o register não lê o valor (ex: Peso em PesagemModal)
+  const mergedRef = useCallback(
+    (el: HTMLInputElement | null) => {
+      (inputRef as React.MutableRefObject<HTMLInputElement | null>).current = el;
+      if (typeof refProp === 'function') refProp(el);
+      else if (refProp) (refProp as React.MutableRefObject<HTMLInputElement | null>).current = el;
+    },
+    [refProp]
+  );
 
   const inputType =
     props.type === 'date' && placeholder?.includes('DD/MM/YYYY')
@@ -102,7 +113,7 @@ export default function Input({
         {/* Input */}
         <input
           {...props}
-          ref={inputRef}
+          ref={mergedRef}
           value={value !== undefined ? value : defaultValue}
           onFocus={handleFocus}
           onBlur={handleBlur}

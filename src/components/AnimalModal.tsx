@@ -29,6 +29,7 @@ import PesagemModal from './PesagemModal';
 import VacinaModal from './VacinaModal';
 import DesmamaModal from './DesmamaModal';
 import { normalizarDataInput, converterDataParaFormatoInput, converterDataParaFormatoBanco } from '../utils/dateInput';
+import { msg } from '../utils/validationMessages';
 
 // Helper para validar números opcionais (aceita número, string vazia ou undefined)
 const numeroOpcional = z.preprocess(
@@ -55,19 +56,19 @@ const numeroOpcional = z.preprocess(
 );
 
 const schemaAnimal = z.object({
-  brinco: z.string().min(1, 'Brinco obrigatório'),
+  brinco: z.string().min(1, msg.obrigatorio),
   nome: z.string().optional(),
-  tipoId: z.string().min(1, 'Selecione o tipo'),
+  tipoId: z.string().min(1, msg.selecione),
   tipoMatrizId: z.string().optional(), // Será salvo na Genealogia
   racaId: z.string().optional(),
-  sexo: z.enum(['M', 'F'], { required_error: 'Selecione o sexo' }),
-  statusId: z.string().min(1, 'Selecione o status'),
-  dataNascimento: z.string().min(1, 'Data de nascimento obrigatória').regex(/^\d{2}\/\d{2}\/\d{4}$/, 'Formato inválido (dd/mm/yyyy)'),
+  sexo: z.enum(['M', 'F'], { required_error: msg.selecione }),
+  statusId: z.string().min(1, msg.selecione),
+  dataNascimento: z.string().min(1, msg.dataObrigatoria).regex(/^\d{2}\/\d{2}\/\d{4}$/, msg.formatoData),
   dataCadastro: z.string().optional(),
   dataEntrada: z.string().optional(),
   dataSaida: z.string().optional(),
-  origemId: z.string().min(1, 'Selecione a origem'),
-  fazendaId: z.string().min(1, 'Selecione a fazenda'),
+  origemId: z.string().min(1, msg.selecione),
+  fazendaId: z.string().min(1, msg.selecione),
   fazendaOrigemId: z.string().optional(),
   proprietarioAnterior: z.string().optional(),
   matrizId: z.string().optional(),
@@ -1135,7 +1136,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                 message: primeiroErro.message || 'Verifique os campos do formulário'
               });
             }
-          })} className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-4 sm:pb-6 space-y-4">
+          })} className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-4 sm:pb-6 space-y-4" noValidate>
             {/* ABA: Identificação */}
             {activeTab === 'identificacao' && (
               <div className="space-y-4">

@@ -3,6 +3,44 @@ import { SyncEvent, SyncEventType, SyncEntity } from '../db/models';
 import { uuid } from './uuid';
 
 const MAX_TENTATIVAS = 5; // Máximo de tentativas antes de marcar como erro permanente
+const MAX_CONCURRENCY = 3; // Batches concorrentes (2-3 ideal)
+const BATCH_SIZE = 50; // Tamanho do lote para INSERT/UPDATE/DELETE
+
+// Mapeamento entidade -> tabela Supabase
+const tableMap: Record<SyncEntity, string> = {
+  fazenda: 'fazendas_online',
+  raca: 'racas_online',
+  categoria: 'categorias_online',
+  nascimento: 'nascimentos_online',
+  desmama: 'desmamas_online',
+  matriz: 'matrizes_online',
+  usuario: 'usuarios_online',
+  audit: 'audits_online',
+  notificacaoLida: 'notificacoes_lidas_online',
+  alertSettings: 'alert_settings_online',
+  appSettings: 'app_settings_online',
+  rolePermission: 'role_permissions_online',
+  pesagem: 'pesagens_online',
+  vacina: 'vacinacoes_online'
+};
+
+// Campo de conflito para upsert (uuid ou id)
+const uuidFieldMap: Record<SyncEntity, string> = {
+  fazenda: 'uuid',
+  raca: 'uuid',
+  categoria: 'uuid',
+  nascimento: 'uuid',
+  desmama: 'uuid',
+  matriz: 'uuid',
+  usuario: 'id',
+  audit: 'uuid',
+  notificacaoLida: 'id',
+  alertSettings: 'id',
+  appSettings: 'id',
+  rolePermission: 'id',
+  pesagem: 'uuid',
+  vacina: 'uuid'
+};
 
 /**
  * Cria um evento de sincronização na fila
@@ -15,7 +53,7 @@ export async function createSyncEvent(
 ): Promise<string> {
   const now = new Date().toISOString();
   const eventId = uuid();
-  
+
   const event: SyncEvent = {
     id: eventId,
     tipo,
@@ -40,156 +78,201 @@ export async function createSyncEvent(
 }
 
 /**
- * Processa um evento de sincronização
- * Retorna true se foi processado com sucesso, false caso contrário
+ * Marca batch com erro (incrementa tentativas, não quebra o fluxo)
  */
-export async function processSyncEvent(event: SyncEvent): Promise<boolean> {
+async function markBatchError(
+  events: SyncEvent[],
+  message: string,
+  now: string
+): Promise<void> {
+  if (events.length === 0) return;
+  await db.syncEvents.bulkUpdate(
+    events.map(e => ({
+      key: e.id,
+      changes: {
+        tentativas: e.tentativas + 1,
+        erro: message,
+        updatedAt: now
+      }
+    }))
+  );
+}
+
+/**
+ * Processa batch de DELETE em lote
+ */
+async function processDeleteBatch(
+  events: SyncEvent[],
+  now: string
+): Promise<{ sucesso: number; falhas: number; erros: Array<{ event: SyncEvent; error: string }> }> {
+  const resultados = { sucesso: 0, falhas: 0, erros: [] as Array<{ event: SyncEvent; error: string }> };
+
+  const ids = events.map(e => e.remoteId).filter(id => id != null) as (number | string)[];
+
+  // Eventos sem remoteId: nunca foram ao servidor, marcar como sincronizados
+  const semRemoteId = events.filter(e => e.remoteId == null);
+  if (semRemoteId.length > 0) {
+    await db.syncEvents.bulkUpdate(
+      semRemoteId.map(e => ({
+        key: e.id,
+        changes: { synced: true, tentativas: e.tentativas + 1, updatedAt: now }
+      }))
+    );
+    resultados.sucesso += semRemoteId.length;
+  }
+
+  if (ids.length === 0) {
+    return resultados;
+  }
+
   try {
     const { supabase } = await import('../api/supabaseClient');
-    
-    // Incrementar tentativas
-    const tentativas = event.tentativas + 1;
-    const now = new Date().toISOString();
-
-    // Determinar a tabela do Supabase baseada na entidade
-    const tableMap: Record<SyncEntity, string> = {
-      fazenda: 'fazendas_online',
-      raca: 'racas_online',
-      categoria: 'categorias_online',
-      nascimento: 'nascimentos_online',
-      desmama: 'desmamas_online',
-      matriz: 'matrizes_online',
-      usuario: 'usuarios_online',
-      audit: 'audits_online',
-      notificacaoLida: 'notificacoes_lidas_online',
-      alertSettings: 'alert_settings_online',
-      appSettings: 'app_settings_online',
-      rolePermission: 'role_permissions_online',
-      pesagem: 'pesagens_online',
-      vacina: 'vacinacoes_online'
-    };
-
-    // Mapeamento de campos UUID (algumas tabelas usam 'uuid', outras 'id')
-    const uuidFieldMap: Record<SyncEntity, string> = {
-      fazenda: 'uuid',
-      raca: 'uuid',
-      categoria: 'uuid',
-      nascimento: 'uuid',
-      desmama: 'uuid',
-      matriz: 'uuid',
-      usuario: 'id', // usuarios_online usa 'id' como UUID
-      audit: 'uuid',
-      notificacaoLida: 'id', // notificacoes_lidas_online usa 'id' como chave
-      alertSettings: 'id',
-      appSettings: 'id',
-      rolePermission: 'id',
-      pesagem: 'uuid',
-      vacina: 'uuid'
-    };
-
-    const tableName = tableMap[event.entidade];
-    if (!tableName) {
-      throw new Error(`Tabela não encontrada para entidade: ${event.entidade}`);
+    const table = tableMap[events[0].entidade];
+    if (!table) {
+      await markBatchError(events.filter(e => e.remoteId != null), `Tabela não encontrada: ${events[0].entidade}`, now);
+      resultados.falhas += ids.length;
+      events.filter(e => e.remoteId != null).forEach(e => resultados.erros.push({ event: e, error: 'Tabela não encontrada' }));
+      return resultados;
     }
 
-    let result: any;
-    let error: any = null;
-
-    switch (event.tipo) {
-      case 'INSERT':
-      case 'UPDATE': {
-        const payload = event.payload ? JSON.parse(event.payload) : {};
-        const uuidField = uuidFieldMap[event.entidade];
-        
-        // Determinar o campo de conflito baseado na entidade
-        const conflictField = uuidField === 'uuid' ? 'uuid' : 'id';
-        
-        const { data, error: upsertError } = await supabase
-          .from(tableName)
-          .upsert(payload, { onConflict: conflictField })
-          .select('id, uuid');
-
-        result = data;
-        error = upsertError;
-        break;
-      }
-      case 'DELETE': {
-        // Para DELETE, precisamos do remoteId
-        if (!event.remoteId) {
-          // Se não tem remoteId, o registro nunca foi ao servidor, então já está "deletado"
-          await db.syncEvents.update(event.id, {
-            synced: true,
-            tentativas,
-            updatedAt: now
-          });
-          return true;
-        }
-
-        const { error: deleteError } = await supabase
-          .from(tableName)
-          .delete()
-          .eq('id', event.remoteId);
-
-        error = deleteError;
-        break;
-      }
-    }
+    const { error } = await supabase.from(table).delete().in('id', ids);
 
     if (error) {
-      // Se excedeu o máximo de tentativas, marcar como erro permanente
-      if (tentativas >= MAX_TENTATIVAS) {
-        await db.syncEvents.update(event.id, {
-          tentativas,
-          erro: error.message || 'Erro ao sincronizar após múltiplas tentativas',
+      const comRemoteId = events.filter(e => e.remoteId != null);
+      await markBatchError(comRemoteId, error.message || 'Erro ao deletar em lote', now);
+      resultados.falhas += ids.length;
+      comRemoteId.forEach(e => resultados.erros.push({ event: e, error: error.message || 'Erro' }));
+      return resultados;
+    }
+
+    const comRemoteId = events.filter(e => e.remoteId != null);
+    await db.syncEvents.bulkUpdate(
+      comRemoteId.map(e => ({
+        key: e.id,
+        changes: {
+          synced: true,
+          erro: null,
+          tentativas: e.tentativas + 1,
           updatedAt: now
-        });
-        return false;
-      }
-
-      // Atualizar com erro e incrementar tentativas
-      await db.syncEvents.update(event.id, {
-        tentativas,
-        erro: error.message || 'Erro desconhecido',
-        updatedAt: now
-      });
-      return false;
-    }
-
-    // Sucesso - marcar como sincronizado
-    const remoteId = result && result.length > 0 ? result[0].id : event.remoteId;
-    await db.syncEvents.update(event.id, {
-      synced: true,
-      tentativas,
-      erro: null,
-      remoteId,
-      updatedAt: now
-    });
-
-    return true;
-  } catch (error: any) {
-    const tentativas = event.tentativas + 1;
-    const now = new Date().toISOString();
-
-    if (tentativas >= MAX_TENTATIVAS) {
-      await db.syncEvents.update(event.id, {
-        tentativas,
-        erro: error.message || 'Erro ao processar evento',
-        updatedAt: now
-      });
-      return false;
-    }
-
-    await db.syncEvents.update(event.id, {
-      tentativas,
-      erro: error.message || 'Erro desconhecido',
-      updatedAt: now
-    });
-    return false;
+        }
+      }))
+    );
+    resultados.sucesso += ids.length;
+  } catch (err: any) {
+    const comRemoteId = events.filter(e => e.remoteId != null);
+    await markBatchError(comRemoteId, err?.message || 'Erro ao processar DELETE', now);
+    resultados.falhas += ids.length;
+    comRemoteId.forEach(e => resultados.erros.push({ event: e, error: err?.message || 'Erro' }));
   }
+
+  return resultados;
+}
+
+/**
+ * Processa batch de INSERT/UPDATE em lote (upsert)
+ */
+async function processUpsertBatch(
+  events: SyncEvent[],
+  now: string
+): Promise<{ sucesso: number; falhas: number; erros: Array<{ event: SyncEvent; error: string }> }> {
+  const resultados = { sucesso: 0, falhas: 0, erros: [] as Array<{ event: SyncEvent; error: string }> };
+
+  if (events.length === 0) return resultados;
+
+  const sample = events[0];
+  const table = tableMap[sample.entidade];
+  const conflictField = uuidFieldMap[sample.entidade] === 'uuid' ? 'uuid' : 'id';
+
+  if (!table) {
+    await markBatchError(events, `Tabela não encontrada: ${sample.entidade}`, now);
+    resultados.falhas = events.length;
+    events.forEach(e => resultados.erros.push({ event: e, error: 'Tabela não encontrada' }));
+    return resultados;
+  }
+
+  const parsed: { event: SyncEvent; payload: Record<string, unknown> }[] = [];
+  const invalidos: SyncEvent[] = [];
+  for (const e of events) {
+    try {
+      const p = e.payload ? JSON.parse(e.payload) : {};
+      if (Object.keys(p).length > 0) {
+        parsed.push({ event: e, payload: p });
+      } else {
+        invalidos.push(e);
+      }
+    } catch {
+      invalidos.push(e);
+    }
+  }
+
+  if (invalidos.length > 0) {
+    await markBatchError(invalidos, 'Payload inválido ou vazio', now);
+    resultados.falhas = invalidos.length;
+    invalidos.forEach(e => resultados.erros.push({ event: e, error: 'Payload inválido' }));
+  }
+
+  if (parsed.length === 0) {
+    return resultados;
+  }
+
+  const payloads = parsed.map(p => p.payload);
+  const eventosValidos = parsed.map(p => p.event);
+
+  try {
+    const { supabase } = await import('../api/supabaseClient');
+
+    // Upsert sem .select() para melhor performance
+    const { error } = await supabase.from(table).upsert(payloads, { onConflict: conflictField });
+
+    if (error) {
+      await markBatchError(eventosValidos, error.message || 'Erro no upsert', now);
+      resultados.falhas = eventosValidos.length;
+      eventosValidos.forEach(e => resultados.erros.push({ event: e, error: error.message || 'Erro' }));
+      return resultados;
+    }
+
+    await db.syncEvents.bulkUpdate(
+      eventosValidos.map(e => ({
+        key: e.id,
+        changes: {
+          synced: true,
+          erro: null,
+          tentativas: e.tentativas + 1,
+          updatedAt: now
+        }
+      }))
+    );
+    resultados.sucesso = eventosValidos.length;
+  } catch (err: any) {
+    await markBatchError(eventosValidos, err?.message || 'Erro ao processar upsert', now);
+    resultados.falhas = eventosValidos.length;
+    eventosValidos.forEach(e => resultados.erros.push({ event: e, error: err?.message || 'Erro' }));
+  }
+
+  return resultados;
+}
+
+/**
+ * Processa um batch (DELETE ou UPSERT)
+ */
+async function processBatch(
+  events: SyncEvent[],
+  now: string
+): Promise<{ sucesso: number; falhas: number; erros: Array<{ event: SyncEvent; error: string }> }> {
+  if (events.length === 0) return { sucesso: 0, falhas: 0, erros: [] };
+
+  if (events[0].tipo === 'DELETE') {
+    return processDeleteBatch(events, now);
+  }
+  return processUpsertBatch(events, now);
 }
 
 /**
  * Processa todos os eventos pendentes na fila
+ * - Busca só pendentes, ordenados no IndexedDB
+ * - Agrupa por entidade+tipo
+ * - Cria batches de BATCH_SIZE
+ * - Executa com paralelismo controlado (MAX_CONCURRENCY)
  */
 export async function processSyncQueue(): Promise<{
   processados: number;
@@ -197,35 +280,68 @@ export async function processSyncQueue(): Promise<{
   falhas: number;
   erros: Array<{ event: SyncEvent; error: string }>;
 }> {
-  // Buscar todos os eventos e filtrar manualmente para evitar problemas com índices
-  const todosEventos = await db.syncEvents.toArray();
-  const eventos = todosEventos.filter(e => !e.synced);
+  // Buscar TODOS e filtrar em memória - evita índice [synced+createdAt] que falha se createdAt for inválido
+  const todos = await db.syncEvents.toArray();
+  const pendentes = todos
+    .filter(e => !e.synced)
+    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
 
-  const resultados = {
-    processados: 0,
-    sucesso: 0,
-    falhas: 0,
-    erros: [] as Array<{ event: SyncEvent; error: string }>
-  };
+  if (pendentes.length === 0) {
+    return { processados: 0, sucesso: 0, falhas: 0, erros: [] };
+  }
 
-  // Processar eventos em ordem (mais antigos primeiro)
-  eventos.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  // Filtrar eventos que excederam tentativas
+  const elegiveis = pendentes.filter(e => e.tentativas < MAX_TENTATIVAS);
+  const descartados = pendentes.length - elegiveis.length;
 
-  for (const event of eventos) {
-    resultados.processados++;
-    const sucesso = await processSyncEvent(event);
-    
-    if (sucesso) {
-      resultados.sucesso++;
-    } else {
-      resultados.falhas++;
-      if (event.erro) {
-        resultados.erros.push({ event, error: event.erro });
-      }
+  // Agrupar por entidade + tipo
+  const grupos = new Map<string, SyncEvent[]>();
+  for (const e of elegiveis) {
+    const key = `${e.entidade}:${e.tipo}`;
+    if (!grupos.has(key)) grupos.set(key, []);
+    grupos.get(key)!.push(e);
+  }
+
+  // Criar batches de BATCH_SIZE
+  const batches: SyncEvent[][] = [];
+  for (const group of grupos.values()) {
+    for (let i = 0; i < group.length; i += BATCH_SIZE) {
+      batches.push(group.slice(i, i + BATCH_SIZE));
     }
   }
 
+  const resultados = { processados: 0, sucesso: 0, falhas: 0, erros: [] as Array<{ event: SyncEvent; error: string }> };
+  const now = new Date().toISOString();
+
+  // Pool de workers com paralelismo controlado
+  let index = 0;
+  const worker = async (): Promise<void> => {
+    let i: number;
+    while ((i = index++) < batches.length) {
+      const batch = batches[i];
+      const r = await processBatch(batch, now);
+      resultados.processados += batch.length;
+      resultados.sucesso += r.sucesso;
+      resultados.falhas += r.falhas;
+      resultados.erros.push(...r.erros);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENCY, batches.length) }, worker));
+
+  resultados.processados += descartados;
+  resultados.falhas += descartados;
+
   return resultados;
+}
+
+/**
+ * Processa um evento individual (fallback para retry ou casos especiais)
+ * Mantido para compatibilidade com código que possa chamar diretamente
+ */
+export async function processSyncEvent(event: SyncEvent): Promise<boolean> {
+  const r = await processBatch([event], new Date().toISOString());
+  return r.sucesso > 0;
 }
 
 /**
@@ -240,17 +356,13 @@ export async function getSyncQueueStats(): Promise<{
   porEntidade: Record<SyncEntity, number>;
 }> {
   const todos = await db.syncEvents.toArray();
-  
+
   const stats = {
     total: todos.length,
     pendentes: todos.filter(e => !e.synced).length,
     sincronizados: todos.filter(e => e.synced).length,
     comErro: todos.filter(e => !e.synced && e.tentativas >= MAX_TENTATIVAS).length,
-    porTipo: {
-      INSERT: 0,
-      UPDATE: 0,
-      DELETE: 0
-    } as Record<SyncEventType, number>,
+    porTipo: { INSERT: 0, UPDATE: 0, DELETE: 0 } as Record<SyncEventType, number>,
     porEntidade: {} as Record<SyncEntity, number>
   };
 
@@ -263,6 +375,34 @@ export async function getSyncQueueStats(): Promise<{
 }
 
 /**
+ * Diagnóstico: lista SyncEvents com createdAt inválido (undefined, null, vazio ou não-string).
+ * Use no console: import('./utils/syncEvents').then(m => m.diagnoseSyncEventsInvalidCreatedAt())
+ */
+export async function diagnoseSyncEventsInvalidCreatedAt(): Promise<{
+  total: number;
+  comCreatedAtInvalido: number;
+  ids: string[];
+  exemplos: Array<{ id: string; createdAt: unknown; tipo: string; entidade: string }>;
+}> {
+  const todos = await db.syncEvents.toArray();
+  const invalidos = todos.filter(e => {
+    const v = e.createdAt;
+    return v === undefined || v === null || typeof v !== 'string' || v === '';
+  });
+  return {
+    total: todos.length,
+    comCreatedAtInvalido: invalidos.length,
+    ids: invalidos.map(e => e.id),
+    exemplos: invalidos.slice(0, 10).map(e => ({
+      id: e.id,
+      createdAt: e.createdAt,
+      tipo: e.tipo,
+      entidade: e.entidade
+    }))
+  };
+}
+
+/**
  * Limpa eventos sincronizados antigos (mais de 7 dias)
  */
 export async function cleanupOldSyncEvents(): Promise<number> {
@@ -271,7 +411,7 @@ export async function cleanupOldSyncEvents(): Promise<number> {
 
   const eventosAntigos = await db.syncEvents
     .where('synced')
-    .equals(true)
+    .equals(true as never)
     .and(e => new Date(e.updatedAt) < seteDiasAtras)
     .toArray();
 

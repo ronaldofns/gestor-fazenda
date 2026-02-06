@@ -17,8 +17,10 @@ import { useAuth } from '../hooks/useAuth';
 
 type Mode = 'create' | 'edit';
 
+import { msg } from '../utils/validationMessages';
+
 const schema = z.object({
-  nome: z.string().min(1, 'Informe o nome da fazenda'),
+  nome: z.string().min(1, msg.obrigatorio),
   logoUrl: z.string().optional()
 });
 
@@ -207,7 +209,7 @@ export default function FazendaModal({
   };
 
   const conteudoFormulario = (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <Input
         {...register('nome')}
         label="Nome da Fazenda"

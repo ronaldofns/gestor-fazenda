@@ -20,10 +20,11 @@ import { checkLock, lockRecord, unlockRecord } from '../utils/recordLock';
 import { registrarAudit } from '../utils/audit';
 import { calcularGMD, calcularGMDAcumulado } from '../utils/calcularGMD';
 import { useBalancaStore } from '../stores/balancaStore';
+import { msg } from '../utils/validationMessages';
 
 const schemaPesagem = z.object({
-  dataPesagem: z.string().min(1, 'Informe a data da pesagem'),
-  peso: z.number({ invalid_type_error: 'Informe o peso' }).min(0.01, 'O peso deve ser maior que zero'),
+  dataPesagem: z.string().min(1, msg.dataObrigatoria),
+  peso: z.number({ invalid_type_error: msg.informeValor }).min(0.01, msg.valorMaiorQueZero),
   observacao: z.string().optional()
 });
 
@@ -500,7 +501,7 @@ function PesagemModalComponent({
             <Icons.X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4" noValidate>
         {/* Aviso de lock */}
         {lockError && (
           <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">

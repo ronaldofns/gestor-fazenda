@@ -57,7 +57,7 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
           <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
             Cadastro Rápido de Raça
           </h3>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="mb-4">
               <Input
                 label="Nome da Raça"

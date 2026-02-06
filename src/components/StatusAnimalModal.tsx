@@ -13,12 +13,13 @@ import { getPrimaryButtonClass } from '../utils/themeHelpers';
 import Modal from './Modal';
 import Input from './Input';
 import Textarea from './Textarea';
+import { msg } from '../utils/validationMessages';
 
 const schemaStatusAnimal = z.object({
-  nome: z.string().min(1, 'Nome obrigatório'),
+  nome: z.string().min(1, msg.obrigatorio),
   cor: z.string().optional(),
   descricao: z.string().optional(),
-  ordem: z.number().optional()
+  ordem: z.preprocess((v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v)) ? undefined : v), z.number().optional())
 });
 
 type FormDataStatusAnimal = z.infer<typeof schemaStatusAnimal>;
@@ -138,7 +139,7 @@ export default function StatusAnimalModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4" noValidate>
           {/* Nome */}
           <Input
             {...register('nome')}

@@ -14,15 +14,16 @@ import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getThemeClasses, getCheckboxClass } from '../utils/themeHelpers';
+import { msg } from '../utils/validationMessages';
 
 type Mode = 'create' | 'edit';
 
 const schemaUsuario = z.object({
-  nome: z.string().min(1, 'Informe o nome'),
-  email: z.string().min(1, 'Informe o email').email('Email inválido'),
-  senha: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres').optional().or(z.literal('')),
+  nome: z.string().min(1, msg.obrigatorio),
+  email: z.string().min(1, msg.obrigatorio).email(msg.emailInvalido),
+  senha: z.string().min(6, msg.senhaMinima).optional().or(z.literal('')),
   confirmarSenha: z.string().optional().or(z.literal('')),
-  role: z.enum(['admin', 'gerente', 'peao', 'visitante'], { required_error: 'Selecione o perfil do usuário' }),
+  role: z.enum(['admin', 'gerente', 'peao', 'visitante'], { required_error: msg.selecione }),
   fazendaId: z.string().optional(),
   ativo: z.boolean()
 }).refine((data) => {
@@ -31,7 +32,7 @@ const schemaUsuario = z.object({
   // Se informou senha, precisa confirmar
   return data.senha === data.confirmarSenha;
 }, {
-  message: 'Senhas não coincidem',
+  message: msg.senhasNaoCoincidem,
   path: ['confirmarSenha']
 });
 
@@ -194,7 +195,7 @@ export default function UsuarioModal({
   };
 
   const conteudoFormulario = (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input
           {...register('nome')}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { Usuario, UserRole } from '../db/models';
+import { db } from '../db/dexieDB';
 import { authenticateUser, getUserById } from '../utils/auth';
 
 interface AuthContextType {
@@ -19,27 +20,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Carregar sessão apenas do sessionStorage (será limpo ao fechar a aba/janela)
+  // Carregar sessão do localStorage (persiste após reload da PWA/atualização)
   useEffect(() => {
     const loadSession = async () => {
       try {
-        // Limpar qualquer sessão antiga do localStorage (migração)
-        localStorage.removeItem('gestor-fazenda-user-id');
-        
-        // Carregar apenas do sessionStorage (persiste durante recarregamentos, mas é limpo ao fechar aba/janela)
-        const savedUserId = sessionStorage.getItem('gestor-fazenda-user-id');
+        // Migrar sessionStorage → localStorage (evita logout após reload da PWA)
+        let savedUserId = localStorage.getItem('gestor-fazenda-user-id');
+        if (!savedUserId) {
+          const fromSession = sessionStorage.getItem('gestor-fazenda-user-id');
+          if (fromSession) {
+            localStorage.setItem('gestor-fazenda-user-id', fromSession);
+            sessionStorage.removeItem('gestor-fazenda-user-id');
+            savedUserId = fromSession;
+          }
+        }
         if (savedUserId) {
-          const usuario = await getUserById(savedUserId);
+          await db.open(); // Garantir que o IndexedDB está pronto antes de buscar
+          let usuario = await getUserById(savedUserId);
+          // Retry: IndexedDB pode ainda estar inicializando em alguns reloads
+          if (!usuario) {
+            await new Promise(r => setTimeout(r, 300));
+            usuario = await getUserById(savedUserId);
+          }
+          // Fallback: usuário pode ter sumido do IndexedDB (storage clear, PWA). Tentar repuxar do Supabase.
+          if (!usuario) {
+            try {
+              const { pullUsuarios } = await import('../api/syncService');
+              await pullUsuarios();
+              usuario = await getUserById(savedUserId);
+            } catch (_) { /* ignora falha de rede */ }
+          }
           if (usuario && usuario.ativo) {
             setUser(usuario);
           } else {
-            // Se usuário não encontrado ou inativo, limpar sessão
-            sessionStorage.removeItem('gestor-fazenda-user-id');
+            localStorage.removeItem('gestor-fazenda-user-id');
           }
         }
       } catch (error) {
         console.error('Erro ao carregar sessão:', error);
-        sessionStorage.removeItem('gestor-fazenda-user-id');
+        localStorage.removeItem('gestor-fazenda-user-id');
       } finally {
         setLoading(false);
       }
@@ -54,14 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Email ou senha incorretos');
     }
     setUser(usuario);
-    // Usar sessionStorage ao invés de localStorage para que a sessão seja limpa ao fechar a aba/janela
-    sessionStorage.setItem('gestor-fazenda-user-id', usuario.id);
+    localStorage.setItem('gestor-fazenda-user-id', usuario.id);
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('gestor-fazenda-user-id');
-    sessionStorage.removeItem('gestor-fazenda-user-id');
   };
 
   const refreshUser = async () => {

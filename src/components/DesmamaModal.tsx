@@ -15,16 +15,17 @@ import { registrarAudit } from '../utils/audit';
 import Modal from './Modal';
 import Input from './Input';
 import { converterDataParaFormatoInput, converterDataParaFormatoBanco } from '../utils/dateInput';
+import { msg } from '../utils/validationMessages';
 
 const schemaDesmama = z.object({
-  dataDesmama: z.string().min(1, 'Data obrigatória').regex(/^\d{2}\/\d{2}\/\d{4}$/, 'Formato inválido (dd/mm/yyyy)'),
+  dataDesmama: z.string().min(1, msg.dataObrigatoria).regex(/^\d{2}\/\d{2}\/\d{4}$/, msg.formatoData),
   pesoDesmama: z.preprocess(
     (val) => {
       if (val === '' || val === null || val === undefined) return undefined;
       const parsed = parseFloat(String(val));
       return isNaN(parsed) ? undefined : parsed;
     },
-    z.number({ invalid_type_error: 'Peso obrigatório' }).positive('Peso deve ser positivo').min(1, 'Peso obrigatório')
+    z.number({ invalid_type_error: msg.informeValor }).positive(msg.valorMaiorQueZero).min(0.01, msg.valorMaiorQueZero)
   )
 });
 
@@ -179,7 +180,7 @@ export default function DesmamaModal({
 
         {/* Conteúdo com scroll */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
             {/* Card com campos */}
             <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
