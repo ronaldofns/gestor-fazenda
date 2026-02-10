@@ -34,18 +34,18 @@ type Mode = 'create' | 'edit';
 interface VacinaModalProps {
   open: boolean;
   mode: Mode;
-  nascimentoId: string; // ID do nascimento (animal)
+  animalId: string;
   initialData?: Vacina | null;
   onClose: () => void;
   onSaved?: () => void;
-  onEditVacina?: (vacina: Vacina | null) => void; // Callback para editar vacina da timeline ou voltar para create
-  onDeleteVacina?: (vacina: Vacina) => void; // Callback para excluir vacina da timeline
+  onEditVacina?: (vacina: Vacina | null) => void;
+  onDeleteVacina?: (vacina: Vacina) => void;
 }
 
 function VacinaModalComponent({
   open,
   mode,
-  nascimentoId,
+  animalId,
   initialData,
   onClose,
   onSaved,
@@ -70,10 +70,9 @@ function VacinaModalComponent({
     onConfirm: () => {}
   });
 
-  // Buscar todas as vacinações do animal
   const todasVacinacoes = useLiveQuery(
-    () => db.vacinacoes.where('nascimentoId').equals(nascimentoId).toArray(),
-    [nascimentoId, open]
+    () => db.vacinacoes.where('animalId').equals(animalId).toArray(),
+    [animalId, open]
   ) || [];
 
   // Ordenar vacinações por data (mais recente primeiro)
@@ -327,7 +326,7 @@ function VacinaModalComponent({
 
         const novaVacina: Vacina = {
           id,
-          nascimentoId,
+          animalId,
           vacina: values.vacina,
           dataAplicacao: dataAplicacaoFormatada,
           dataVencimento: dataVencimentoFormatada,

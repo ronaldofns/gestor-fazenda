@@ -1,10 +1,17 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
+import { calcularGMDParcial } from '../utils/confinamentoRules';
+import { estadoConfinamentoDerivado } from '../utils/confinamentoEstado';
+
+const GMD_MINIMO_CONFINAMENTO_KG_DIA = 0.4; // Alerta se GMD parcial < 0,4 kg/dia
+const DIAS_ALERTA_SEM_PESAGEM = 30; // Alerta se animal ativo sem pesagem há X dias
+const DIAS_PESO_ESTAGNADO = 14; // Intervalo mínimo para considerar "peso estagnado"
+const DELTA_PESO_ESTAGNADO_KG = 0.5; // Diferença máxima (kg) entre 2 pesagens para considerar estagnado
 
 export interface Alerta {
   id: string;
-  tipo: 'desmama' | 'matriz' | 'peso' | 'vacina' | 'mortalidade';
+  tipo: 'desmama' | 'matriz' | 'peso' | 'vacina' | 'mortalidade' | 'confinamento';
   severidade: 'baixa' | 'media' | 'alta';
   titulo: string;
   mensagem: string;
@@ -36,6 +43,9 @@ export function useAlertas(fazendaId?: string, usuarioId?: string): AlertasMetri
   const vacinacoesRaw = useLiveQuery(() => db.vacinacoes.toArray(), []) || [];
   const genealogiasRaw = useLiveQuery(() => db.genealogias.toArray(), []) || [];
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
+  const confinamentosRaw = useLiveQuery(() => db.confinamentos.filter(c => !c.deletedAt).toArray(), []) || [];
+  const confinamentoAnimaisRaw = useLiveQuery(() => db.confinamentoAnimais.filter(v => v.deletedAt == null).toArray(), []) || [];
+  const confinamentoPesagensRaw = useLiveQuery(() => db.confinamentoPesagens.filter(p => p.deletedAt == null).toArray(), []) || [];
   // Carregar todas as notificações lidas e filtrar por usuário em JavaScript
   // (não requer índice no banco)
   const notificacoesLidasRaw = useLiveQuery(
@@ -174,7 +184,7 @@ export function useAlertas(fazendaId?: string, usuarioId?: string): AlertasMetri
     // Para simplicidade, vamos considerar animais com peso muito baixo na última pesagem
     const animaisComPesoCritico = animais.filter(animal => {
       const pesagensAnimal = pesagensRaw
-        .filter(p => p.nascimentoId === animal.id || p.animalId === animal.id)
+        .filter(p => p.animalId === animal.id)
         .filter(p => p.dataPesagem) // Validar se data existe
         .sort((a, b) => {
           const dataA = new Date(a.dataPesagem.includes('/') ? a.dataPesagem.split('/').reverse().join('-') : a.dataPesagem);
@@ -227,7 +237,7 @@ export function useAlertas(fazendaId?: string, usuarioId?: string): AlertasMetri
     const hoje = new Date();
     const animaisComVacinasVencidas = animais.filter(animal => {
       const vacinacoesAnimal = vacinacoesRaw
-        .filter(v => v.nascimentoId === animal.id || v.animalId === animal.id)
+        .filter(v => v.animalId === animal.id)
         .filter(v => v.dataAplicacao) // Validar se data existe
         .sort((a, b) => {
           const dataA = new Date(a.dataAplicacao.includes('/') ? a.dataAplicacao.split('/').reverse().join('-') : a.dataAplicacao);
@@ -317,6 +327,145 @@ export function useAlertas(fazendaId?: string, usuarioId?: string): AlertasMetri
       }
     }
 
+    // ========================================
+    // 6. ALERTA: BAIXO GANHO NO CONFINAMENTO
+    // ========================================
+    const confinamentosFiltrados = fazendaId
+      ? confinamentosRaw.filter(c => c.fazendaId === fazendaId)
+      : confinamentosRaw;
+    const confinamentoIdsAtivos = new Set(
+      confinamentosFiltrados
+        .filter(c => {
+          const vinculos = confinamentoAnimaisRaw.filter(v => v.confinamentoId === c.id);
+          return estadoConfinamentoDerivado(c, vinculos) === 'ativo';
+        })
+        .map(c => c.id)
+    );
+    const vinculosAtivos = confinamentoAnimaisRaw.filter(
+      v => v.dataSaida == null && confinamentoIdsAtivos.has(v.confinamentoId)
+    );
+
+    const ultimaPesagemPorVinculo = new Map<string, { peso: number; data: string }>();
+    for (const p of confinamentoPesagensRaw) {
+      const atual = ultimaPesagemPorVinculo.get(p.confinamentoAnimalId);
+      if (!atual || new Date(p.data) > new Date(atual.data)) {
+        ultimaPesagemPorVinculo.set(p.confinamentoAnimalId, { peso: p.peso, data: p.data });
+      }
+    }
+
+    const animaisComBaixoGMD: Array<{ id: string; brinco?: string; nome?: string; confinamentoNome: string; gmd: number }> = [];
+    for (const v of vinculosAtivos) {
+      const ultima = ultimaPesagemPorVinculo.get(v.id);
+      const pesoAtual = ultima?.peso ?? animaisRaw.find(a => a.id === v.animalId)?.pesoAtual;
+      if (pesoAtual == null) continue;
+      const res = calcularGMDParcial(v.pesoEntrada, pesoAtual, v.dataEntrada);
+      if (res.gmd != null && res.gmd < GMD_MINIMO_CONFINAMENTO_KG_DIA) {
+        const animal = animaisRaw.find(a => a.id === v.animalId);
+        const conf = confinamentosRaw.find(c => c.id === v.confinamentoId);
+        animaisComBaixoGMD.push({
+          id: v.animalId,
+          brinco: animal?.brinco,
+          nome: animal?.nome,
+          confinamentoNome: conf?.nome ?? 'Confinamento',
+          gmd: res.gmd
+        });
+      }
+    }
+
+    if (animaisComBaixoGMD.length > 0) {
+      resultado.push({
+        id: 'confinamento-baixo-gmd',
+        tipo: 'confinamento',
+        severidade: 'media',
+        titulo: 'Baixo ganho no confinamento',
+        mensagem: `${animaisComBaixoGMD.length} ${animaisComBaixoGMD.length === 1 ? 'animal está' : 'animais estão'} com GMD abaixo de ${GMD_MINIMO_CONFINAMENTO_KG_DIA} kg/dia`,
+        quantidade: animaisComBaixoGMD.length,
+        icone: 'BarChart',
+        cor: 'amber',
+        lido: alertasLidosSet.has('confinamento-baixo-gmd'),
+        detalhes: animaisComBaixoGMD
+      });
+    }
+
+    // ========================================
+    // 7. ALERTA: ANIMAL SEM PESAGEM HÁ X DIAS (confinamento ativo)
+    // ========================================
+    const animaisSemPesagemRecente: Array<{ id: string; brinco?: string; nome?: string; confinamentoNome: string; diasSemPesagem: number }> = [];
+    for (const v of vinculosAtivos) {
+      const ultima = ultimaPesagemPorVinculo.get(v.id);
+      const dataRef = ultima ? new Date(ultima.data) : new Date(v.dataEntrada);
+      const diasSemPesagem = Math.floor((hoje.getTime() - dataRef.getTime()) / (1000 * 60 * 60 * 24));
+      if (diasSemPesagem >= DIAS_ALERTA_SEM_PESAGEM) {
+        const animal = animaisRaw.find(a => a.id === v.animalId);
+        const conf = confinamentosRaw.find(c => c.id === v.confinamentoId);
+        animaisSemPesagemRecente.push({
+          id: v.animalId,
+          brinco: animal?.brinco,
+          nome: animal?.nome,
+          confinamentoNome: conf?.nome ?? 'Confinamento',
+          diasSemPesagem
+        });
+      }
+    }
+    if (animaisSemPesagemRecente.length > 0) {
+      resultado.push({
+        id: 'confinamento-sem-pesagem',
+        tipo: 'confinamento',
+        severidade: 'media',
+        titulo: 'Sem pesagem há muito tempo',
+        mensagem: `${animaisSemPesagemRecente.length} ${animaisSemPesagemRecente.length === 1 ? 'animal está' : 'animais estão'} há mais de ${DIAS_ALERTA_SEM_PESAGEM} dias sem pesagem no confinamento`,
+        quantidade: animaisSemPesagemRecente.length,
+        icone: 'Scale',
+        cor: 'amber',
+        lido: alertasLidosSet.has('confinamento-sem-pesagem'),
+        detalhes: animaisSemPesagemRecente
+      });
+    }
+
+    // ========================================
+    // 8. ALERTA: PESO ESTAGNADO (últimas 2 pesagens muito próximas com intervalo grande)
+    // ========================================
+    const pesagensPorVinculo = new Map<string, Array<{ peso: number; data: string }>>();
+    for (const p of confinamentoPesagensRaw) {
+      const list = pesagensPorVinculo.get(p.confinamentoAnimalId) ?? [];
+      list.push({ peso: p.peso, data: p.data });
+      pesagensPorVinculo.set(p.confinamentoAnimalId, list);
+    }
+    const animaisPesoEstagnado: Array<{ id: string; brinco?: string; nome?: string; confinamentoNome: string; diasEntre: number }> = [];
+    for (const v of vinculosAtivos) {
+      const list = (pesagensPorVinculo.get(v.id) ?? [])
+        .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+      if (list.length < 2) continue;
+      const [ultima, penultima] = list;
+      const diasEntre = Math.floor((new Date(ultima.data).getTime() - new Date(penultima.data).getTime()) / (1000 * 60 * 60 * 24));
+      const deltaPeso = Math.abs(ultima.peso - penultima.peso);
+      if (diasEntre >= DIAS_PESO_ESTAGNADO && deltaPeso <= DELTA_PESO_ESTAGNADO_KG) {
+        const animal = animaisRaw.find(a => a.id === v.animalId);
+        const conf = confinamentosRaw.find(c => c.id === v.confinamentoId);
+        animaisPesoEstagnado.push({
+          id: v.animalId,
+          brinco: animal?.brinco,
+          nome: animal?.nome,
+          confinamentoNome: conf?.nome ?? 'Confinamento',
+          diasEntre
+        });
+      }
+    }
+    if (animaisPesoEstagnado.length > 0) {
+      resultado.push({
+        id: 'confinamento-peso-estagnado',
+        tipo: 'confinamento',
+        severidade: 'baixa',
+        titulo: 'Peso estagnado no confinamento',
+        mensagem: `${animaisPesoEstagnado.length} ${animaisPesoEstagnado.length === 1 ? 'animal com' : 'animais com'} peso praticamente estável há mais de ${DIAS_PESO_ESTAGNADO} dias`,
+        quantidade: animaisPesoEstagnado.length,
+        icone: 'Minus',
+        cor: 'blue',
+        lido: alertasLidosSet.has('confinamento-peso-estagnado'),
+        detalhes: animaisPesoEstagnado
+      });
+    }
+
     return resultado;
   }, [
     animaisRaw,
@@ -327,6 +476,9 @@ export function useAlertas(fazendaId?: string, usuarioId?: string): AlertasMetri
     vacinacoesRaw,
     genealogiasRaw,
     fazendasRaw,
+    confinamentosRaw,
+    confinamentoAnimaisRaw,
+    confinamentoPesagensRaw,
     notificacoesLidasRaw,
     fazendaId,
     isLoading

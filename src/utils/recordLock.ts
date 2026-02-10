@@ -4,7 +4,7 @@ const LOCK_TTL_MINUTES = 10; // TTL de 10 minutos
 
 export interface RecordLock {
   entityId: string;
-  entityType: 'nascimento' | 'desmama' | 'matriz' | 'fazenda' | 'raca' | 'categoria' | 'usuario' | 'pesagem' | 'vacina';
+  entityType: 'desmama' | 'matriz' | 'fazenda' | 'raca' | 'categoria' | 'usuario' | 'pesagem' | 'vacina';
   lockedBy: string; // userId
   lockedByNome?: string; // Nome do usuário que bloqueou
   lockedAt: string; // ISO timestamp
@@ -24,9 +24,6 @@ export async function checkLock(
     let record: any = null;
     
     switch (entityType) {
-      case 'nascimento':
-        record = await db.nascimentos.get(entityId);
-        break;
       case 'desmama':
         record = await db.desmamas.get(entityId);
         break;
@@ -156,14 +153,14 @@ async function updateLock(
   }
 
   switch (entityType) {
-    case 'nascimento':
-      await db.nascimentos.update(entityId, updateData);
-      break;
     case 'desmama':
       await db.desmamas.update(entityId, updateData);
       break;
     case 'pesagem':
       await db.pesagens.update(entityId, updateData);
+      break;
+    case 'vacina':
+      await db.vacinacoes.update(entityId, updateData);
       break;
     case 'matriz':
       await db.matrizes.update(entityId, updateData);
@@ -199,9 +196,6 @@ export async function unlockRecord(
     };
 
     switch (entityType) {
-      case 'nascimento':
-        await db.nascimentos.update(entityId, updateData);
-        break;
       case 'desmama':
         await db.desmamas.update(entityId, updateData);
         break;
@@ -240,19 +234,6 @@ export async function cleanupExpiredLocks(): Promise<number> {
   const now = new Date();
 
   try {
-    // Limpar locks de nascimentos
-    const nascimentos = await db.nascimentos.toArray();
-    for (const nascimento of nascimentos) {
-      if (nascimento.lockedAt) {
-        const lockedAt = new Date(nascimento.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
-        if (now > expiresAt) {
-          await unlockRecord('nascimento', nascimento.id);
-          cleaned++;
-        }
-      }
-    }
-
     // Limpar locks de desmamas
     const desmamas = await db.desmamas.toArray();
     for (const desmama of desmamas) {

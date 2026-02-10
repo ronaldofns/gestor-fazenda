@@ -10,7 +10,7 @@ import { Icons } from '../utils/iconMapping';
 import { syncAll, syncAllFull, SyncProgress, SyncStats } from '../api/syncService';
 import { showToast } from '../utils/toast';
 import { setGlobalSyncing, getGlobalSyncing } from '../components/Sidebar';
-import { getSyncQueueStats } from '../utils/syncEvents';
+import { getSyncQueueStats, createSyncEventsForPendingRecords, resetFailedSyncEvents } from '../utils/syncEvents';
 import { exportarBackupCompleto, importarBackup } from '../utils/exportarDados';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -22,7 +22,7 @@ interface PendenciaTabela {
     id: string;
     dataPesagem?: string;
     peso?: number;
-    nascimentoId?: string;
+    animalId?: string;
     observacao?: string;
     [key: string]: any;
   }>;
@@ -126,22 +126,6 @@ export default function Sincronizacao() {
       }
     } catch (err) {
       console.error('Erro ao contar categorias:', err);
-    }
-
-    try {
-      // Nascimentos
-      const nascimentos = await db.nascimentos.toArray();
-      const pendNascimentos = nascimentos.filter(n => n.synced === false);
-      if (pendNascimentos.length > 0) {
-        pendencias.push({
-          nome: 'Nascimentos',
-          quantidade: pendNascimentos.length,
-          icone: Icons.Baby,
-          detalhes: pendNascimentos.map(n => ({ id: n.id, brincoNumero: n.brincoNumero, mes: n.mes, ano: n.ano }))
-        });
-      }
-    } catch (err) {
-      console.error('Erro ao contar nascimentos:', err);
     }
 
     try {
@@ -288,7 +272,7 @@ export default function Sincronizacao() {
               id: p.id,
               dataPesagem: p.dataPesagem,
               peso: p.peso,
-              nascimentoId: p.nascimentoId,
+              animalId: p.animalId,
               observacao: p.observacao
             }))
           });
@@ -312,7 +296,7 @@ export default function Sincronizacao() {
               id: v.id,
               vacina: v.vacina,
               dataAplicacao: v.dataAplicacao,
-              nascimentoId: v.nascimentoId
+              animalId: v.animalId
             }))
           });
         }
@@ -463,6 +447,78 @@ export default function Sincronizacao() {
       }
     } catch (err) {
       console.error('Erro ao contar exclusões:', err);
+    }
+
+    try {
+      // Confinamentos
+      if (db.confinamentos) {
+        const confinamentos = await db.confinamentos.toArray();
+        const pendConfinamentos = confinamentos.filter(c => c.synced === false);
+        if (pendConfinamentos.length > 0) {
+          pendencias.push({
+            nome: 'Confinamentos',
+            quantidade: pendConfinamentos.length,
+            icone: Icons.Warehouse,
+            detalhes: pendConfinamentos.map(c => ({ id: c.id, nome: c.nome, dataInicio: c.dataInicio }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar confinamentos:', err);
+    }
+
+    try {
+      // Confinamento Animais (vínculos animal-confinamento)
+      if (db.confinamentoAnimais) {
+        const confinamentoAnimais = await db.confinamentoAnimais.toArray();
+        const pendVinculos = confinamentoAnimais.filter(v => v.deletedAt == null && v.synced === false);
+        if (pendVinculos.length > 0) {
+          pendencias.push({
+            nome: 'Confinamento Animais',
+            quantidade: pendVinculos.length,
+            icone: Icons.Cow,
+            detalhes: pendVinculos.map(v => ({ id: v.id, confinamentoId: v.confinamentoId?.substring(0, 8), dataEntrada: v.dataEntrada }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar confinamento animais:', err);
+    }
+
+    try {
+      // Confinamento Pesagens
+      if (db.confinamentoPesagens) {
+        const confinamentoPesagens = await db.confinamentoPesagens.toArray();
+        const pendPesagensConf = confinamentoPesagens.filter(p => p.synced === false);
+        if (pendPesagensConf.length > 0) {
+          pendencias.push({
+            nome: 'Confinamento Pesagens',
+            quantidade: pendPesagensConf.length,
+            icone: Icons.Scale,
+            detalhes: pendPesagensConf.map(p => ({ id: p.id, data: p.data, peso: p.peso }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar confinamento pesagens:', err);
+    }
+
+    try {
+      // Confinamento Alimentação
+      if (db.confinamentoAlimentacao) {
+        const confinamentoAlimentacao = await db.confinamentoAlimentacao.toArray();
+        const pendAlimentacao = confinamentoAlimentacao.filter(a => a.deletedAt == null && a.synced === false);
+        if (pendAlimentacao.length > 0) {
+          pendencias.push({
+            nome: 'Confinamento Alimentação',
+            quantidade: pendAlimentacao.length,
+            icone: Icons.Calendar,
+            detalhes: pendAlimentacao.map(a => ({ id: a.id, data: a.data, tipoDieta: a.tipoDieta }))
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao contar confinamento alimentação:', err);
     }
 
     return pendencias;
@@ -689,6 +745,34 @@ export default function Sincronizacao() {
         handleSync(true);
       }
     });
+  };
+
+  const handleCriarEventosPendencias = async () => {
+    try {
+      const { created, errors } = await createSyncEventsForPendingRecords();
+      if (errors.length > 0) {
+        showToast({ type: 'warning', message: `${created} evento(s) criado(s). Erros: ${errors.slice(0, 3).join('; ')}` });
+      } else if (created > 0) {
+        showToast({ type: 'success', message: `${created} evento(s) criado(s) para pendências. Clique em "Sincronizar Agora" para enviar.` });
+      } else {
+        showToast({ type: 'info', message: 'Nenhuma pendência sem evento na fila.' });
+      }
+    } catch (err: any) {
+      showToast({ type: 'error', message: err?.message || 'Erro ao criar eventos para pendências.' });
+    }
+  };
+
+  const handleReenviarEventosComErro = async () => {
+    try {
+      const count = await resetFailedSyncEvents();
+      if (count > 0) {
+        showToast({ type: 'success', message: `${count} evento(s) com erro foram resetados. Clique em "Sincronizar Agora" para reenviar.` });
+      } else {
+        showToast({ type: 'info', message: 'Nenhum evento com erro para reenviar.' });
+      }
+    } catch (err: any) {
+      showToast({ type: 'error', message: err?.message || 'Erro ao resetar eventos.' });
+    }
   };
 
   const handleExportarBackup = async () => {
@@ -932,6 +1016,30 @@ export default function Sincronizacao() {
             <span className="hidden sm:inline">Forçar sync completa</span>
           </button>
 
+          {totalPendencias > 0 && (
+            <button
+              onClick={handleCriarEventosPendencias}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-emerald-500 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Cria eventos na fila para registros pendentes que ainda não têm evento (resolve pendências que não sincronizam)"
+            >
+              <Icons.Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Criar eventos para pendências</span>
+            </button>
+          )}
+
+          {filaStats != null && filaStats.comErro > 0 && (
+            <button
+              onClick={handleReenviarEventosComErro}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-amber-600 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Zera tentativas dos eventos com erro para que sejam reenviados na próxima sincronização (útil após correções no formato dos dados)"
+            >
+              <Icons.RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline">Reenviar eventos com erro</span>
+            </button>
+          )}
+
           {podeExportarDados && (
           <button
             onClick={handleExportarBackup}
@@ -1052,8 +1160,6 @@ export default function Sincronizacao() {
                                 <>Vacina: {detalhe.vacina}{detalhe.dataAplicacao ? ` | ${detalhe.dataAplicacao}` : ''}</>
                               ) : (tabela.nome === 'Fazendas' || tabela.nome === 'Raças' || tabela.nome === 'Categorias') && detalhe.nome ? (
                                 <>{detalhe.nome}</>
-                              ) : tabela.nome === 'Nascimentos' && (detalhe.brincoNumero || detalhe.mes) ? (
-                                <>Brinco: {detalhe.brincoNumero || '-'} | {detalhe.mes}/{detalhe.ano}</>
                               ) : tabela.nome === 'Desmamas' && (detalhe.dataDesmama || detalhe.pesoDesmama !== undefined) ? (
                                 <>Data: {detalhe.dataDesmama || '-'} | Peso: {detalhe.pesoDesmama ?? '-'} kg</>
                               ) : tabela.nome === 'Matrizes' && detalhe.identificador ? (
@@ -1082,9 +1188,9 @@ export default function Sincronizacao() {
                                 <>ID: {detalhe.id?.substring(0, 8)}...</>
                               )}
                             </p>
-                            {detalhe.nascimentoId && tabela.nome === 'Pesagens' && (
+                            {detalhe.animalId && (tabela.nome === 'Pesagens' || tabela.nome === 'Vacinações') && (
                               <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                Nascimento: {detalhe.nascimentoId.substring(0, 8)}...
+                                Animal: {detalhe.animalId.substring(0, 8)}...
                               </p>
                             )}
                           </div>

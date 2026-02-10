@@ -266,35 +266,69 @@ export default function Dashboard() {
         <AlertasBanner fazendaId={fazendaAtivaId || undefined} />
 
         {/* Card Tipos – acima dos demais; tipo, machos, fêmeas, total */}
-        <div className="mb-6">
+        <div className="mb-6 min-w-0">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-gray-200/80 dark:border-slate-700 overflow-hidden">
-            <div className={`bg-gradient-to-r ${getThemeClasses(primaryColor, 'gradient-to')} px-5 py-4`}>
+            <div className={`bg-gradient-to-r ${getThemeClasses(primaryColor, 'gradient-to')} px-4 sm:px-5 py-4`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                    <Icons.BarChart className="w-7 h-7 text-white" />
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm flex-shrink-0">
+                    <Icons.BarChart className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white">Tipos</h3>
-                    <p className="text-sm text-white/90">Distribuição por categoria e sexo</p>
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-bold text-white truncate">Tipos</h3>
+                    <p className="text-xs sm:text-sm text-white/90 truncate">Distribuição por categoria e sexo</p>
                   </div>
                 </div>
                 {metrics.tiposOrdenados.length > 0 && (
-                  <div className="flex items-center gap-4 text-white/95 text-sm">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-white/95 text-xs sm:text-sm">
                     <span className="flex items-center gap-1.5">
-                      <Icons.Mars className="w-4 h-4 opacity-90" />
+                      <Icons.Mars className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-90 flex-shrink-0" />
                       <strong>{metrics.machos.toLocaleString('pt-BR')}</strong> machos
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <Icons.Venus className="w-4 h-4 opacity-90" />
+                      <Icons.Venus className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-90 flex-shrink-0" />
                       <strong>{metrics.femeas.toLocaleString('pt-BR')}</strong> fêmeas
                     </span>
                   </div>
                 )}
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[360px]">
+            {/* Mobile: cards para evitar scroll horizontal */}
+            <div className="md:hidden p-3 space-y-2">
+              {metrics.tiposOrdenados.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">Nenhum tipo cadastrado</p>
+              ) : (
+                metrics.tiposOrdenados.map((t, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2 py-3 px-3 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 min-w-0"
+                  >
+                    <span className="font-medium text-gray-900 dark:text-slate-100 text-sm min-w-0 truncate order-1">
+                      {t.tipo}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 order-2 min-w-0">
+                      <span className="inline-flex items-center gap-1 py-1 px-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-xs font-semibold tabular-nums">
+                        <Icons.Mars className="w-3.5 h-3.5 flex-shrink-0" /> {t.machos.toLocaleString('pt-BR')}
+                      </span>
+                      <span className="inline-flex items-center gap-1 py-1 px-2 rounded-lg bg-pink-50 dark:bg-pink-950/50 text-pink-700 dark:text-pink-300 text-xs font-semibold tabular-nums">
+                        <Icons.Venus className="w-3.5 h-3.5 flex-shrink-0" /> {t.femeas.toLocaleString('pt-BR')}
+                      </span>
+                      <span className="font-bold text-gray-900 dark:text-slate-100 text-sm tabular-nums">
+                        {t.total.toLocaleString('pt-BR')}
+                        {t.total > 0 && (
+                          <span className="ml-1 text-xs font-normal text-gray-500 dark:text-slate-400">
+                            ({t.percentual.toFixed(1)}%)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* Desktop: tabela */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-slate-800/80 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">
                     <th className="py-4 px-5 text-left rounded-tl-lg">Tipo</th>

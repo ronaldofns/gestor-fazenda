@@ -16,6 +16,7 @@ import Modal from './Modal';
 import Input from './Input';
 import { converterDataParaFormatoInput, converterDataParaFormatoBanco } from '../utils/dateInput';
 import { msg } from '../utils/validationMessages';
+import { createSyncEvent } from '../utils/syncEvents';
 
 const schemaDesmama = z.object({
   dataDesmama: z.string().min(1, msg.dataObrigatoria).regex(/^\d{2}\/\d{2}\/\d{4}$/, msg.formatoData),
@@ -106,6 +107,7 @@ export default function DesmamaModal({
         };
 
         await db.desmamas.add(novaDesmama);
+        await createSyncEvent('INSERT', 'desmama', novaDesmama.id, novaDesmama);
 
         await registrarAudit({
           entity: 'desmama',
@@ -128,6 +130,10 @@ export default function DesmamaModal({
           updatedAt: now,
           synced: false
         });
+        const desmamaAtualizada = await db.desmamas.get(initialData.id);
+        if (desmamaAtualizada) {
+          await createSyncEvent('UPDATE', 'desmama', initialData.id, desmamaAtualizada);
+        }
 
         await registrarAudit({
           entity: 'desmama',

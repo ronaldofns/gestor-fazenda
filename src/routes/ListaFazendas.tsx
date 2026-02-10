@@ -76,14 +76,13 @@ export default function ListaFazendas() {
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, open: false }));
         try {
-      // Verificar se há nascimentos associados a esta fazenda
-      const nascimentos = await db.nascimentos.where('fazendaId').equals(fazendaId).toArray();
-      
-      if (nascimentos.length > 0) {
+      // Verificar se há animais associados a esta fazenda
+      const animaisFazenda = await db.animais.where('fazendaId').equals(fazendaId).toArray();
+      if (animaisFazenda.length > 0) {
         showToast({
           type: 'warning',
           title: 'Exclusão bloqueada',
-          message: `Existem ${nascimentos.length} nascimento(s) associados a "${fazendaNome}". Exclua os nascimentos antes de excluir a fazenda.`
+          message: `Existem ${animaisFazenda.length} animal(is) associados a "${fazendaNome}". Exclua ou transfira os animais antes de excluir a fazenda.`
         });
         return;
       }

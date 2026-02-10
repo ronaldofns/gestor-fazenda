@@ -1,10 +1,20 @@
 /**
  * Exportação da Dashboard (PROPOSTA_DASHBOARD_MODERNA - Exportação)
+ * Usa header/footer padrão de relatorioHeaderFooter.ts
  */
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import {
+  addRelatorioHeader,
+  addRelatorioFooters,
+  RELATORIO_MARGIN,
+  RELATORIO_PAGE_WIDTH,
+  RELATORIO_PAGE_HEIGHT,
+  RELATORIO_HEADER_DARK,
+  RELATORIO_BODY_BG
+} from './relatorioHeaderFooter';
 
 export interface DadosExportacao {
   totalAnimais: number;
@@ -36,78 +46,36 @@ export interface DadosExportacao {
   }>;
 }
 
-const MARGIN = 14;
-const PAGE_WIDTH = 210; // A4 portrait
-const PAGE_HEIGHT = 297;
-const FOOTER_HEIGHT = 20;
-const HEADER_COLOR: [number, number, number] = [59, 130, 246]; // blue-500
-const HEADER_DARK: [number, number, number] = [37, 99, 235]; // blue-600
-const BODY_BG: [number, number, number] = [248, 250, 252]; // slate-50
 const BORDER_COLOR: [number, number, number] = [226, 232, 240]; // slate-200
-const TEXT_MUTED: [number, number, number] = [100, 116, 139]; // slate-400
-
-/** Adiciona footer em todas as páginas do documento (duas linhas para evitar sobreposição) */
-function addFooters(doc: jsPDF, dataExportacao: string): void {
-  const pageCount = doc.getNumberOfPages();
-
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    const y = PAGE_HEIGHT - FOOTER_HEIGHT;
-
-    doc.setDrawColor(...BORDER_COLOR);
-    doc.setLineWidth(0.3);
-    doc.line(MARGIN, y - 2, PAGE_WIDTH - MARGIN, y - 2);
-
-    doc.setFontSize(8);
-    doc.setTextColor(...TEXT_MUTED);
-    doc.text('Gestor Fazenda — Sistema de Gestão de Rebanhos', MARGIN, y + 4, { maxWidth: 85 });
-    doc.text(`Página ${i} de ${pageCount}`, PAGE_WIDTH - MARGIN, y + 4, { align: 'right' });
-    doc.text(`Relatório gerado em ${dataExportacao}`, PAGE_WIDTH - MARGIN, y + 8, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-  }
-}
 
 /** Gera PDF com layout profissional: Header, Body e Footer */
 export function exportarDashboardPDF(dados: DadosExportacao): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const dataExportacao = new Date().toLocaleString('pt-BR');
 
-  // ==================== HEADER ====================
-  doc.setFillColor(...HEADER_COLOR);
-  doc.rect(0, 0, PAGE_WIDTH, 32, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(22);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Dashboard', PAGE_WIDTH / 2, 14, { align: 'center' });
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Gestor Fazenda — Visão Geral do Rebanho', PAGE_WIDTH / 2, 22, { align: 'center' });
-  doc.setFontSize(9);
-  doc.text(`Exportado em ${dataExportacao}`, PAGE_WIDTH / 2, 28, { align: 'center' });
-  doc.setTextColor(0, 0, 0);
+  addRelatorioHeader(doc, 'Dashboard', 'Gestor Fazenda — Visão Geral do Rebanho', dataExportacao);
 
   let y = 42;
 
   // ==================== BODY ====================
   // --- Resumo do Rebanho (card) - altura 44mm para margem interna adequada ---
   const cardHeight = 44;
-  doc.setFillColor(...BODY_BG);
-  doc.roundedRect(MARGIN, y, PAGE_WIDTH - MARGIN * 2, cardHeight, 2, 2, 'FD');
+  doc.setFillColor(...RELATORIO_BODY_BG);
+  doc.roundedRect(RELATORIO_MARGIN, y, RELATORIO_PAGE_WIDTH - RELATORIO_MARGIN * 2, cardHeight, 2, 2, 'FD');
   doc.setDrawColor(...BORDER_COLOR);
-  doc.roundedRect(MARGIN, y, PAGE_WIDTH - MARGIN * 2, cardHeight, 2, 2, 'S');
+  doc.roundedRect(RELATORIO_MARGIN, y, RELATORIO_PAGE_WIDTH - RELATORIO_MARGIN * 2, cardHeight, 2, 2, 'S');
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('Resumo do Rebanho', MARGIN + 5, y + 10);
+  doc.text('Resumo do Rebanho', RELATORIO_MARGIN + 5, y + 10);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Total de animais: ${dados.totalAnimais}`, MARGIN + 5, y + 18);
-  doc.text(`Vivos: ${dados.totalVivos}  |  Mortos: ${dados.totalMortos}`, MARGIN + 5, y + 24);
-  doc.text(`Variação este mês: ${dados.variacaoMes >= 0 ? '+' : ''}${dados.variacaoMes}`, MARGIN + 5, y + 30);
-  doc.text(`GMD médio: ${dados.gmdMedio.toFixed(2)} kg/dia  |  IEP médio: ${Math.round(dados.iepMedio)} dias`, MARGIN + 5, y + 36);
-  doc.text(`Taxa de desmama: ${dados.taxaDesmama.toFixed(1)}%  |  Mortalidade: ${dados.taxaMortalidade.toFixed(1)}%`, MARGIN + 5, y + 42);
+  doc.text(`Total de animais: ${dados.totalAnimais}`, RELATORIO_MARGIN + 5, y + 18);
+  doc.text(`Vivos: ${dados.totalVivos}  |  Mortos: ${dados.totalMortos}`, RELATORIO_MARGIN + 5, y + 24);
+  doc.text(`Variação este mês: ${dados.variacaoMes >= 0 ? '+' : ''}${dados.variacaoMes}`, RELATORIO_MARGIN + 5, y + 30);
+  doc.text(`GMD médio: ${dados.gmdMedio.toFixed(2)} kg/dia  |  IEP médio: ${Math.round(dados.iepMedio)} dias`, RELATORIO_MARGIN + 5, y + 36);
+  doc.text(`Taxa de desmama: ${dados.taxaDesmama.toFixed(1)}%  |  Mortalidade: ${dados.taxaMortalidade.toFixed(1)}%`, RELATORIO_MARGIN + 5, y + 42);
 
   y += cardHeight + 10;
 
@@ -115,7 +83,7 @@ export function exportarDashboardPDF(dados: DadosExportacao): void {
   if (dados.distribuicaoPorFazenda.length > 0) {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Distribuição por Fazenda', MARGIN, y);
+    doc.text('Distribuição por Fazenda', RELATORIO_MARGIN, y);
     y += 6;
 
     autoTable(doc, {
@@ -132,9 +100,9 @@ export function exportarDashboardPDF(dados: DadosExportacao): void {
         String(f.outros),
         `${f.percentual.toFixed(1)}%`
       ]),
-      margin: { left: MARGIN, right: MARGIN },
+      margin: { left: RELATORIO_MARGIN, right: RELATORIO_MARGIN },
       headStyles: {
-        fillColor: HEADER_DARK,
+        fillColor: RELATORIO_HEADER_DARK,
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 8,
@@ -151,14 +119,14 @@ export function exportarDashboardPDF(dados: DadosExportacao): void {
 
   // --- Benchmarking (tabela) ---
   if (dados.benchmarkingFazendas.length > 0) {
-    if (y > PAGE_HEIGHT - 60) {
+    if (y > RELATORIO_PAGE_HEIGHT - 60) {
       doc.addPage();
-      y = MARGIN;
+      y = RELATORIO_MARGIN;
     }
 
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Benchmarking (12 meses)', MARGIN, y);
+    doc.text('Benchmarking (12 meses)', RELATORIO_MARGIN, y);
     y += 6;
 
     autoTable(doc, {
@@ -172,9 +140,9 @@ export function exportarDashboardPDF(dados: DadosExportacao): void {
         f.gmdMedio > 0 ? f.gmdMedio.toFixed(2) : '-',
         f.taxaDesmama > 0 ? `${f.taxaDesmama.toFixed(1)}%` : '-'
       ]),
-      margin: { left: MARGIN, right: MARGIN },
+      margin: { left: RELATORIO_MARGIN, right: RELATORIO_MARGIN },
       headStyles: {
-        fillColor: HEADER_DARK,
+        fillColor: RELATORIO_HEADER_DARK,
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 8,
@@ -187,8 +155,7 @@ export function exportarDashboardPDF(dados: DadosExportacao): void {
     });
   }
 
-  // ==================== FOOTER ====================
-  addFooters(doc, dataExportacao);
+  addRelatorioFooters(doc, dataExportacao);
 
   doc.save(`dashboard-gestor-fazenda-${new Date().toISOString().slice(0, 10)}.pdf`);
 }

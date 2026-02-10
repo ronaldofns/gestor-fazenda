@@ -27,6 +27,8 @@ import {
   Cell
 } from 'recharts';
 import { exportarDashboardPDF, exportarDashboardExcel } from '../utils/exportarDashboard';
+import { exportarConfinamentoPDF, exportarConfinamentoExcel } from '../utils/exportarConfinamento';
+import { useConfinamentoRelatorio } from '../hooks/useConfinamentoRelatorio';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
 
@@ -45,6 +47,7 @@ export default function Relatorios() {
   }), [filtroPeriodo]);
 
   const metrics = useRebanhoMetrics(fazendaAtivaId || undefined, filtros);
+  const dadosConfinamento = useConfinamentoRelatorio(fazendaAtivaId ?? undefined);
 
   const [isDark, setIsDark] = useState(() =>
     typeof window !== 'undefined' && document.documentElement.classList.contains('dark')
@@ -150,7 +153,10 @@ export default function Relatorios() {
             {menuExportarAberto && (
               <>
                 <div className="fixed inset-0 z-[90]" onClick={() => setMenuExportarAberto(false)} />
-                <div className="absolute right-0 mt-1 py-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-[100]">
+                <div className="absolute right-0 mt-1 py-1 w-52 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-[100]">
+                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700">
+                    Dashboard
+                  </div>
                   <button
                     onClick={() => {
                       exportarDashboardPDF(dadosParaExportar);
@@ -166,6 +172,33 @@ export default function Relatorios() {
                       setMenuExportarAberto(false);
                     }}
                     className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    Excel
+                  </button>
+                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700 mt-1">
+                    Confinamento
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (dadosConfinamento) {
+                        exportarConfinamentoPDF(dadosConfinamento);
+                        setMenuExportarAberto(false);
+                      }
+                    }}
+                    disabled={!dadosConfinamento}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    PDF
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (dadosConfinamento) {
+                        exportarConfinamentoExcel(dadosConfinamento);
+                        setMenuExportarAberto(false);
+                      }
+                    }}
+                    disabled={!dadosConfinamento}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Excel
                   </button>
@@ -290,6 +323,90 @@ export default function Relatorios() {
             </ResponsiveContainer>
           </div>
         </div>
+      </div>
+
+      {/* Seção Confinamento */}
+      <div className="space-y-4">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+          <Icons.Warehouse className="w-5 h-5" />
+          Confinamento
+        </h2>
+        {dadosConfinamento ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Confinamentos</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{dadosConfinamento.resumo.totalConfinamentos}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">{dadosConfinamento.resumo.ativos} ativos</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Animais</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{dadosConfinamento.resumo.totalAnimais}</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">GMD médio</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-slate-100">
+                  {dadosConfinamento.resumo.gmdMedioGeral > 0 ? `${dadosConfinamento.resumo.gmdMedioGeral.toFixed(3)} kg/dia` : '-'}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Mortalidade</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{dadosConfinamento.resumo.mortalidade}</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700 shadow-sm col-span-2 sm:col-span-1">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Custo por arroba</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-slate-100">
+                  {dadosConfinamento.resumo.custoPorArroba != null
+                    ? `R$ ${dadosConfinamento.resumo.custoPorArroba.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                    : '-'}
+                </p>
+              </div>
+            </div>
+            {dadosConfinamento.porConfinamento.length > 0 ? (
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 sm:p-5 border border-gray-200 dark:border-slate-700 shadow-sm overflow-x-auto">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-3">Por confinamento</h3>
+                <table className="w-full text-sm min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-slate-700 text-left text-gray-600 dark:text-slate-400">
+                      <th className="py-2 pr-2">Confinamento</th>
+                      <th className="py-2 pr-2">Fazenda</th>
+                      <th className="py-2 pr-2">Status</th>
+                      <th className="py-2 pr-2 text-right">Animais</th>
+                      <th className="py-2 pr-2 text-right">Peso méd. ent.</th>
+                      <th className="py-2 pr-2 text-right">GMD</th>
+                      <th className="py-2 pr-2 text-right">Custo (R$)</th>
+                      <th className="py-2 pr-2 text-right">R$/@</th>
+                      <th className="py-2 pr-2 text-right">Mortes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                    {dadosConfinamento.porConfinamento.map((c, i) => (
+                      <tr key={i} className="text-gray-700 dark:text-slate-300">
+                        <td className="py-2 pr-2 font-medium">{c.nome}</td>
+                        <td className="py-2 pr-2">{c.fazenda}</td>
+                        <td className="py-2 pr-2">{c.status}</td>
+                        <td className="py-2 pr-2 text-right">{c.totalAnimais}</td>
+                        <td className="py-2 pr-2 text-right">{c.pesoMedioEntrada > 0 ? c.pesoMedioEntrada.toFixed(1) : '-'}</td>
+                        <td className="py-2 pr-2 text-right">{c.gmdMedio > 0 ? c.gmdMedio.toFixed(3) : '-'}</td>
+                        <td className="py-2 pr-2 text-right">{c.custoTotal > 0 ? c.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</td>
+                        <td className="py-2 pr-2 text-right">{c.custoPorArroba != null ? c.custoPorArroba.toFixed(2) : '-'}</td>
+                        <td className="py-2 pr-2 text-right">{c.mortes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-8 border border-gray-200 dark:border-slate-700 shadow-sm text-center text-gray-500 dark:text-slate-400 text-sm">
+                Nenhum confinamento com dados para exibir.
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-8 border border-gray-200 dark:border-slate-700 shadow-sm text-center text-gray-500 dark:text-slate-400 text-sm">
+            Carregando dados de confinamento...
+          </div>
+        )}
       </div>
     </div>
   );

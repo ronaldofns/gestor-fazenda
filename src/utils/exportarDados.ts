@@ -1,93 +1,21 @@
 import * as XLSX from 'xlsx';
-import { Nascimento } from '../db/models';
-import { Desmama } from '../db/models';
-import { formatDateBR } from './date';
 
-interface DadosExportacao {
-  nascimentos: Nascimento[];
-  desmamas: Map<string, Desmama>;
-  fazendaNome?: string;
-  mes?: number;
-  ano?: number;
-  matrizMap?: Map<string, string>; // ID -> identificador
+export interface ExportarPlanilhaParams {
+  dados: Record<string, unknown>[];
+  nomeArquivo: string;
+  nomePlanilha?: string;
 }
 
 /**
  * Exporta dados para Excel (.xlsx)
  */
-export function exportarParaExcel(dados: DadosExportacao) {
+export function exportarParaExcel(params: ExportarPlanilhaParams) {
   try {
-    // Preparar dados da planilha
-    const dadosPlanilha = dados.nascimentos.map((n) => {
-      const desmama = dados.desmamas.get(n.id);
-      const matrizIdentificador = dados.matrizMap?.get(n.matrizId) || n.matrizId || '';
-      return {
-        'Matriz': matrizIdentificador,
-        'Novilha': n.novilha ? 'X' : '',
-        'Vaca': n.vaca ? 'X' : '',
-        'Sexo': n.sexo || '',
-        'Raça': n.raca || '',
-        'Brinco': n.brincoNumero || '',
-        'Data Nascimento': n.dataNascimento ? formatDateBR(n.dataNascimento) : '',
-        'Morto': n.morto ? 'X' : '',
-        'Peso Desmama (kg)': desmama?.pesoDesmama || '',
-        'Data Desmama': desmama?.dataDesmama ? formatDateBR(desmama.dataDesmama) : '',
-        'Observações': n.obs || ''
-      };
-    });
-
-    // Criar workbook
+    const { dados, nomeArquivo: baseNome, nomePlanilha = 'Dados' } = params;
     const wb = XLSX.utils.book_new();
-    
-    // Criar worksheet com dados
-    const ws = XLSX.utils.json_to_sheet(dadosPlanilha);
-    
-    // Ajustar largura das colunas
-    const colWidths = [
-      { wch: 15 }, // Matriz
-      { wch: 8 },  // Novilha
-      { wch: 8 },  // Vaca
-      { wch: 8 },  // Sexo
-      { wch: 15 }, // Raça
-      { wch: 12 }, // Brinco
-      { wch: 15 }, // Data Nascimento
-      { wch: 8 },  // Morto
-      { wch: 15 }, // Peso Desmama
-      { wch: 15 }, // Data Desmama
-      { wch: 30 }  // Observações
-    ];
-    ws['!cols'] = colWidths;
-    
-    // Adicionar worksheet ao workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Nascimentos');
-    
-    // Criar worksheet de totalizadores
-    const totalizadores = [
-      { 'Métrica': 'Total de Nascimentos', 'Valor': dados.nascimentos.length },
-      { 'Métrica': 'Vacas', 'Valor': dados.nascimentos.filter(n => n.vaca).length },
-      { 'Métrica': 'Novilhas', 'Valor': dados.nascimentos.filter(n => n.novilha).length },
-      { 'Métrica': 'Fêmeas', 'Valor': dados.nascimentos.filter(n => n.sexo === 'F').length },
-      { 'Métrica': 'Machos', 'Valor': dados.nascimentos.filter(n => n.sexo === 'M').length },
-      { 'Métrica': 'Mortos', 'Valor': dados.nascimentos.filter(n => n.morto).length },
-      { 'Métrica': 'Vivos', 'Valor': dados.nascimentos.filter(n => !n.morto).length },
-      { 'Métrica': 'Com Desmama', 'Valor': Array.from(dados.desmamas.values()).length }
-    ];
-    
-    const wsTotais = XLSX.utils.json_to_sheet(totalizadores);
-    wsTotais['!cols'] = [{ wch: 20 }, { wch: 10 }];
-    XLSX.utils.book_append_sheet(wb, wsTotais, 'Totalizadores');
-    
-    // Gerar nome do arquivo
-    let nomeArquivo = 'Planilha_Nascimentos';
-    if (dados.fazendaNome) {
-      nomeArquivo += `_${dados.fazendaNome.replace(/\s+/g, '_')}`;
-    }
-    if (dados.mes && dados.ano) {
-      nomeArquivo += `_${dados.mes}_${dados.ano}`;
-    }
-    nomeArquivo += '.xlsx';
-    
-    // Salvar arquivo
+    const ws = XLSX.utils.json_to_sheet(dados);
+    XLSX.utils.book_append_sheet(wb, ws, nomePlanilha);
+    const nomeArquivo = baseNome.includes('.xlsx') ? baseNome : `${baseNome}.xlsx`;
     XLSX.writeFile(wb, nomeArquivo);
   } catch (error) {
     console.error('Erro ao exportar para Excel:', error);
@@ -98,66 +26,17 @@ export function exportarParaExcel(dados: DadosExportacao) {
 /**
  * Exporta dados para CSV
  */
-export function exportarParaCSV(dados: DadosExportacao) {
+export function exportarParaCSV(params: { dados: Record<string, unknown>[]; nomeArquivo: string }) {
   try {
-    // Preparar cabeçalhos
-    const headers = [
-      'Matriz',
-      'Novilha',
-      'Vaca',
-      'Sexo',
-      'Raça',
-      'Brinco',
-      'Data Nascimento',
-      'Morto',
-      'Peso Desmama (kg)',
-      'Data Desmama',
-      'Observações'
-    ];
-    
-    // Preparar dados
-    const linhas = dados.nascimentos.map((n) => {
-      const desmama = dados.desmamas.get(n.id);
-      const matrizIdentificador = dados.matrizMap?.get(n.matrizId) || n.matrizId || '';
-      return [
-        matrizIdentificador,
-        n.novilha ? 'X' : '',
-        n.vaca ? 'X' : '',
-        n.sexo || '',
-        n.raca || '',
-        n.brincoNumero || '',
-        n.dataNascimento ? formatDateBR(n.dataNascimento) : '',
-        n.morto ? 'X' : '',
-        desmama?.pesoDesmama?.toString() || '',
-        desmama?.dataDesmama ? formatDateBR(desmama.dataDesmama) : '',
-        (n.obs || '').replace(/"/g, '""') // Escapar aspas duplas
-      ];
-    });
-    
-    // Criar conteúdo CSV
-    const csvContent = [
-      headers.join(','),
-      ...linhas.map(linha => linha.map(campo => `"${campo}"`).join(','))
-    ].join('\n');
-    
-    // Adicionar BOM para UTF-8 (garante acentuação correta no Excel)
+    const { dados, nomeArquivo: baseNome } = params;
+    const headers = dados.length > 0 ? Object.keys(dados[0]) : [];
+    const linhas = dados.map(row => headers.map(h => String(row[h] ?? '').replace(/"/g, '""')));
+    const csvContent = [headers.join(','), ...linhas.map(linha => linha.map(c => `"${c}"`).join(','))].join('\n');
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    
-    // Criar link de download
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
-    // Gerar nome do arquivo
-    let nomeArquivo = 'Planilha_Nascimentos';
-    if (dados.fazendaNome) {
-      nomeArquivo += `_${dados.fazendaNome.replace(/\s+/g, '_')}`;
-    }
-    if (dados.mes && dados.ano) {
-      nomeArquivo += `_${dados.mes}_${dados.ano}`;
-    }
-    nomeArquivo += '.csv';
-    
+    const nomeArquivo = baseNome.includes('.csv') ? baseNome : `${baseNome}.csv`;
     link.setAttribute('href', url);
     link.setAttribute('download', nomeArquivo);
     link.style.visibility = 'hidden';
@@ -183,7 +62,6 @@ export async function exportarBackupCompleto() {
       racas,
       categorias,
       matrizes,
-      nascimentos,
       desmamas,
       pesagens,
       vacinacoes,
@@ -205,7 +83,6 @@ export async function exportarBackupCompleto() {
       db.racas.toArray(),
       db.categorias.toArray(),
       db.matrizes.toArray(),
-      db.nascimentos.toArray(),
       db.desmamas.toArray(),
       db.pesagens.toArray(),
       db.vacinacoes.toArray(),
@@ -232,7 +109,6 @@ export async function exportarBackupCompleto() {
         racas,
         categorias,
         matrizes,
-        nascimentos,
         desmamas,
         pesagens,
         vacinacoes,
@@ -255,7 +131,6 @@ export async function exportarBackupCompleto() {
         totalRacas: racas.length,
         totalCategorias: categorias.length,
         totalMatrizes: matrizes.length,
-        totalNascimentos: nascimentos.length,
         totalDesmamas: desmamas.length,
         totalPesagens: pesagens.length,
         totalVacinacoes: vacinacoes.length,
@@ -332,7 +207,6 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       racas: 0,
       categorias: 0,
       matrizes: 0,
-      nascimentos: 0,
       desmamas: 0,
       pesagens: 0,
       vacinacoes: 0,
@@ -395,24 +269,18 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       }
     }
 
-    // Importar nascimentos
-    if (Array.isArray(dados.nascimentos)) {
-      for (const nascimento of dados.nascimentos) {
-        const existe = await db.nascimentos.get(nascimento.id);
-        if (!existe) {
-          await db.nascimentos.put(nascimento);
-          importados.nascimentos++;
-        }
-      }
-    }
+    // Nascimentos removidos do modelo; backups antigos com dados.nascimentos são ignorados.
 
-    // Importar desmamas
+    // Importar desmamas (backups antigos podem ter nascimentoId; normalizar para animalId)
     if (Array.isArray(dados.desmamas)) {
       for (const desmama of dados.desmamas) {
         const existe = await db.desmamas.get(desmama.id);
         if (!existe) {
-          await db.desmamas.put(desmama);
-          importados.desmamas++;
+          const normalizado = { ...desmama, animalId: desmama.animalId ?? (desmama as any).nascimentoId };
+          if (normalizado.animalId) {
+            await db.desmamas.put(normalizado);
+            importados.desmamas++;
+          }
         }
       }
     }
@@ -422,8 +290,11 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       for (const pesagem of dados.pesagens) {
         const existe = await db.pesagens.get(pesagem.id);
         if (!existe) {
-          await db.pesagens.put(pesagem);
-          importados.pesagens++;
+          const normalizado = { ...pesagem, animalId: pesagem.animalId ?? (pesagem as any).nascimentoId };
+          if (normalizado.animalId) {
+            await db.pesagens.put(normalizado);
+            importados.pesagens++;
+          }
         }
       }
     }
@@ -433,8 +304,11 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       for (const vacinacao of dados.vacinacoes) {
         const existe = await db.vacinacoes.get(vacinacao.id);
         if (!existe) {
-          await db.vacinacoes.put(vacinacao);
-          importados.vacinacoes++;
+          const normalizado = { ...vacinacao, animalId: vacinacao.animalId ?? (vacinacao as any).nascimentoId };
+          if (normalizado.animalId) {
+            await db.vacinacoes.put(normalizado);
+            importados.vacinacoes++;
+          }
         }
       }
     }

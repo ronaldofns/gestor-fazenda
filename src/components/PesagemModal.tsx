@@ -33,18 +33,18 @@ type Mode = 'create' | 'edit';
 interface PesagemModalProps {
   open: boolean;
   mode: Mode;
-  nascimentoId: string; // ID do nascimento (animal)
+  animalId: string;
   initialData?: Pesagem | null;
   onClose: () => void;
   onSaved?: () => void;
-  onEditPesagem?: (pesagem: Pesagem | null) => void; // Callback para editar pesagem da timeline ou voltar para create
-  onDeletePesagem?: (pesagem: Pesagem) => void; // Callback para excluir pesagem da timeline
+  onEditPesagem?: (pesagem: Pesagem | null) => void;
+  onDeletePesagem?: (pesagem: Pesagem) => void;
 }
 
 function PesagemModalComponent({
   open,
   mode,
-  nascimentoId,
+  animalId,
   initialData,
   onClose,
   onSaved,
@@ -70,10 +70,9 @@ function PesagemModalComponent({
     onConfirm: () => {}
   });
 
-  // Buscar todas as pesagens do animal (por nascimentoId ou animalId – mesmo valor no sistema atual)
   const todasPesagens = useLiveQuery(
-    () => db.pesagens.filter(p => p.nascimentoId === nascimentoId || p.animalId === nascimentoId).toArray(),
-    [nascimentoId, open]
+    () => db.pesagens.filter(p => p.animalId === animalId).toArray(),
+    [animalId, open]
   ) || [];
 
   // Ordenar pesagens por data (mais recente primeiro)
@@ -299,13 +298,19 @@ function PesagemModalComponent({
       const dataFormatada = converterDataParaFormatoBanco(values.dataPesagem);
 
       if (mode === 'create') {
+        const { validarPesagemUnica } = await import('../utils/unicidadeValidation');
+        const unico = await validarPesagemUnica(animalId, dataFormatada);
+        if (!unico.valido) {
+          showToast({ type: 'error', title: 'Pesagem duplicada', message: unico.erro });
+          setIsSubmitting(false);
+          return;
+        }
         const id = uuid();
         const now = new Date().toISOString();
 
         const novaPesagem: Pesagem = {
           id,
-          nascimentoId, // compatibilidade com sistema antigo
-          animalId: nascimentoId, // UUID do animal (sistema atual) – mesmo valor que nascimentoId
+          animalId,
           dataPesagem: dataFormatada,
           peso: values.peso,
           observacao: values.observacao || '',
@@ -341,6 +346,13 @@ function PesagemModalComponent({
         const ano = hoje.getFullYear();
         reset({ dataPesagem: `${dia}/${mes}/${ano}`, peso: undefined, observacao: '' });
       } else if (mode === 'edit' && initialData) {
+        const { validarPesagemUnica } = await import('../utils/unicidadeValidation');
+        const unico = await validarPesagemUnica(animalId, dataFormatada, initialData.id);
+        if (!unico.valido) {
+          showToast({ type: 'error', title: 'Pesagem duplicada', message: unico.erro });
+          setIsSubmitting(false);
+          return;
+        }
         const antes = initialData;
         const now = new Date().toISOString();
 

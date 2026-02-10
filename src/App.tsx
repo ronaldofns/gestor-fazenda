@@ -120,7 +120,7 @@ export default function App() {
                             } />
                             <Route path="/planilha" element={<Navigate to="/animais" replace />} />
                             <Route path="/matrizes" element={<Navigate to="/animais" replace />} />
-                            <Route path="/desmama/:nascimentoId" element={<Navigate to="/animais" replace />} />
+                            <Route path="/desmama/:animalId" element={<Navigate to="/animais" replace />} />
                             <Route path="/animais" element={
                               <ProtectedRoute requiredPermission="ver_planilha">
                                 <Animais />

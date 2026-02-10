@@ -15,6 +15,7 @@ import { useAllEntityTags } from '../hooks/useAllEntityTags';
 import AnimalTags from '../components/AnimalTags';
 import SearchInputDebounced from '../components/SearchInputDebounced';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Modal from '../components/Modal';
 import Combobox from '../components/Combobox';
 import TagFilter, { TagFilterMode } from '../components/TagFilter';
 import { exportarParaExcel, exportarParaCSV } from '../utils/exportarDados';
@@ -120,6 +121,7 @@ export default function Animais() {
 
   const handleBuscaChange = useCallback((value: string) => {
     setBuscaParaFiltro(value);
+    setPaginaAtual(1); // Ir para a primeira página para ver os resultados mais relevantes
   }, []);
 
   const handleFiltroSexoChange = useCallback((value: '' | 'M' | 'F') => {
@@ -230,6 +232,50 @@ export default function Animais() {
   }, []);
   const isLoading = animaisRawQuery === undefined;
   const animaisRaw = animaisRawQuery || [];
+
+  // Dados para a linha do tempo do animal (quando timeline está aberta)
+  const timelineDataQuery = useLiveQuery(
+    async () => {
+      if (!timelineAnimalId) return null;
+      try {
+        const animal = await db.animais.get(timelineAnimalId);
+        if (!animal) return null;
+        const [desmama, pesagens, vacinacoes, vinculos, ocorrencias, raca] = await Promise.all([
+          db.desmamas.where('animalId').equals(timelineAnimalId).first(),
+          db.pesagens.where('animalId').equals(timelineAnimalId).toArray(),
+          db.vacinacoes.where('animalId').equals(timelineAnimalId).toArray(),
+          db.confinamentoAnimais.where('animalId').equals(timelineAnimalId).toArray(),
+          db.ocorrenciaAnimais.where('animalId').equals(timelineAnimalId).toArray(),
+          animal.racaId ? db.racas.get(animal.racaId) : Promise.resolve(undefined)
+        ]);
+        const confinamentoVinculos = await Promise.all(
+          (vinculos || []).map(async (v) => {
+            const conf = await db.confinamentos.get(v.confinamentoId);
+            return { vinculo: v, confinamentoNome: conf?.nome ?? 'Confinamento' };
+          })
+        );
+        return {
+          animal: {
+            id: animal.id,
+            brinco: animal.brinco,
+            dataNascimento: animal.dataNascimento,
+            sexo: animal.sexo,
+            raca: raca?.nome ?? undefined
+          },
+          desmama: desmama ?? undefined,
+          pesagens: pesagens ?? [],
+          vacinacoes: vacinacoes ?? [],
+          confinamentoVinculos,
+          ocorrencias: (ocorrencias ?? []).filter((o: { deletedAt?: string | null }) => !o.deletedAt)
+        };
+      } catch (e) {
+        console.error('Erro ao carregar dados da timeline:', e);
+        return null;
+      }
+    },
+    [timelineAnimalId]
+  );
+  const timelineData = timelineDataQuery ?? null;
 
   // Abrir animal a partir da URL (ex.: /animais?animalId=xxx — vindo de Pendências do Curral)
   useEffect(() => {
@@ -524,45 +570,122 @@ export default function Animais() {
       filtrados.push(animal);
     }
 
-    // Ordenação (otimizada)
-    filtrados.sort((a, b) => {
-      let comp = 0;
-      switch (sortField) {
-        case 'brinco':
-          comp = (a.brinco || '').localeCompare(b.brinco || '');
-          break;
-        case 'nome':
-          comp = (a.nome || '').localeCompare(b.nome || '');
-          break;
-        case 'tipo':
-          comp = (tipoMap.get(a.tipoId) || '').localeCompare(tipoMap.get(b.tipoId) || '');
-          break;
-        case 'status':
-          comp = (statusMap.get(a.statusId) || '').localeCompare(statusMap.get(b.statusId) || '');
-          break;
-        case 'sexo':
-          comp = (a.sexo || '').localeCompare(b.sexo || '');
-          break;
-        case 'raca':
-          comp = (racaMap.get(a.racaId) || '').localeCompare(racaMap.get(b.racaId) || '');
-          break;
-        case 'fazenda':
-          comp = (fazendaMap.get(a.fazendaId) || '').localeCompare(fazendaMap.get(b.fazendaId) || '');
-          break;
-        case 'dataNascimento':
-          const dataA = dataNascimentoCache.get(a.id)?.getTime() ?? 0;
-          const dataB = dataNascimentoCache.get(b.id)?.getTime() ?? 0;
-          comp = dataA - dataB;
-          break;
-        case 'createdAt':
-        default:
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          comp = dateB - dateA;
-          break;
-      }
-      return sortAsc ? comp : -comp;
-    });
+    // Quando há busca, ordenar por relevância (melhores matches primeiro)
+    if (temBusca && termoBusca.length > 0) {
+      const score = (animal: Animal): number => {
+        const brinco = (animal.brinco || '').toLowerCase();
+        const nome = (animal.nome || '').toLowerCase();
+        const lote = (animal.lote || '').toLowerCase();
+        const obs = (animal.obs || '').toLowerCase();
+        const fazenda = (buscaPreparada!.fazendaMap.get(animal.fazendaId) || '');
+        const tipo = (buscaPreparada!.tipoMap.get(animal.tipoId) || '');
+        const status = (buscaPreparada!.statusMap.get(animal.statusId) || '');
+        const raca = (buscaPreparada!.racaMap.get(animal.racaId) || '');
+        const genealogia = genealogiaMap.get(animal.id);
+        const matrizId = genealogia?.matrizId || animal.matrizId;
+        const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
+        const matrizBrinco = (matrizAnimal?.brinco || '').toLowerCase();
+        const matrizNome = (matrizAnimal?.nome || '').toLowerCase();
+
+        if (brinco === termoBusca) return 1000;
+        if (matrizBrinco === termoBusca) return 900;
+        if (brinco.startsWith(termoBusca)) return 800;
+        if (matrizBrinco.startsWith(termoBusca)) return 700;
+        if (nome === termoBusca) return 600;
+        if (nome.startsWith(termoBusca)) return 500;
+        if (brinco.includes(termoBusca)) return 400;
+        if (matrizBrinco.includes(termoBusca) || matrizNome.includes(termoBusca)) return 300;
+        if (nome.includes(termoBusca)) return 200;
+        if (lote.includes(termoBusca) || obs.includes(termoBusca) || fazenda.includes(termoBusca) || tipo.includes(termoBusca) || status.includes(termoBusca) || raca.includes(termoBusca)) return 100;
+        return 0;
+      };
+      filtrados.sort((a, b) => {
+        const scoreA = score(a);
+        const scoreB = score(b);
+        if (scoreB !== scoreA) return scoreB - scoreA; // maior relevância primeiro
+        // Desempate pela ordenação atual
+        let comp = 0;
+        switch (sortField) {
+          case 'brinco':
+            comp = (a.brinco || '').localeCompare(b.brinco || '');
+            break;
+          case 'nome':
+            comp = (a.nome || '').localeCompare(b.nome || '');
+            break;
+          case 'tipo':
+            comp = (tipoMap.get(a.tipoId) || '').localeCompare(tipoMap.get(b.tipoId) || '');
+            break;
+          case 'status':
+            comp = (statusMap.get(a.statusId) || '').localeCompare(statusMap.get(b.statusId) || '');
+            break;
+          case 'sexo':
+            comp = (a.sexo || '').localeCompare(b.sexo || '');
+            break;
+          case 'raca':
+            comp = (racaMap.get(a.racaId) || '').localeCompare(racaMap.get(b.racaId) || '');
+            break;
+          case 'fazenda':
+            comp = (fazendaMap.get(a.fazendaId) || '').localeCompare(fazendaMap.get(b.fazendaId) || '');
+            break;
+          case 'dataNascimento': {
+            const dataA = dataNascimentoCache.get(a.id)?.getTime() ?? 0;
+            const dataB = dataNascimentoCache.get(b.id)?.getTime() ?? 0;
+            comp = dataA - dataB;
+            break;
+          }
+          case 'createdAt':
+          default: {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            comp = dateB - dateA;
+            break;
+          }
+        }
+        return sortAsc ? comp : -comp;
+      });
+    } else {
+      // Ordenação normal (sem busca)
+      filtrados.sort((a, b) => {
+        let comp = 0;
+        switch (sortField) {
+          case 'brinco':
+            comp = (a.brinco || '').localeCompare(b.brinco || '');
+            break;
+          case 'nome':
+            comp = (a.nome || '').localeCompare(b.nome || '');
+            break;
+          case 'tipo':
+            comp = (tipoMap.get(a.tipoId) || '').localeCompare(tipoMap.get(b.tipoId) || '');
+            break;
+          case 'status':
+            comp = (statusMap.get(a.statusId) || '').localeCompare(statusMap.get(b.statusId) || '');
+            break;
+          case 'sexo':
+            comp = (a.sexo || '').localeCompare(b.sexo || '');
+            break;
+          case 'raca':
+            comp = (racaMap.get(a.racaId) || '').localeCompare(racaMap.get(b.racaId) || '');
+            break;
+          case 'fazenda':
+            comp = (fazendaMap.get(a.fazendaId) || '').localeCompare(fazendaMap.get(b.fazendaId) || '');
+            break;
+          case 'dataNascimento': {
+            const dataA = dataNascimentoCache.get(a.id)?.getTime() ?? 0;
+            const dataB = dataNascimentoCache.get(b.id)?.getTime() ?? 0;
+            comp = dataA - dataB;
+            break;
+          }
+          case 'createdAt':
+          default: {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            comp = dateB - dateA;
+            break;
+          }
+        }
+        return sortAsc ? comp : -comp;
+      });
+    }
 
     return filtrados;
   }, [animaisRaw, fazendaAtivaId, filtroSexo, filtroTipoId, filtroStatusId, filtroRacaId, filtroSomenteBezerros, filtroMesesNascimento, filtroAno, selectedTags, tagFilterMode, buscaParaFiltro, sortField, sortAsc, fazendaMap, tipoMap, statusMap, racaMap, genealogiaMap, animaisMap, animalTagsMap, dataNascimentoCache]);
@@ -650,7 +773,13 @@ export default function Animais() {
     [visibleColumns]
   );
   const useVirtual = animaisPagina.length >= VIRTUAL_THRESHOLD;
-  const gridCols = useMemo(() => `repeat(${numVisibleCols}, minmax(80px, 1fr))`, [numVisibleCols]);
+  const gridCols = useMemo(() => {
+    const n = numVisibleCols;
+    if (visibleColumns.acoes && n > 0) {
+      return `repeat(${n - 1}, minmax(80px, 1fr)) minmax(150px, 0fr)`;
+    }
+    return `repeat(${n}, minmax(80px, 1fr))`;
+  }, [numVisibleCols, visibleColumns.acoes]);
 
   // Ajustar página atual se necessário
   useEffect(() => {
@@ -1458,6 +1587,13 @@ export default function Animais() {
                           <Icons.History className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => { setTimelineAnimalId(animal.id); setTimelineOpen(true); }}
+                          className={`p-1.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                          title="Linha do tempo"
+                        >
+                          <Icons.Calendar className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => {
                             if (matrizId) {
                               setArvoreAnimalId(matrizAnimal?.id || matrizId);
@@ -1617,11 +1753,12 @@ export default function Animais() {
                         {visibleColumns.raca && <div className="px-2 sm:px-3 py-1.5 text-sm text-gray-700 dark:text-slate-200 whitespace-nowrap">{animal.racaId ? racaMap.get(animal.racaId) : '-'}</div>}
                         {visibleColumns.fazenda && <div className="px-2 sm:px-3 py-1.5 text-sm text-gray-700 dark:text-slate-200 truncate" title={fazendaMap.get(animal.fazendaId)}>{fazendaMap.get(animal.fazendaId) || '-'}</div>}
                         {visibleColumns.tags && <div className="px-2 sm:px-3 py-1.5 text-sm min-w-0"><AnimalTags tags={animalTagsMap.get(animal.id)} /></div>}
-                        {visibleColumns.acoes && <div className="px-2 sm:px-3 py-1.5 text-center"><div className="flex items-center justify-center gap-2 flex-wrap">
-                          <button type="button" onClick={() => { setHistoricoEntityId(animal.id); setHistoricoOpen(true); }} className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`} title="Ver histórico"><Icons.History className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
-                          <button type="button" onClick={() => { if (matrizId) { setArvoreAnimalId(matrizAnimal?.id || matrizId); setArvoreOpen(true); } }} disabled={!matrizId} className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`} title="Ver árvore genealógica"><Icons.GitBranch className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
-                          {podeEditarAnimal && <button type="button" onClick={() => handleEditarAnimal(animal)} className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`} title="Editar animal"><Icons.Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>}
-                          {podeExcluirAnimal && <button type="button" onClick={() => handleExcluirAnimal(animal)} className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`} title="Excluir animal"><Icons.Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>}
+                        {visibleColumns.acoes && <div className="px-2 sm:px-3 py-1.5 text-center min-w-[150px]"><div className="flex items-center justify-center gap-2 flex-nowrap shrink-0">
+                          <button type="button" onClick={() => { setHistoricoEntityId(animal.id); setHistoricoOpen(true); }} className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`} title="Ver histórico"><Icons.History className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
+                          <button type="button" onClick={() => { setTimelineAnimalId(animal.id); setTimelineOpen(true); }} className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`} title="Linha do tempo"><Icons.Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
+                          <button type="button" onClick={() => { if (matrizId) { setArvoreAnimalId(matrizAnimal?.id || matrizId); setArvoreOpen(true); } }} disabled={!matrizId} className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`} title="Ver árvore genealógica"><Icons.GitBranch className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>
+                          {podeEditarAnimal && <button type="button" onClick={() => handleEditarAnimal(animal)} className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`} title="Editar animal"><Icons.Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>}
+                          {podeExcluirAnimal && <button type="button" onClick={() => handleExcluirAnimal(animal)} className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`} title="Excluir animal"><Icons.Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></button>}
                         </div></div>}
                       </div>
                     );
@@ -1701,7 +1838,7 @@ export default function Animais() {
                       <th className="px-2 sm:px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase whitespace-nowrap">Tags</th>
                     )}
                     {visibleColumns.acoes && (
-                      <th className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 text-center text-xs font-medium text-gray-500 min-w-[150px]
+                      <th className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 text-center text-xs font-medium text-gray-500 min-w-[150px] w-[150px]
                      dark:text-slate-300 uppercase whitespace-nowrap bg-gray-100 dark:bg-slate-800 border-l border-gray-200 
                      dark:border-slate-700">Ações</th>
                     )}
@@ -1786,14 +1923,21 @@ export default function Animais() {
                             <td className="px-2 sm:px-3 py-1.5 text-sm min-w-0 align-middle"><AnimalTags tags={animalTagsMap.get(animal.id)} /></td>
                           )}
                           {visibleColumns.acoes && (
-                            <td className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 whitespace-nowrap text-center align-middle bg-white dark:bg-slate-900 odd:bg-white even:bg-gray-50 dark:odd:bg-slate-900 dark:even:bg-slate-800 border-l border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700">
-                              <div className="flex items-center justify-center gap-2 flex-wrap">
+                            <td className="sticky right-0 z-10 px-2 sm:px-3 py-1.5 whitespace-nowrap text-center align-middle bg-white dark:bg-slate-900 odd:bg-white even:bg-gray-50 dark:odd:bg-slate-900 dark:even:bg-slate-800 border-l border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700 min-w-[150px] w-[150px]">
+                              <div className="flex items-center justify-center gap-2 flex-nowrap">
                                 <button
                                   onClick={() => { setHistoricoEntityId(animal.id); setHistoricoOpen(true); }}
-                                  className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                                  className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                                   title="Ver histórico"
                                 >
                                   <Icons.History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                </button>
+                                <button
+                                  onClick={() => { setTimelineAnimalId(animal.id); setTimelineOpen(true); }}
+                                  className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                                  title="Linha do tempo"
+                                >
+                                  <Icons.Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 </button>
                                 <button
                                   onClick={() => {
@@ -1803,7 +1947,7 @@ export default function Animais() {
                                     }
                                   }}
                                   disabled={!matrizId}
-                                  className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                                  className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                                   title="Ver árvore genealógica"
                                 >
                                   <Icons.GitBranch className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1811,7 +1955,7 @@ export default function Animais() {
                                 {podeEditarAnimal && (
                                   <button
                                     onClick={() => handleEditarAnimal(animal)}
-                                    className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                                    className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                                     title="Editar animal"
                                   >
                                     <Icons.Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1820,7 +1964,7 @@ export default function Animais() {
                                 {podeExcluirAnimal && (
                                   <button
                                     onClick={() => handleExcluirAnimal(animal)}
-                                    className={`p-1 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
+                                    className={`p-1 shrink-0 ${getPrimaryActionButtonLightClass(primaryColor)} rounded transition-colors`}
                                     title="Excluir animal"
                                   >
                                     <Icons.Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1973,6 +2117,53 @@ export default function Animais() {
             }}
           />
         </Suspense>
+      )}
+
+      {/* Linha do tempo do animal (lazy) */}
+      {timelineOpen && timelineAnimalId && (
+        <Modal
+          open={timelineOpen}
+          onClose={() => {
+            setTimelineOpen(false);
+            setTimelineAnimalId(null);
+          }}
+          ariaLabel="Linha do tempo do animal"
+        >
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-200 dark:border-slate-700 flex flex-col w-full sm:w-[min(32rem,90vw)] max-h-[85vh] sm:max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 shrink-0 bg-gray-50 dark:bg-slate-800/50">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Linha do tempo</h2>
+                {timelineData?.animal?.brinco && (
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Brinco {timelineData.animal.brinco}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setTimelineOpen(false); setTimelineAnimalId(null); }}
+                className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-500 dark:text-slate-400 transition-colors"
+                aria-label="Fechar"
+              >
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              {timelineData ? (
+                <Suspense fallback={<div className="py-8 text-center text-gray-500 dark:text-slate-400">Carregando...</div>}>
+                  <TimelineAnimal
+                    animal={timelineData.animal}
+                    desmama={timelineData.desmama}
+                    pesagens={timelineData.pesagens}
+                    vacinacoes={timelineData.vacinacoes}
+                    confinamentoVinculos={timelineData.confinamentoVinculos}
+                    ocorrencias={timelineData.ocorrencias}
+                  />
+                </Suspense>
+              ) : (
+                <div className="py-8 text-center text-gray-500 dark:text-slate-400">Carregando dados...</div>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

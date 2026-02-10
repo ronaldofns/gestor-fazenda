@@ -29,6 +29,11 @@ const schema = z.object({
   dataInicio: z.string().min(1, msg.obrigatorio),
   dataFimPrevista: z.string().optional(),
   status: z.enum(['ativo', 'finalizado', 'cancelado']),
+  precoVendaKg: z.string().optional().transform(s => {
+    if (!s || s.trim() === '') return undefined;
+    const n = parseFloat(s.replace(',', '.'));
+    return isNaN(n) ? undefined : n;
+  }),
   observacoes: z.string().optional()
 });
 
@@ -78,6 +83,7 @@ export default function ConfinamentoModal({
       dataInicio: '',
       dataFimPrevista: '',
       status: 'ativo',
+      precoVendaKg: '',
       observacoes: ''
     }
   });
@@ -93,6 +99,7 @@ export default function ConfinamentoModal({
         dataInicio: converterDataParaFormatoInput(initialData.dataInicio),
         dataFimPrevista: initialData.dataFimPrevista ? converterDataParaFormatoInput(initialData.dataFimPrevista) : '',
         status: initialData.status,
+        precoVendaKg: initialData.precoVendaKg != null ? String(initialData.precoVendaKg) : '',
         observacoes: initialData.observacoes || ''
       });
     } else if (mode === 'create' && open) {
@@ -102,6 +109,7 @@ export default function ConfinamentoModal({
         dataInicio: '',
         dataFimPrevista: '',
         status: 'ativo',
+        precoVendaKg: '',
         observacoes: ''
       });
     }
@@ -114,6 +122,7 @@ export default function ConfinamentoModal({
       dataInicio: '',
       dataFimPrevista: '',
       status: 'ativo',
+      precoVendaKg: '',
       observacoes: ''
     });
   };
@@ -132,6 +141,7 @@ export default function ConfinamentoModal({
         dataInicio: dataInicioBanco,
         dataFimPrevista: dataFimPrevistaBanco,
         status: values.status,
+        precoVendaKg: values.precoVendaKg,
         observacoes: values.observacoes || undefined,
         updatedAt: new Date().toISOString(),
         synced: false
@@ -277,6 +287,16 @@ export default function ConfinamentoModal({
           </p>
         )}
       </div>
+
+      {/* Preço venda/kg (para margem estimada) */}
+      <Input
+        label="Preço venda/kg (R$) — opcional"
+        type="text"
+        inputMode="decimal"
+        placeholder="Ex: 15,50 — para ver margem estimada nos indicadores"
+        {...register('precoVendaKg')}
+        error={errors.precoVendaKg?.message}
+      />
 
       {/* Observações */}
       <Textarea

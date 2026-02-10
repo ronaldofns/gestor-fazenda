@@ -1,14 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
-import { Confinamento, ConfinamentoAnimal, ConfinamentoAlimentacao, Animal, Fazenda, ConfinamentoPesagem } from '../db/models';
+import { Confinamento, ConfinamentoAnimal, ConfinamentoAlimentacao, Animal, Fazenda, ConfinamentoPesagem, OcorrenciaAnimal } from '../db/models';
 import { Icons } from '../utils/iconMapping';
 import { showToast } from '../utils/toast';
 import ConfinamentoModal from '../components/ConfinamentoModal';
 import ConfinamentoAnimalModal from '../components/ConfinamentoAnimalModal';
 import ConfinamentoAlimentacaoModal from '../components/ConfinamentoAlimentacaoModal';
 import ConfinamentoPesagemModal from '../components/ConfinamentoPesagemModal';
+import OcorrenciaAnimalModal from '../components/OcorrenciaAnimalModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Input from '../components/Input';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -18,15 +19,20 @@ import { getPrimaryButtonClass, getTitleTextClass, getThemeClasses } from '../ut
 import { formatDateBR } from '../utils/date';
 import { converterDataParaFormatoBanco } from '../utils/dateInput';
 import { calcularGMD, calcularGMDParcial } from '../utils/confinamentoRules';
+import { estadoConfinamentoDerivado } from '../utils/confinamentoEstado';
 import { createSyncEvent } from '../utils/syncEvents';
 import { registrarAudit } from '../utils/audit';
 import { useAuth } from '../hooks/useAuth';
+import { exportarConfinamentoPDF, exportarConfinamentoExcel, type DadosConfinamentoExportacao } from '../utils/exportarConfinamento';
 
-type TabType = 'animais' | 'pesagens' | 'alimentacao' | 'indicadores' | 'historico';
+type TabType = 'animais' | 'pesagens' | 'alimentacao' | 'indicadores' | 'ocorrencias' | 'historico';
+
+const ARROBA_KG = 15;
 
 export default function DetalheConfinamento() {
   const { confinamentoId } = useParams<{ confinamentoId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { appSettings } = useAppSettings();
   const { hasPermission } = usePermissions();
   const { user } = useAuth();
@@ -34,6 +40,14 @@ export default function DetalheConfinamento() {
   const podeGerenciarConfinamentos = hasPermission('gerenciar_fazendas');
 
   const [activeTab, setActiveTab] = useState<TabType>('animais');
+
+  // Abrir aba Indicadores quando ?aba=indicadores (ex.: vindo do "Ver relatório" na lista)
+  useEffect(() => {
+    if (searchParams.get('aba') === 'indicadores') {
+      setActiveTab('indicadores');
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [modalConfinamentoOpen, setModalConfinamentoOpen] = useState(false);
   const [modalAnimalOpen, setModalAnimalOpen] = useState(false);
   const [vínculoEditando, setVínculoEditando] = useState<ConfinamentoAnimal | null>(null);
@@ -43,6 +57,10 @@ export default function DetalheConfinamento() {
   const [alimentacaoAExcluir, setAlimentacaoAExcluir] = useState<ConfinamentoAlimentacao | null>(null);
   const [modalPesagemOpen, setModalPesagemOpen] = useState(false);
   const [buscaAnimaisPesagens, setBuscaAnimaisPesagens] = useState('');
+  const [modalOcorrenciaOpen, setModalOcorrenciaOpen] = useState(false);
+  const [ocorrenciaEditando, setOcorrenciaEditando] = useState<OcorrenciaAnimal | null>(null);
+  const [ocorrenciaVinculoParaNovo, setOcorrenciaVinculoParaNovo] = useState<ConfinamentoAnimal | null>(null);
+  const [ocorrenciaPickerOpen, setOcorrenciaPickerOpen] = useState(false);
 
   // Buscar confinamento
   const confinamento = useLiveQuery(() => 
@@ -128,11 +146,18 @@ export default function DetalheConfinamento() {
     return todos.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [confinamentoId, vínculosRaw]) || [];
 
-  const { vínculosAtivos, vínculosEncerrados } = useMemo(() => {
+  const { vínculosAtivos, vínculosEncerrados, statusConfinamentoDerivado } = useMemo(() => {
     const ativos = vínculosRaw.filter(v => v.dataSaida == null);
     const encerrados = vínculosRaw.filter(v => v.dataSaida != null);
-    return { vínculosAtivos: ativos, vínculosEncerrados: encerrados };
-  }, [vínculosRaw]);
+    const statusDerivado = confinamento
+      ? estadoConfinamentoDerivado(confinamento, vínculosRaw)
+      : undefined;
+    return {
+      vínculosAtivos: ativos,
+      vínculosEncerrados: encerrados,
+      statusConfinamentoDerivado: statusDerivado
+    };
+  }, [vínculosRaw, confinamento]);
 
   const vínculosAtivosFiltradosPesagens = useMemo(() => {
     const term = buscaAnimaisPesagens.trim().toLowerCase();
@@ -145,18 +170,32 @@ export default function DetalheConfinamento() {
     });
   }, [vínculosAtivos, animaisMap, buscaAnimaisPesagens]);
 
-  // Calcular indicadores do confinamento
+  // Calcular indicadores do confinamento (incl. economia)
   const indicadores = useMemo(() => {
-    if (vínculosRaw.length === 0) {
-      return {
-        totalAnimais: 0,
-        animaisAtivos: 0,
-        pesoMedioEntrada: 0,
-        pesoMedioSaida: 0,
-        gmdMedio: 0,
-        diasMedio: 0
-      };
+    const custoTotal = alimentacaoRaw.reduce((s, a) => s + (a.custoTotal ?? 0), 0);
+    const base = {
+      totalAnimais: 0,
+      animaisAtivos: 0,
+      pesoMedioEntrada: 0,
+      pesoMedioSaida: 0,
+      gmdMedio: 0,
+      diasMedio: 0,
+      mortalidade: 0,
+      custoTotal: 0,
+      custoPorDia: null as number | null,
+      custoPorAnimalDia: null as number | null,
+      custoPorKgGanho: null as number | null,
+      kgGanhoTotal: 0,
+      totalAnimalDias: 0,
+      diasConfinamento: 0,
+      margemEstimada: null as number | null
+    };
+
+    if (vínculosRaw.length === 0 || !confinamento) {
+      return { ...base, custoTotal };
     }
+
+    const mortalidade = vínculosRaw.filter(v => v.motivoSaida === 'morte').length;
 
     const entradas = vínculosRaw.map(v => v.pesoEntrada);
     const saidas = vínculosRaw.filter(v => v.pesoSaida).map(v => v.pesoSaida!);
@@ -179,10 +218,15 @@ export default function DetalheConfinamento() {
     }
 
     const gmdCalculados: Array<{ gmd: number; dias: number }> = [];
+    let totalAnimalDias = 0;
+    let kgGanhoTotal = 0;
+
     for (const v of vínculosRaw) {
       if (v.pesoSaida && v.dataSaida) {
         const r = calcularGMD(v.pesoEntrada, v.pesoSaida, v.dataEntrada, v.dataSaida);
         if (r.gmd != null) gmdCalculados.push(r);
+        totalAnimalDias += r.dias;
+        kgGanhoTotal += (v.pesoSaida ?? 0) - v.pesoEntrada;
       } else {
         const pesagemConfinamento = ultimaPesagemPorVinculo.get(v.id);
         const animal = animaisMap.get(v.animalId);
@@ -193,6 +237,7 @@ export default function DetalheConfinamento() {
             ? calcularGMD(v.pesoEntrada, pesoParaGMD, v.dataEntrada, dataFim)
             : calcularGMDParcial(v.pesoEntrada, pesoParaGMD, v.dataEntrada);
           if (r.gmd != null) gmdCalculados.push(r);
+          totalAnimalDias += r.dias;
         }
       }
     }
@@ -209,15 +254,50 @@ export default function DetalheConfinamento() {
       ? diasNoConfinamento.reduce((a, b) => a + b, 0) / diasNoConfinamento.length
       : 0;
 
+    // Economia: dias do confinamento (calendário)
+    const inicio = new Date(confinamento.dataInicio);
+    const fim = confinamento.dataFimReal ? new Date(confinamento.dataFimReal) : new Date();
+    const diasConfinamento = Math.max(1, Math.floor((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)));
+
+    const custoPorDia = diasConfinamento > 0 ? custoTotal / diasConfinamento : null;
+    const custoPorAnimalDia = totalAnimalDias > 0 ? custoTotal / totalAnimalDias : null;
+    const custoPorKgGanho = kgGanhoTotal > 0 ? custoTotal / kgGanhoTotal : null;
+
+    const precoKg = confinamento.precoVendaKg ?? undefined;
+    const margemEstimada = (precoKg != null && precoKg > 0 && kgGanhoTotal > 0)
+      ? kgGanhoTotal * precoKg - custoTotal
+      : null;
+
     return {
       totalAnimais: vínculosRaw.length,
       animaisAtivos: vínculosAtivos.length,
       pesoMedioEntrada,
       pesoMedioSaida,
       gmdMedio,
-      diasMedio
+      diasMedio,
+      mortalidade,
+      custoTotal,
+      custoPorDia,
+      custoPorAnimalDia,
+      custoPorKgGanho,
+      kgGanhoTotal,
+      totalAnimalDias,
+      diasConfinamento,
+      margemEstimada
     };
-  }, [vínculosRaw, vínculosAtivos, vínculosEncerrados, animaisMap, pesagensRaw]);
+  }, [vínculosRaw, vínculosAtivos, vínculosEncerrados, animaisMap, pesagensRaw, alimentacaoRaw, confinamento]);
+
+  // Ocorrências do confinamento (por vínculo) — hooks devem vir antes de qualquer return condicional
+  const vinculoIds = useMemo(() => vínculosRaw.map(v => v.id), [vínculosRaw]);
+  const ocorrenciasRaw = useLiveQuery(async () => {
+    if (vinculoIds.length === 0) return [];
+    const todas = await db.ocorrenciaAnimais
+      .where('confinamentoAnimalId')
+      .anyOf(vinculoIds)
+      .and(o => o.deletedAt == null)
+      .toArray();
+    return todas.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  }, [vinculoIds]) || [];
 
   if (!confinamentoId || !confinamento) {
     return (
@@ -236,8 +316,9 @@ export default function DetalheConfinamento() {
   const tabs = [
     { id: 'animais' as TabType, label: 'Animais', icon: Icons.Cow },
     { id: 'pesagens' as TabType, label: 'Pesagens', icon: Icons.Scale },
-    { id: 'alimentacao' as TabType, label: 'Alimentação', icon: Icons.Settings }, // Usar Settings temporariamente
+    { id: 'alimentacao' as TabType, label: 'Alimentação', icon: Icons.Warehouse },
     { id: 'indicadores' as TabType, label: 'Indicadores', icon: Icons.BarChart },
+    { id: 'ocorrencias' as TabType, label: 'Ocorrências', icon: Icons.AlertTriangle },
     { id: 'historico' as TabType, label: 'Histórico', icon: Icons.History }
   ];
 
@@ -313,65 +394,105 @@ export default function DetalheConfinamento() {
     }
   };
 
+  const montarDadosExportacao = async (): Promise<DadosConfinamentoExportacao | null> => {
+    if (!confinamento) return null;
+    const statusDerivado = estadoConfinamentoDerivado(confinamento, vínculosRaw);
+    const fazenda = await db.fazendas.get(confinamento.fazendaId);
+    const custoTotal = alimentacaoRaw.reduce((s, a) => s + (a.custoTotal ?? 0), 0);
+    const kgGanho = vínculosRaw
+      .filter(v => v.dataSaida && v.pesoSaida != null)
+      .reduce((s, v) => s + ((v.pesoSaida ?? 0) - (v.pesoEntrada ?? 0)), 0);
+    const arrobas = kgGanho / ARROBA_KG;
+    const custoPorArroba = arrobas > 0 ? custoTotal / arrobas : null;
+    return {
+      resumo: {
+        totalConfinamentos: 1,
+        ativos: statusDerivado === 'ativo' ? 1 : 0,
+        totalAnimais: indicadores.totalAnimais,
+        gmdMedioGeral: indicadores.gmdMedio,
+        custoTotalGeral: custoTotal,
+        mortalidade: indicadores.mortalidade,
+        arrobasProducao: arrobas,
+        custoPorArroba
+      },
+        porConfinamento: [{
+          nome: confinamento.nome,
+          fazenda: fazenda?.nome ?? 'N/A',
+          status: statusDerivado,
+        totalAnimais: indicadores.totalAnimais,
+        pesoMedioEntrada: indicadores.pesoMedioEntrada,
+        gmdMedio: indicadores.gmdMedio,
+        custoTotal,
+        arrobas,
+        custoPorArroba,
+        mortes: indicadores.mortalidade,
+        diasMedio: indicadores.diasMedio
+      }]
+    };
+  };
+
   return (
-    <div className="p-2 sm:p-3 md:p-4 text-gray-900 dark:text-slate-100 max-w-full overflow-x-hidden">
-      {/* Header */}
-      <div className="mb-4 flex justify-between items-start">
-        <div>
+    <div className="p-2 sm:p-3 md:p-4 text-gray-900 dark:text-slate-100 max-w-full overflow-x-hidden min-w-[280px]">
+      {/* Header — empilha no mobile; largura mínima evita texto “em coluna” em viewports estreitos */}
+      <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+        <div className="min-w-0 flex-1 w-full">
           <button
             onClick={() => navigate('/confinamentos')}
             className="mb-2 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
           >
-            <Icons.ArrowLeft className="w-4 h-4" />
+            <Icons.ArrowLeft className="w-4 h-4 flex-shrink-0" />
             Voltar
           </button>
-          <h1 className={getTitleTextClass(primaryColor)}>{confinamento.nome}</h1>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+          <h1 className={`text-xl sm:text-2xl font-bold min-w-0 truncate ${getTitleTextClass(primaryColor)}`}>{confinamento.nome}</h1>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 break-words hyphens-auto">
             {fazenda?.nome} • Início: {formatDateBR(confinamento.dataInicio)}
             {confinamento.dataFimReal && ` • Fim: ${formatDateBR(confinamento.dataFimReal)}`}
           </p>
         </div>
         {podeGerenciarConfinamentos && (
-          <button
-            onClick={() => setModalConfinamentoOpen(true)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700"
-          >
-            <Icons.Edit className="w-4 h-4 inline mr-2" />
-            Editar
-          </button>
+          <div className="flex flex-shrink-0 justify-end">
+            <button
+              onClick={() => setModalConfinamentoOpen(true)}
+              className="inline-flex items-center justify-center gap-2 px-3 py-2 sm:px-4 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
+              title="Editar confinamento"
+            >
+              <Icons.Edit className="w-4 h-4" />
+              <span className="hidden sm:inline">Editar</span>
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-lg overflow-hidden mb-4">
-        <div className="flex flex-wrap border-b border-gray-200 dark:border-slate-700 overflow-x-auto">
+      {/* Tabs — todas visíveis no mobile (wrap em 2 linhas); sem scroll horizontal */}
+      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-xl overflow-hidden mb-4 border border-gray-200 dark:border-slate-700">
+        <div className={`flex flex-wrap gap-1.5 p-2 ${getThemeClasses(primaryColor, 'bg-light')} border-b border-gray-200 dark:border-slate-700`}>
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium transition-all border-b-2 ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? `${getThemeClasses(primaryColor, 'border')} ${getThemeClasses(primaryColor, 'text')}`
-                  : 'border-transparent text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
+                  ? `${getThemeClasses(primaryColor, 'bg')} text-white shadow-md`
+                  : 'text-gray-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700/60 hover:text-gray-900 dark:hover:text-slate-200'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
+              <tab.icon className="w-4 h-4 flex-shrink-0" />
               <span>{tab.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Tab Content */}
-        <div className="p-4 sm:p-6">
+        {/* Tab Content — min-w-0 para permitir scroll horizontal das tabelas no mobile */}
+        <div className="p-4 sm:p-6 min-w-0 overflow-hidden">
           {/* Aba Animais */}
           {activeTab === 'animais' && (
-            <div>
-              <div className="mb-4 flex justify-between items-center">
-                <h2 className="text-lg font-semibold">Animais no Confinamento</h2>
-                {podeGerenciarConfinamentos && confinamento.status === 'ativo' && (
+            <div className="min-w-0">
+              <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <h2 className="text-lg font-semibold min-w-0">Animais no Confinamento</h2>
+                {podeGerenciarConfinamentos && statusConfinamentoDerivado === 'ativo' && (
                   <button
                     onClick={handleAdicionarAnimal}
-                    className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors ${getPrimaryButtonClass(primaryColor)} hover:opacity-90`}
+                    className={`flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors ${getPrimaryButtonClass(primaryColor)} hover:opacity-90`}
                   >
                     <Icons.Plus className="w-4 h-4" />
                     Adicionar Animal
@@ -390,17 +511,47 @@ export default function DetalheConfinamento() {
                       <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                         Animais Ativos ({vínculosAtivos.length})
                       </h3>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
-                          <thead className="bg-gray-50 dark:bg-slate-800">
+                      {/* Mobile: cards */}
+                      <div className="md:hidden space-y-3">
+                        {vínculosAtivos.map(vínculo => {
+                          const animal = animaisMap.get(vínculo.animalId);
+                          const gmdParcial = animal?.pesoAtual
+                            ? calcularGMDParcial(vínculo.pesoEntrada, animal.pesoAtual, vínculo.dataEntrada)
+                            : null;
+                          return (
+                            <div key={vínculo.id} className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                              <div className="flex justify-between items-start gap-2 mb-2">
+                                <span className="font-semibold text-gray-900 dark:text-slate-100">Brinco {animal?.brinco || 'N/A'}</span>
+                                {podeGerenciarConfinamentos && (
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={() => handleEncerrarVínculo(vínculo)} className="text-orange-600 dark:text-orange-400" title="Encerrar"><Icons.XCircle className="w-4 h-4" /></button>
+                                    <button type="button" onClick={() => handleEditarVínculo(vínculo)} className="text-blue-600 dark:text-blue-400" title="Editar"><Icons.Edit className="w-4 h-4" /></button>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="space-y-1.5 text-sm">
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Nome</span><span>{animal?.nome || '-'}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Entrada</span><span>{formatDateBR(vínculo.dataEntrada)}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Peso Entrada</span><span>{vínculo.pesoEntrada.toFixed(2)} kg</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Peso Atual</span><span>{animal?.pesoAtual ? `${animal.pesoAtual.toFixed(2)} kg` : '-'}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">GMD Parcial</span><span>{gmdParcial?.gmd != null ? `${gmdParcial.gmd.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg/dia` : '-'}</span></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Desktop: tabela */}
+                      <div className="hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none -mx-1 px-1 border border-gray-200 dark:border-slate-700 rounded-lg">
+                        <table className="min-w-[560px] w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm table-fixed sm:table-auto">
+                          <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
                             <tr>
-                              <th className="px-4 py-2 text-left">Brinco</th>
-                              <th className="px-4 py-2 text-left">Nome</th>
-                              <th className="px-4 py-2 text-left">Entrada</th>
-                              <th className="px-4 py-2 text-left">Peso Entrada</th>
-                              <th className="px-4 py-2 text-left">Peso Atual</th>
-                              <th className="px-4 py-2 text-left">GMD Parcial</th>
-                              <th className="px-4 py-2 text-left">Ações</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Brinco</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Nome</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Entrada</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Peso Entrada</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Peso Atual</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">GMD Parcial</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Ações</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
@@ -411,17 +562,17 @@ export default function DetalheConfinamento() {
                                 : null;
                               return (
                                 <tr key={vínculo.id}>
-                                  <td className="px-4 py-2">{animal?.brinco || 'N/A'}</td>
-                                  <td className="px-4 py-2">{animal?.nome || '-'}</td>
-                                  <td className="px-4 py-2">{formatDateBR(vínculo.dataEntrada)}</td>
-                                  <td className="px-4 py-2">{vínculo.pesoEntrada.toFixed(2)} kg</td>
-                                  <td className="px-4 py-2">
+                                  <td className="px-3 sm:px-4 py-2">{animal?.brinco || 'N/A'}</td>
+                                  <td className="px-3 sm:px-4 py-2">{animal?.nome || '-'}</td>
+                                  <td className="px-3 sm:px-4 py-2">{formatDateBR(vínculo.dataEntrada)}</td>
+                                  <td className="px-3 sm:px-4 py-2">{vínculo.pesoEntrada.toFixed(2)} kg</td>
+                                  <td className="px-3 sm:px-4 py-2">
                                     {animal?.pesoAtual ? `${animal.pesoAtual.toFixed(2)} kg` : '-'}
                                   </td>
-                                  <td className="px-4 py-2">
+                                  <td className="px-3 sm:px-4 py-2">
                                     {gmdParcial?.gmd != null ? `${gmdParcial.gmd.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg/dia` : '-'}
                                   </td>
-                                  <td className="px-4 py-2">
+                                  <td className="px-3 sm:px-4 py-2">
                                     <div className="flex gap-2">
                                       {podeGerenciarConfinamentos && (
                                         <>
@@ -457,18 +608,42 @@ export default function DetalheConfinamento() {
                       <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                         Animais Encerrados ({vínculosEncerrados.length})
                       </h3>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
-                          <thead className="bg-gray-50 dark:bg-slate-800">
+                      {/* Mobile: cards */}
+                      <div className="md:hidden space-y-3">
+                        {vínculosEncerrados.map(vínculo => {
+                          const animal = animaisMap.get(vínculo.animalId);
+                          const gmd = vínculo.pesoSaida && vínculo.dataSaida
+                            ? calcularGMD(vínculo.pesoEntrada, vínculo.pesoSaida, vínculo.dataEntrada, vínculo.dataSaida)
+                            : null;
+                          return (
+                            <div key={vínculo.id} className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                              <div className="font-semibold text-gray-900 dark:text-slate-100 mb-2">Brinco {animal?.brinco || 'N/A'}</div>
+                              <div className="space-y-1.5 text-sm">
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Nome</span><span>{animal?.nome || '-'}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Entrada</span><span>{formatDateBR(vínculo.dataEntrada)}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Saída</span><span>{vínculo.dataSaida ? formatDateBR(vínculo.dataSaida) : '-'}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Peso Entrada</span><span>{vínculo.pesoEntrada.toFixed(2)} kg</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Peso Saída</span><span>{vínculo.pesoSaida ? `${vínculo.pesoSaida.toFixed(2)} kg` : '-'}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">GMD</span><span>{gmd?.gmd != null ? `${gmd.gmd.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg/dia (${gmd.dias} dias)` : '-'}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Motivo</span><span>{vínculo.motivoSaida ? <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-xs">{vínculo.motivoSaida}</span> : '-'}</span></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Desktop: tabela */}
+                      <div className="hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none -mx-1 px-1 border border-gray-200 dark:border-slate-700 rounded-lg">
+                        <table className="min-w-[720px] w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm table-auto">
+                          <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
                             <tr>
-                              <th className="px-4 py-2 text-left">Brinco</th>
-                              <th className="px-4 py-2 text-left">Nome</th>
-                              <th className="px-4 py-2 text-left">Entrada</th>
-                              <th className="px-4 py-2 text-left">Saída</th>
-                              <th className="px-4 py-2 text-left">Peso Entrada</th>
-                              <th className="px-4 py-2 text-left">Peso Saída</th>
-                              <th className="px-4 py-2 text-left">GMD</th>
-                              <th className="px-4 py-2 text-left">Motivo</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Brinco</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Nome</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Entrada</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Saída</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Peso Entrada</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Peso Saída</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">GMD</th>
+                              <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Motivo</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
@@ -479,18 +654,18 @@ export default function DetalheConfinamento() {
                                 : null;
                               return (
                                 <tr key={vínculo.id}>
-                                  <td className="px-4 py-2">{animal?.brinco || 'N/A'}</td>
-                                  <td className="px-4 py-2">{animal?.nome || '-'}</td>
-                                  <td className="px-4 py-2">{formatDateBR(vínculo.dataEntrada)}</td>
-                                  <td className="px-4 py-2">{vínculo.dataSaida ? formatDateBR(vínculo.dataSaida) : '-'}</td>
-                                  <td className="px-4 py-2">{vínculo.pesoEntrada.toFixed(2)} kg</td>
-                                  <td className="px-4 py-2">
+                                  <td className="px-3 sm:px-4 py-2 whitespace-nowrap">{animal?.brinco || 'N/A'}</td>
+                                  <td className="px-3 sm:px-4 py-2">{animal?.nome || '-'}</td>
+                                  <td className="px-3 sm:px-4 py-2 whitespace-nowrap">{formatDateBR(vínculo.dataEntrada)}</td>
+                                  <td className="px-3 sm:px-4 py-2 whitespace-nowrap">{vínculo.dataSaida ? formatDateBR(vínculo.dataSaida) : '-'}</td>
+                                  <td className="px-3 sm:px-4 py-2 whitespace-nowrap">{vínculo.pesoEntrada.toFixed(2)} kg</td>
+                                  <td className="px-3 sm:px-4 py-2">
                                     {vínculo.pesoSaida ? `${vínculo.pesoSaida.toFixed(2)} kg` : '-'}
                                   </td>
-                                  <td className="px-4 py-2">
+                                  <td className="px-3 sm:px-4 py-2">
                                     {gmd?.gmd != null ? `${gmd.gmd.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg/dia (${gmd.dias} dias)` : '-'}
                                   </td>
-                                  <td className="px-4 py-2">
+                                  <td className="px-3 sm:px-4 py-2">
                                     {vínculo.motivoSaida ? (
                                       <span className="px-2 py-1 text-xs rounded-full bg-gray-100 dark:bg-slate-800">
                                         {vínculo.motivoSaida}
@@ -515,7 +690,7 @@ export default function DetalheConfinamento() {
             <div>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold">Pesagens do Confinamento</h2>
-                {podeGerenciarConfinamentos && confinamento?.status === 'ativo' && vínculosAtivos.length > 0 && (
+                {podeGerenciarConfinamentos && statusConfinamentoDerivado === 'ativo' && vínculosAtivos.length > 0 && (
                   <button
                     onClick={() => setModalPesagemOpen(true)}
                     className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg shadow-sm ${getPrimaryButtonClass(primaryColor)} hover:opacity-90`}
@@ -538,14 +713,33 @@ export default function DetalheConfinamento() {
                 {vínculosAtivos.length === 0 ? (
                   <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Nenhum animal ativo no confinamento. Adicione animais na aba Animais.</p>
                 ) : (
-                  <div className="mt-2 overflow-x-auto border border-gray-200 dark:border-slate-700 rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
-                      <thead className="bg-gray-50 dark:bg-slate-800">
+                  <>
+                    <div className="mt-2 md:hidden space-y-3">
+                      {vínculosAtivosFiltradosPesagens.map(vínculo => {
+                        const animal = animaisMap.get(vínculo.animalId);
+                        return (
+                          <div key={vínculo.id} className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                            <div className="font-semibold text-gray-900 dark:text-slate-100 mb-2">Brinco {animal?.brinco ?? 'N/A'}</div>
+                            <div className="space-y-1.5 text-sm">
+                              <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Nome</span><span>{animal?.nome ?? '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Entrada</span><span>{formatDateBR(vínculo.dataEntrada)}</span></div>
+                              <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Peso entrada</span><span>{vínculo.pesoEntrada.toFixed(2)} kg</span></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {vínculosAtivosFiltradosPesagens.length === 0 && buscaAnimaisPesagens.trim() && (
+                        <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-4">Nenhum animal encontrado com &quot;{buscaAnimaisPesagens.trim()}&quot;</p>
+                      )}
+                    </div>
+                    <div className="mt-2 hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none border border-gray-200 dark:border-slate-700 rounded-lg">
+                    <table className="min-w-[400px] w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
+                      <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
                         <tr>
-                          <th className="px-3 py-2 text-left">Brinco</th>
-                          <th className="px-3 py-2 text-left">Nome</th>
-                          <th className="px-3 py-2 text-left">Entrada</th>
-                          <th className="px-3 py-2 text-left">Peso entrada</th>
+                          <th className="px-3 py-2 text-left whitespace-nowrap">Brinco</th>
+                          <th className="px-3 py-2 text-left whitespace-nowrap">Nome</th>
+                          <th className="px-3 py-2 text-left whitespace-nowrap">Entrada</th>
+                          <th className="px-3 py-2 text-left whitespace-nowrap">Peso entrada</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
@@ -568,6 +762,7 @@ export default function DetalheConfinamento() {
                       </p>
                     )}
                   </div>
+                  </>
                 )}
               </div>
 
@@ -577,14 +772,30 @@ export default function DetalheConfinamento() {
                   Nenhuma pesagem registrada ainda. Use &quot;Registrar pesagem&quot; para adicionar.
                 </p>
               ) : (
-                <div className="overflow-x-auto border border-gray-200 dark:border-slate-700 rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
-                    <thead className="bg-gray-50 dark:bg-slate-800">
+                <>
+                  <div className="md:hidden space-y-3">
+                    {pesagensRaw.map(pesagem => {
+                      const vínculo = vínculosRaw.find(v => v.id === pesagem.confinamentoAnimalId);
+                      const animal = vínculo ? animaisMap.get(vínculo.animalId) : null;
+                      return (
+                        <div key={pesagem.id} className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                          <div className="font-semibold text-gray-900 dark:text-slate-100 mb-2">{formatDateBR(pesagem.data)} — Brinco {animal?.brinco || 'N/A'}</div>
+                          <div className="space-y-1.5 text-sm">
+                            <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Peso (kg)</span><span>{pesagem.peso.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Observações</span><span>{pesagem.observacoes || '-'}</span></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none border border-gray-200 dark:border-slate-700 rounded-lg">
+                  <table className="min-w-[420px] w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
+                    <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
                       <tr>
-                        <th className="px-4 py-2 text-left">Data</th>
-                        <th className="px-4 py-2 text-left">Animal</th>
-                        <th className="px-4 py-2 text-left">Peso (kg)</th>
-                        <th className="px-4 py-2 text-left">Observações</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Data</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Animal</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Peso (kg)</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Observações</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
@@ -593,16 +804,17 @@ export default function DetalheConfinamento() {
                         const animal = vínculo ? animaisMap.get(vínculo.animalId) : null;
                         return (
                           <tr key={pesagem.id}>
-                            <td className="px-4 py-2">{formatDateBR(pesagem.data)}</td>
-                            <td className="px-4 py-2">{animal?.brinco || 'N/A'}</td>
-                            <td className="px-4 py-2">{pesagem.peso.toFixed(2)}</td>
-                            <td className="px-4 py-2">{pesagem.observacoes || '-'}</td>
+                            <td className="px-3 sm:px-4 py-2">{formatDateBR(pesagem.data)}</td>
+                            <td className="px-3 sm:px-4 py-2">{animal?.brinco || 'N/A'}</td>
+                            <td className="px-3 sm:px-4 py-2">{pesagem.peso.toFixed(2)}</td>
+                            <td className="px-3 sm:px-4 py-2">{pesagem.observacoes || '-'}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
           )}
@@ -612,7 +824,7 @@ export default function DetalheConfinamento() {
             <div>
               <div className="mb-4 flex justify-between items-center">
                 <h2 className="text-lg font-semibold">Alimentação</h2>
-                {podeGerenciarConfinamentos && confinamento?.status === 'ativo' && (
+                {podeGerenciarConfinamentos && statusConfinamentoDerivado === 'ativo' && (
                   <button
                     onClick={handleAdicionarAlimentacao}
                     className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg shadow-sm ${getPrimaryButtonClass(primaryColor)} hover:opacity-90`}
@@ -627,30 +839,51 @@ export default function DetalheConfinamento() {
                   Nenhum registro de alimentação ainda. Adicione para controlar dieta e custos.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
-                    <thead className="bg-gray-50 dark:bg-slate-800">
+                <>
+                  <div className="md:hidden space-y-3">
+                    {alimentacaoOrdenada.map(reg => (
+                      <div key={reg.id} className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                        <div className="flex justify-between items-start gap-2 mb-2">
+                          <span className="font-semibold text-gray-900 dark:text-slate-100">{formatDateBR(reg.data)}</span>
+                          {podeGerenciarConfinamentos && (
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => handleEditarAlimentacao(reg)} className="text-blue-600 dark:text-blue-400" title="Editar"><Icons.Edit className="w-4 h-4" /></button>
+                              <button type="button" onClick={() => handleExcluirAlimentacao(reg)} className="text-red-600 dark:text-red-400" title="Excluir"><Icons.Trash className="w-4 h-4" /></button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Tipo de dieta</span><span>{reg.tipoDieta || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Custo total</span><span>{reg.custoTotal != null ? `R$ ${reg.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Observações</span><span className="break-words text-right">{reg.observacoes || '-'}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none border border-gray-200 dark:border-slate-700 rounded-lg">
+                  <table className="min-w-[480px] w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
+                    <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
                       <tr>
-                        <th className="px-4 py-2 text-left">Data</th>
-                        <th className="px-4 py-2 text-left">Tipo de dieta</th>
-                        <th className="px-4 py-2 text-left">Custo total</th>
-                        <th className="px-4 py-2 text-left">Observações</th>
-                        {podeGerenciarConfinamentos && <th className="px-4 py-2 text-left">Ações</th>}
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Data</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Tipo de dieta</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Custo total</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Observações</th>
+                        {podeGerenciarConfinamentos && <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Ações</th>}
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                       {alimentacaoOrdenada.map(reg => (
                         <tr key={reg.id}>
-                          <td className="px-4 py-2">{formatDateBR(reg.data)}</td>
-                          <td className="px-4 py-2">{reg.tipoDieta || '-'}</td>
-                          <td className="px-4 py-2">
+                          <td className="px-3 sm:px-4 py-2">{formatDateBR(reg.data)}</td>
+                          <td className="px-3 sm:px-4 py-2">{reg.tipoDieta || '-'}</td>
+                          <td className="px-3 sm:px-4 py-2">
                             {reg.custoTotal != null ? `R$ ${reg.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
                           </td>
-                          <td className="px-4 py-2 max-w-xs truncate" title={reg.observacoes || ''}>
+                          <td className="px-3 sm:px-4 py-2 max-w-xs truncate" title={reg.observacoes || ''}>
                             {reg.observacoes || '-'}
                           </td>
                           {podeGerenciarConfinamentos && (
-                            <td className="px-4 py-2">
+                            <td className="px-3 sm:px-4 py-2">
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => handleEditarAlimentacao(reg)}
@@ -674,6 +907,7 @@ export default function DetalheConfinamento() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
           )}
@@ -681,41 +915,301 @@ export default function DetalheConfinamento() {
           {/* Aba Indicadores */}
           {activeTab === 'indicadores' && (
             <div>
-              <h2 className="text-lg font-semibold mb-4">Indicadores do Confinamento</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-slate-400">Total de Animais</p>
-                  <p className="text-2xl font-bold">{indicadores.totalAnimais}</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-slate-400">Animais Ativos</p>
-                  <p className="text-2xl font-bold">{indicadores.animaisAtivos}</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-slate-400">Peso Médio Entrada</p>
-                  <p className="text-2xl font-bold">{indicadores.pesoMedioEntrada.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-slate-400">Peso Médio Saída</p>
-                  <p className="text-2xl font-bold">
-                    {indicadores.pesoMedioSaida > 0 ? `${indicadores.pesoMedioSaida.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg` : '-'}
-                  </p>
-                </div>
-                <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-slate-400">GMD Médio</p>
-                  <p className="text-2xl font-bold">
-                    {indicadores.gmdMedio > 0 ? `${indicadores.gmdMedio.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg/dia` : '-'}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-slate-500 mt-0.5">Ganho médio diário em kg</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-slate-400">Duração média (encerrados)</p>
-                  <p className="text-2xl font-bold">
-                    {indicadores.diasMedio > 0 ? `${Math.round(indicadores.diasMedio)} dias` : '-'}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-slate-500 mt-0.5">Tempo médio no confinamento de quem já saiu</p>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-semibold">Indicadores do Confinamento</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const dados = await montarDadosExportacao();
+                      if (dados) exportarConfinamentoPDF(dados);
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/50"
+                  >
+                    <Icons.FileText className="w-4 h-4" />
+                    Exportar PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const dados = await montarDadosExportacao();
+                      if (dados) exportarConfinamentoExcel(dados);
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/50"
+                  >
+                    <Icons.FileSpreadsheet className="w-4 h-4" />
+                    Exportar Excel
+                  </button>
                 </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="bg-blue-50/70 dark:bg-blue-950/30 p-4 rounded-xl border-l-4 border-blue-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <Icons.Cow className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-blue-700/80 dark:text-blue-300/80 font-medium">Total de Animais</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{indicadores.totalAnimais}</p>
+                  </div>
+                </div>
+                <div className="bg-green-50/70 dark:bg-green-950/30 p-4 rounded-xl border-l-4 border-green-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400">
+                    <Icons.CheckCircle className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-green-700/80 dark:text-green-300/80 font-medium">Animais Ativos</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{indicadores.animaisAtivos}</p>
+                  </div>
+                </div>
+                <div className="bg-amber-50/70 dark:bg-amber-950/30 p-4 rounded-xl border-l-4 border-amber-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <Icons.Scale className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-amber-700/80 dark:text-amber-300/80 font-medium">Peso Médio Entrada</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{indicadores.pesoMedioEntrada.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg</p>
+                  </div>
+                </div>
+                <div className="bg-amber-50/70 dark:bg-amber-950/30 p-4 rounded-xl border-l-4 border-amber-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <Icons.Scale className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-amber-700/80 dark:text-amber-300/80 font-medium">Peso Médio Saída</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.pesoMedioSaida > 0 ? `${indicadores.pesoMedioSaida.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg` : '-'}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-emerald-50/70 dark:bg-emerald-950/30 p-4 rounded-xl border-l-4 border-emerald-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                    <Icons.BarChart className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-emerald-700/80 dark:text-emerald-300/80 font-medium">GMD Médio</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.gmdMedio > 0 ? `${indicadores.gmdMedio.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg/dia` : '-'}
+                    </p>
+                    <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">Ganho médio diário</p>
+                  </div>
+                </div>
+                <div className="bg-indigo-50/70 dark:bg-indigo-950/30 p-4 rounded-xl border-l-4 border-indigo-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                    <Icons.Clock className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-indigo-700/80 dark:text-indigo-300/80 font-medium">Duração média (encerrados)</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.diasMedio > 0 ? `${Math.round(indicadores.diasMedio)} dias` : '-'}
+                    </p>
+                    <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70 mt-0.5">Tempo médio no confinamento</p>
+                  </div>
+                </div>
+                <div className="bg-red-50/70 dark:bg-red-950/30 p-4 rounded-xl border-l-4 border-red-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-red-600 dark:text-red-400">
+                    <Icons.AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-red-700/80 dark:text-red-300/80 font-medium">Mortalidade</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{indicadores.mortalidade}</p>
+                    <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-0.5">Saídas por morte</p>
+                  </div>
+                </div>
+                {/* Economia */}
+                <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                    <Icons.DollarSign className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Custo total (alimentação)</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.custoTotal > 0 ? `R$ ${indicadores.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                    <Icons.DollarSign className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Custo/dia</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.custoPorDia != null ? `R$ ${indicadores.custoPorDia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">Custo total ÷ dias</p>
+                  </div>
+                </div>
+                <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                    <Icons.DollarSign className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Custo/animal/dia</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.custoPorAnimalDia != null ? `R$ ${indicadores.custoPorAnimalDia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">Por animal-dia</p>
+                  </div>
+                </div>
+                <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                    <Icons.DollarSign className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Custo/kg ganho</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.custoPorKgGanho != null ? `R$ ${indicadores.custoPorKgGanho.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">Por kg de ganho</p>
+                  </div>
+                </div>
+                {confinamento?.precoVendaKg != null && confinamento.precoVendaKg > 0 && (
+                  <div className={`p-4 rounded-xl border-l-4 flex gap-3 ${(indicadores.margemEstimada ?? 0) >= 0 ? 'bg-green-50/70 dark:bg-green-950/30 border-green-500' : 'bg-red-50/70 dark:bg-red-950/30 border-red-500'}`}>
+                    <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${(indicadores.margemEstimada ?? 0) >= 0 ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'}`}>
+                      <Icons.DollarSign className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-medium ${(indicadores.margemEstimada ?? 0) >= 0 ? 'text-green-700/80 dark:text-green-300/80' : 'text-red-700/80 dark:text-red-300/80'}`}>Margem estimada</p>
+                      <p className={`text-2xl font-bold ${(indicadores.margemEstimada ?? 0) >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                        {indicadores.margemEstimada != null ? `R$ ${indicadores.margemEstimada.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-slate-500 mt-0.5">(kg ganho × R$ {confinamento.precoVendaKg.toLocaleString('pt-BR')}/kg) − custo</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Aba Ocorrências (sanidade) */}
+          {activeTab === 'ocorrencias' && (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-semibold">Ocorrências (sanidade)</h2>
+                {podeGerenciarConfinamentos && vínculosRaw.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setOcorrenciaPickerOpen(true)}
+                      className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-white ${getPrimaryButtonClass(primaryColor)}`}
+                    >
+                      <Icons.Plus className="w-4 h-4" />
+                      Nova ocorrência
+                    </button>
+                    {ocorrenciaPickerOpen && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOcorrenciaPickerOpen(false)}>
+                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-4 space-y-3" onClick={e => e.stopPropagation()}>
+                          <p className="text-sm font-medium text-gray-700 dark:text-slate-300">Selecione o animal</p>
+                          <div className="max-h-60 overflow-y-auto space-y-1">
+                            {vínculosRaw.map(v => {
+                              const animal = animaisMap.get(v.animalId);
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setOcorrenciaVinculoParaNovo(v);
+                                    setOcorrenciaPickerOpen(false);
+                                    setModalOcorrenciaOpen(true);
+                                  }}
+                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-900 dark:text-slate-100"
+                                >
+                                  {animal?.brinco ?? 'N/A'} — {animal?.nome || '(sem nome)'}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <button type="button" onClick={() => setOcorrenciaPickerOpen(false)} className="w-full py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-sm">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              {ocorrenciasRaw.length === 0 ? (
+                <p className="text-gray-500 dark:text-slate-400 text-center py-8">
+                  Nenhuma ocorrência registrada neste confinamento.
+                </p>
+              ) : (
+                <>
+                  <div className="md:hidden space-y-3">
+                    {ocorrenciasRaw.map(oc => {
+                      const vinculo = vínculosRaw.find(v => v.id === oc.confinamentoAnimalId);
+                      const animal = vinculo ? animaisMap.get(vinculo.animalId) : animaisMap.get(oc.animalId);
+                      const tipoLabel = { doenca: 'Doença', tratamento: 'Tratamento', morte: 'Morte', outro: 'Outro' }[oc.tipo];
+                      return (
+                        <div key={oc.id} className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <span className="font-semibold text-gray-900 dark:text-slate-100">{formatDateBR(oc.data)} — {animal?.brinco ?? 'N/A'}</span>
+                            {podeGerenciarConfinamentos && (
+                              <button type="button" onClick={() => { setOcorrenciaEditando(oc); setModalOcorrenciaOpen(true); }} className="text-blue-600 dark:text-blue-400" title="Editar"><Icons.Edit className="w-4 h-4" /></button>
+                            )}
+                          </div>
+                          <div className="space-y-1.5 text-sm">
+                            <div className="flex justify-between items-center"><span className="text-gray-500 dark:text-slate-400">Tipo</span><span className={`px-2 py-0.5 rounded text-xs font-medium ${oc.tipo === 'morte' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' : oc.tipo === 'doenca' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300' : oc.tipo === 'tratamento' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'}`}>{tipoLabel}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Animal</span><span>{animal?.nome ? `${animal.nome}` : '-'}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Custo</span><span>{oc.custo != null ? `R$ ${oc.custo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Observações</span><span className="break-words text-right">{oc.observacoes || '-'}</span></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none border border-gray-200 dark:border-slate-700 rounded-lg">
+                  <table className="min-w-[520px] w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
+                    <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
+                      <tr>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Data</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Animal</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Tipo</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Custo</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Observações</th>
+                        {podeGerenciarConfinamentos && <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Ações</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
+                      {ocorrenciasRaw.map(oc => {
+                        const vinculo = vínculosRaw.find(v => v.id === oc.confinamentoAnimalId);
+                        const animal = vinculo ? animaisMap.get(vinculo.animalId) : animaisMap.get(oc.animalId);
+                        const tipoLabel = { doenca: 'Doença', tratamento: 'Tratamento', morte: 'Morte', outro: 'Outro' }[oc.tipo];
+                        return (
+                          <tr key={oc.id}>
+                            <td className="px-3 sm:px-4 py-2 text-gray-700 dark:text-slate-300">{formatDateBR(oc.data)}</td>
+                            <td className="px-3 sm:px-4 py-2">{animal?.brinco ?? 'N/A'} {animal?.nome ? `— ${animal.nome}` : ''}</td>
+                            <td className="px-3 sm:px-4 py-2">
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                oc.tipo === 'morte' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
+                                oc.tipo === 'doenca' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300' :
+                                oc.tipo === 'tratamento' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                                'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'
+                              }`}>
+                                {tipoLabel}
+                              </span>
+                            </td>
+                            <td className="px-3 sm:px-4 py-2">{oc.custo != null ? `R$ ${oc.custo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</td>
+                            <td className="px-3 sm:px-4 py-2 text-gray-600 dark:text-slate-400 max-w-xs truncate">{oc.observacoes || '-'}</td>
+                            {podeGerenciarConfinamentos && (
+                              <td className="px-3 sm:px-4 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => { setOcorrenciaEditando(oc); setModalOcorrenciaOpen(true); }}
+                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                                  title="Editar"
+                                >
+                                  <Icons.Edit className="w-4 h-4" />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                </>
+              )}
             </div>
           )}
 
@@ -728,27 +1222,42 @@ export default function DetalheConfinamento() {
                   Nenhum registro de alteração ainda para este confinamento.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
-                    <thead className="bg-gray-50 dark:bg-slate-800">
+                <>
+                  <div className="md:hidden space-y-3">
+                    {historicoRaw.map(audit => (
+                      <div key={audit.id} className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm">
+                        <div className="font-semibold text-gray-900 dark:text-slate-100 mb-2">
+                          {formatDateBR(audit.timestamp.split('T')[0])} {audit.timestamp.split('T')[1]?.slice(0, 5)}
+                        </div>
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Usuário</span><span>{audit.userNome || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Contexto</span><span>{audit.entity === 'confinamento' ? 'Confinamento' : audit.entity === 'confinamentoAnimal' ? 'Animal no confinamento' : audit.entity === 'ocorrenciaAnimal' ? 'Ocorrência' : audit.entity}</span></div>
+                          <div className="flex justify-between items-center"><span className="text-gray-500 dark:text-slate-400">Ação</span><span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-slate-700">{audit.action === 'create' ? 'Criação' : audit.action === 'update' ? 'Edição' : audit.action === 'delete' ? 'Exclusão' : audit.action}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none border border-gray-200 dark:border-slate-700 rounded-lg">
+                  <table className="min-w-[480px] w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
+                    <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
                       <tr>
-                        <th className="px-4 py-2 text-left">Data/Hora</th>
-                        <th className="px-4 py-2 text-left">Usuário</th>
-                        <th className="px-4 py-2 text-left">Contexto</th>
-                        <th className="px-4 py-2 text-left">Ação</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Data/Hora</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Usuário</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Contexto</th>
+                        <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">Ação</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                       {historicoRaw.map(audit => (
                         <tr key={audit.id}>
-                          <td className="px-4 py-2 text-gray-600 dark:text-slate-400">
+                          <td className="px-3 sm:px-4 py-2 text-gray-600 dark:text-slate-400">
                             {formatDateBR(audit.timestamp.split('T')[0])} {audit.timestamp.split('T')[1]?.slice(0, 5)}
                           </td>
-                          <td className="px-4 py-2">{audit.userNome || '-'}</td>
-                          <td className="px-4 py-2">
-                            {audit.entity === 'confinamento' ? 'Confinamento' : audit.entity === 'confinamentoAnimal' ? 'Animal no confinamento' : audit.entity}
+                          <td className="px-3 sm:px-4 py-2">{audit.userNome || '-'}</td>
+                          <td className="px-3 sm:px-4 py-2">
+                            {audit.entity === 'confinamento' ? 'Confinamento' : audit.entity === 'confinamentoAnimal' ? 'Animal no confinamento' : audit.entity === 'ocorrenciaAnimal' ? 'Ocorrência' : audit.entity}
                           </td>
-                          <td className="px-4 py-2">
+                          <td className="px-3 sm:px-4 py-2">
                             <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-slate-700">
                               {audit.action === 'create' ? 'Criação' : audit.action === 'update' ? 'Edição' : audit.action === 'delete' ? 'Exclusão' : audit.action}
                             </span>
@@ -758,6 +1267,7 @@ export default function DetalheConfinamento() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
           )}
@@ -843,6 +1353,24 @@ export default function DetalheConfinamento() {
         cancelText="Cancelar"
         onConfirm={confirmarExcluirAlimentacao}
         onCancel={() => setAlimentacaoAExcluir(null)}
+      />
+
+      <OcorrenciaAnimalModal
+        open={modalOcorrenciaOpen}
+        mode={ocorrenciaEditando ? 'edit' : 'create'}
+        animalId={ocorrenciaEditando?.animalId ?? ocorrenciaVinculoParaNovo?.animalId ?? ''}
+        confinamentoAnimalId={ocorrenciaEditando?.confinamentoAnimalId ?? ocorrenciaVinculoParaNovo?.id}
+        initialData={ocorrenciaEditando ?? undefined}
+        onClose={() => {
+          setModalOcorrenciaOpen(false);
+          setOcorrenciaEditando(null);
+          setOcorrenciaVinculoParaNovo(null);
+        }}
+        onSaved={() => {
+          setModalOcorrenciaOpen(false);
+          setOcorrenciaEditando(null);
+          setOcorrenciaVinculoParaNovo(null);
+        }}
       />
     </div>
   );

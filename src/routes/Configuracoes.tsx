@@ -249,19 +249,19 @@ export default function Configuracoes() {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 mb-6 overflow-hidden">
-          <div className="flex flex-wrap border-b border-gray-200 dark:border-slate-700">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 mb-6 overflow-hidden">
+          <div className={`flex flex-wrap gap-0.5 p-1.5 ${getThemeClasses(primaryColor, 'bg-light')} border-b border-gray-200 dark:border-slate-700 overflow-x-auto`}>
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium transition-all border-b-2 ${
+                className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-sm font-medium rounded-lg transition-all ${
                   activeTab === tab.id
-                    ? `border-${primaryColor}-600 ${getThemeClasses(primaryColor, 'text')} bg-${primaryColor}-50 dark:bg-${primaryColor}-900/20`
-                    : 'border-transparent text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800/50'
+                    ? `${getThemeClasses(primaryColor, 'bg')} text-white shadow-md`
+                    : 'text-gray-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700/60 hover:text-gray-900 dark:hover:text-slate-200'
                 }`}
               >
-                <tab.icon className="w-4 h-4" />
+                <tab.icon className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}

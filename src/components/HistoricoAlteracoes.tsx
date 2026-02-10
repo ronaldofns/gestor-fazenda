@@ -210,9 +210,6 @@ export default function HistoricoAlteracoes({
       let estadoAtual: any = null;
       try {
       switch (entity) {
-        case 'nascimento':
-          estadoAtual = await db.nascimentos.get(entityId);
-          break;
         case 'fazenda':
           estadoAtual = await db.fazendas.get(entityId);
           break;
@@ -231,6 +228,21 @@ export default function HistoricoAlteracoes({
         case 'usuario':
           estadoAtual = await db.usuarios.get(entityId);
           break;
+        case 'confinamento':
+          estadoAtual = await db.confinamentos.get(entityId);
+          break;
+        case 'confinamentoAnimal':
+          estadoAtual = await db.confinamentoAnimais.get(entityId);
+          break;
+        case 'confinamentoPesagem':
+          estadoAtual = await db.confinamentoPesagens.get(entityId);
+          break;
+        case 'confinamentoAlimentacao':
+          estadoAtual = await db.confinamentoAlimentacao.get(entityId);
+          break;
+        case 'ocorrenciaAnimal':
+          estadoAtual = await db.ocorrenciaAnimais.get(entityId);
+          break;
       }
       } catch (err) {
         console.warn('Erro ao buscar estado atual para auditoria:', err);
@@ -243,13 +255,6 @@ export default function HistoricoAlteracoes({
       const now = new Date().toISOString();
       
       switch (entity) {
-        case 'nascimento':
-          await db.nascimentos.update(entityId, {
-            ...dadosRestaurar,
-            updatedAt: now,
-            synced: false
-          });
-          break;
         case 'fazenda':
           await db.fazendas.update(entityId, {
             ...dadosRestaurar,
@@ -285,6 +290,41 @@ export default function HistoricoAlteracoes({
           break;
         case 'vacina':
           await db.vacinacoes.update(entityId, {
+            ...dadosRestaurar,
+            updatedAt: now,
+            synced: false
+          });
+          break;
+        case 'confinamento':
+          await db.confinamentos.update(entityId, {
+            ...dadosRestaurar,
+            updatedAt: now,
+            synced: false
+          });
+          break;
+        case 'confinamentoAnimal':
+          await db.confinamentoAnimais.update(entityId, {
+            ...dadosRestaurar,
+            updatedAt: now,
+            synced: false
+          });
+          break;
+        case 'confinamentoPesagem':
+          await db.confinamentoPesagens.update(entityId, {
+            ...dadosRestaurar,
+            updatedAt: now,
+            synced: false
+          });
+          break;
+        case 'confinamentoAlimentacao':
+          await db.confinamentoAlimentacao.update(entityId, {
+            ...dadosRestaurar,
+            updatedAt: now,
+            synced: false
+          });
+          break;
+        case 'ocorrenciaAnimal':
+          await db.ocorrenciaAnimais.update(entityId, {
             ...dadosRestaurar,
             updatedAt: now,
             synced: false
@@ -341,7 +381,7 @@ export default function HistoricoAlteracoes({
       raca: 'Raça',
       matrizId: 'Matriz',
       fazendaId: 'Fazenda',
-      nascimentoId: 'Nascimento',
+      animalId: 'Animal',
       dataDesmama: 'Data de desmama',
       pesoDesmama: 'Peso desmama',
       dataPesagem: 'Data da pesagem',

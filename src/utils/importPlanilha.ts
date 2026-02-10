@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { db } from '../db/dexieDB';
 import { uuid } from './uuid';
-import { Nascimento } from '../db/models';
+import { Animal, Nascimento } from '../db/models';
 import { criarMatrizSeNaoExistir } from './criarMatrizAutomatica';
 
 export interface MapeamentoColunas {
@@ -658,13 +658,38 @@ export async function importarNascimentos(
   const jaNoArquivo = new Set<string>();
 
   // Mapear brincos já existentes por fazenda (case-insensitive)
-  const nascimentosExistentes = await db.nascimentos.toArray();
-  nascimentosExistentes.forEach((n) => {
-    const brinco = normalizarBrinco(n.brincoNumero);
-    if (brinco && n.fazendaId) {
-      jaExistentes.add(`${n.fazendaId}::${brinco}`);
+  const animaisExistentes = await db.animais.toArray();
+  animaisExistentes.forEach((a) => {
+    const brinco = normalizarBrinco(a.brinco);
+    if (brinco && a.fazendaId) {
+      jaExistentes.add(`${a.fazendaId}::${brinco}`);
     }
   });
+
+  // Obter IDs padrão para novo animal (Bezerro, Ativo, Nascimento)
+  const [tipos, statuses, origens] = await Promise.all([
+    db.tiposAnimal.toArray(),
+    db.statusAnimal.toArray(),
+    db.origens.toArray()
+  ]);
+  const tipoBezerro = tipos.find(t => /bezerro/i.test(t.nome || '')) || tipos[0];
+  const statusAtivo = statuses.find(s => /ativo/i.test(s.nome || '')) || statuses[0];
+  const origemNasc = origens.find(o => /nascimento/i.test(o.nome || '')) || origens[0];
+  if (!tipoBezerro?.id || !statusAtivo?.id || !(origemNasc?.id || origens[0]?.id)) {
+    throw new Error('Configure pelo menos um tipo de animal (ex.: Bezerro), um status (ex.: Ativo) e uma origem (ex.: Nascimento) antes de importar.');
+  }
+  const racas = await db.racas.toArray();
+  const racaPorNome = new Map(racas.map(r => [r.nome?.toLowerCase().trim(), r.id]));
+
+  function dataParaBanco(val?: string): string {
+    if (!val || !val.trim()) return new Date().toISOString().split('T')[0];
+    const s = String(val).trim();
+    if (s.includes('/')) {
+      const [d, m, a] = s.split('/');
+      if (d && m && a) return `${a}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    return s;
+  }
   
   for (let i = 0; i < dados.length; i++) {
     const linha = dados[i];
@@ -708,8 +733,9 @@ export async function importarNascimentos(
       dadosProcessados.dataNascimento = `${dia}/${mes}/${ano}`;
     }
     
-    // Validar brinco duplicado por fazenda (já existente ou repetido na própria planilha)
-    const brincoNormalizado = normalizarBrinco(dadosProcessados.brincoNumero);
+    // Validar brinco duplicado por fazenda
+    const brincoVal = (dadosProcessados.brincoNumero || '').trim() || (dadosProcessados.brinco || '').trim();
+    const brincoNormalizado = normalizarBrinco(brincoVal);
     if (brincoNormalizado && dadosProcessados.fazendaId) {
       const chave = `${dadosProcessados.fazendaId}::${brincoNormalizado}`;
       if (jaExistentes.has(chave)) {
@@ -751,24 +777,34 @@ export async function importarNascimentos(
 
       const id = uuid();
       const now = new Date().toISOString();
-      
-      await db.nascimentos.add({
-        ...dadosProcessados,
-        matrizId, // Usar o ID da matriz (pode ser UUID se foi criada)
+      const sexo: 'M' | 'F' = (dadosProcessados.sexo === 'F' || (dadosProcessados.sexo && String(dadosProcessados.sexo).toUpperCase().startsWith('F'))) ? 'F' : 'M';
+      const racaStr = (dadosProcessados.raca || '').toString().trim().toLowerCase();
+      const racaId = racaStr ? racaPorNome.get(racaStr) : undefined;
+
+      const novoAnimal: Animal = {
         id,
+        brinco: brincoVal || id.substring(0, 8),
+        tipoId: tipoBezerro?.id ?? '',
+        racaId,
+        sexo,
+        statusId: statusAtivo?.id ?? '',
+        dataNascimento: dataParaBanco(dadosProcessados.dataNascimento),
+        dataCadastro: now.split('T')[0],
+        origemId: origemNasc?.id ?? origens[0]?.id ?? '',
+        fazendaId: dadosProcessados.fazendaId,
+        matrizId: matrizId || undefined,
+        obs: dadosProcessados.obs?.trim(),
         createdAt: now,
         updatedAt: now,
-        synced: false,
-        novilha: dadosProcessados.novilha || false,
-        vaca: dadosProcessados.vaca || false
-      } as Nascimento);
-      
-      // Se há dados de desmama, criar registro de desmama
+        synced: false
+      };
+      await db.animais.add(novoAnimal);
+
       if (dadosDesmama && (dadosDesmama.dataDesmama || dadosDesmama.pesoDesmama)) {
         try {
           await db.desmamas.add({
             id: uuid(),
-            nascimentoId: id,
+            animalId: id,
             dataDesmama: dadosDesmama.dataDesmama,
             pesoDesmama: dadosDesmama.pesoDesmama,
             createdAt: now,

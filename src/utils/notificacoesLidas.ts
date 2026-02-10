@@ -31,8 +31,8 @@ export function chaveMatrizSemCadastro(matrizId: string, fazendaId: string): str
 /**
  * Gera chave única para uma notificação de peso fora do padrão
  */
-export function chavePesoForaPadrao(nascimentoId: string): string {
-  return `peso-${nascimentoId}`;
+export function chavePesoForaPadrao(animalId: string): string {
+  return `peso-${animalId}`;
 }
 
 /**

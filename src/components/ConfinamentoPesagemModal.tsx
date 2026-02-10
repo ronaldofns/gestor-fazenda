@@ -125,6 +125,13 @@ export default function ConfinamentoPesagemModal({
     setIsSubmitting(true);
     try {
       const dataBanco = converterDataParaFormatoBanco(values.data);
+      const { validarConfinamentoPesagemUnica } = await import('../utils/unicidadeValidation');
+      const unico = await validarConfinamentoPesagemUnica(values.confinamentoAnimalId, dataBanco);
+      if (!unico.valido) {
+        showToast({ type: 'error', title: 'Pesagem duplicada', message: unico.erro });
+        setIsSubmitting(false);
+        return;
+      }
       const now = new Date().toISOString();
       const novoId = uuid();
       const novo: ConfinamentoPesagem = {

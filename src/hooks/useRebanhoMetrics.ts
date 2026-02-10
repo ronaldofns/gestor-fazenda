@@ -376,8 +376,7 @@ export function useRebanhoMetrics(fazendaId?: string, filtros?: FiltrosDashboard
     const gmdCalculos: { [animalId: string]: { gmd: number; tipoId: string } } = {};
     
     animais.forEach(animal => {
-      // Buscar pesagens do animal (usando nascimentoId que é o mesmo que animalId)
-      const pesagensAnimal = pesagensRaw.filter(p => p.nascimentoId === animal.id || p.animalId === animal.id);
+      const pesagensAnimal = pesagensRaw.filter(p => p.animalId === animal.id);
       
       if (pesagensAnimal.length >= 2) {
         // Ordenar pesagens por data
@@ -551,7 +550,7 @@ export function useRebanhoMetrics(fazendaId?: string, filtros?: FiltrosDashboard
       
       const gmdFazenda: number[] = [];
       animaisFazenda.forEach(animal => {
-        const pesagensAnimal = pesagensRaw.filter(p => p.nascimentoId === animal.id || p.animalId === animal.id);
+        const pesagensAnimal = pesagensRaw.filter(p => p.animalId === animal.id);
         if (pesagensAnimal.length >= 2) {
           const ordenadas = pesagensAnimal.sort((a, b) => {
             const da = new Date(a.dataPesagem.includes('/') ? a.dataPesagem.split('/').reverse().join('-') : a.dataPesagem);
@@ -568,7 +567,7 @@ export function useRebanhoMetrics(fazendaId?: string, filtros?: FiltrosDashboard
       
       const filhosFazenda = new Set(genealogiasRaw.filter(g => g.animalId && animaisFazenda.some(a => a.id === g.animalId)).map(g => g.animalId));
       const desmamasFazenda = desmamasRaw.filter(d => {
-        const animalId = d.animalId || (d.nascimentoId ? animais.find(a => a.id === d.nascimentoId)?.id : null);
+        const animalId = d.animalId;
         return animalId && animaisFazenda.some(a => a.id === animalId);
       }).length;
       const nascimentosFazenda = animaisFazenda.filter(a => filhosFazenda.has(a.id)).length;

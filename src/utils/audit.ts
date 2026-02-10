@@ -1,6 +1,7 @@
 import { db } from '../db/dexieDB';
 import { AuditAction, AuditEntity } from '../db/models';
 import { uuid } from './uuid';
+import { createSyncEvent } from './syncEvents';
 
 export interface AuditUserInfo {
   id: string;
@@ -22,15 +23,17 @@ export interface AuditPayload<T = any> {
 }
 
 /**
- * Registra um evento de auditoria no IndexedDB.
- * 
+ * Registra um evento de auditoria no IndexedDB e cria evento na fila de sync
+ * para envio ao servidor (audits_online) na próxima sincronização.
+ *
  * Obs.: snapshots são salvos como JSON string (before/after) para evitar problemas de schema.
  */
 export async function registrarAudit<T = any>(payload: AuditPayload<T>) {
   try {
     const now = new Date().toISOString();
-    await db.audits.add({
-      id: uuid(),
+    const id = uuid();
+    const record = {
+      id,
       entity: payload.entity,
       entityId: payload.entityId,
       action: payload.action,
@@ -42,7 +45,9 @@ export async function registrarAudit<T = any>(payload: AuditPayload<T>) {
       description: payload.description ?? null,
       synced: false,
       remoteId: null
-    });
+    };
+    await db.audits.add(record);
+    await createSyncEvent('INSERT', 'audit', id, record);
   } catch (error) {
     // Auditoria nunca deve quebrar o fluxo principal
     console.warn('Falha ao registrar auditoria:', error);

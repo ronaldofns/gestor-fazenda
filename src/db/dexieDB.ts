@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType, SyncEvent, Pesagem, Vacina, Animal, TipoAnimal, StatusAnimal, Origem, Genealogia, Confinamento, ConfinamentoAnimal, ConfinamentoPesagem, ConfinamentoAlimentacao } from './models';
+import { Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType, SyncEvent, Pesagem, Vacina, Animal, TipoAnimal, StatusAnimal, Origem, Genealogia, Confinamento, ConfinamentoAnimal, ConfinamentoPesagem, ConfinamentoAlimentacao, OcorrenciaAnimal } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -41,7 +41,6 @@ class AppDB extends Dexie {
   fazendas!: Dexie.Table<Fazenda, string>;
   racas!: Dexie.Table<Raca, string>;
   categorias!: Dexie.Table<Categoria, string>;
-  nascimentos!: Dexie.Table<Nascimento, string>;
   desmamas!: Dexie.Table<Desmama, string>;
   pesagens!: Dexie.Table<Pesagem, string>; // Tabela de pesagens periódicas
   vacinacoes!: Dexie.Table<Vacina, string>; // Tabela de vacinações
@@ -69,6 +68,7 @@ class AppDB extends Dexie {
   confinamentoAnimais!: Dexie.Table<ConfinamentoAnimal, string>; // Vínculo animal-confinamento
   confinamentoPesagens!: Dexie.Table<ConfinamentoPesagem, string>; // Pesagens específicas do confinamento
   confinamentoAlimentacao!: Dexie.Table<ConfinamentoAlimentacao, string>; // Controle de alimentação e custos
+  ocorrenciaAnimais!: Dexie.Table<OcorrenciaAnimal, string>; // Sanidade: doença, tratamento, morte, outro
 
   constructor() {
     super('FazendaDB');
@@ -865,6 +865,71 @@ class AppDB extends Dexie {
       confinamentoAnimais: 'id, confinamentoId, animalId, dataEntrada, dataSaida, synced, remoteId, deletedAt, updatedAt, [confinamentoId+animalId], [animalId+dataSaida], [animalId+synced], [confinamentoId+synced]',
       confinamentoPesagens: 'id, confinamentoAnimalId, data, peso, synced, remoteId, deletedAt, updatedAt, [confinamentoAnimalId+data], [confinamentoAnimalId+synced]',
       confinamentoAlimentacao: 'id, confinamentoId, data, synced, remoteId, deletedAt, updatedAt, [confinamentoId+data], [confinamentoId+synced]'
+    });
+
+    // Versão 28: Remover tabela nascimentos (uso apenas animais)
+    this.version(28).stores({
+      fazendas: 'id, nome, synced, remoteId, [synced+nome]',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: null,
+      desmamas: 'id, nascimentoId, animalId, dataDesmama, synced, remoteId, [nascimentoId+synced], [animalId+synced]',
+      pesagens: 'id, nascimentoId, animalId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced], [animalId+dataPesagem], [animalId+synced]',
+      vacinacoes: 'id, nascimentoId, animalId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced], [animalId+dataAplicacao], [animalId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, synced, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo, synced',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, usuarioId, marcadaEm, synced, remoteId, [usuarioId+tipo]',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]',
+      tags: 'id, name, category, createdBy, synced, remoteId, [createdBy+synced], usageCount',
+      tagAssignments: 'id, entityId, entityType, tagId, [entityId+entityType], [entityType+tagId], [tagId+entityId], assignedBy, synced, remoteId, [synced+entityType]',
+      animais: 'id, brinco, tipoId, racaId, sexo, statusId, fazendaId, [fazendaId+brinco], [fazendaId+statusId], [fazendaId+synced], [tipoId+statusId], dataNascimento, dataCadastro, synced, remoteId, deletedAt, createdAt',
+      tiposAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      statusAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      origens: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      genealogias: 'id, animalId, matrizId, reprodutorId, synced, remoteId, deletedAt, [animalId+synced]',
+      confinamentos: 'id, fazendaId, nome, status, dataInicio, dataFimPrevista, dataFimReal, synced, remoteId, deletedAt, updatedAt, [fazendaId+status], [fazendaId+synced], [status+dataInicio]',
+      confinamentoAnimais: 'id, confinamentoId, animalId, dataEntrada, dataSaida, synced, remoteId, deletedAt, updatedAt, [confinamentoId+animalId], [animalId+dataSaida], [animalId+synced], [confinamentoId+synced]',
+      confinamentoPesagens: 'id, confinamentoAnimalId, data, peso, synced, remoteId, deletedAt, updatedAt, [confinamentoAnimalId+data], [confinamentoAnimalId+synced]',
+      confinamentoAlimentacao: 'id, confinamentoId, data, synced, remoteId, deletedAt, updatedAt, [confinamentoId+data], [confinamentoId+synced]'
+    });
+
+    // Versão 29: Usar apenas animalId em desmamas, pesagens e vacinacoes (remover índices nascimentoId)
+    this.version(29).stores({
+      desmamas: 'id, animalId, dataDesmama, synced, remoteId, [animalId+synced]',
+      pesagens: 'id, animalId, dataPesagem, synced, remoteId, [animalId+dataPesagem], [animalId+synced]',
+      vacinacoes: 'id, animalId, dataAplicacao, dataVencimento, synced, remoteId, [animalId+dataAplicacao], [animalId+synced]'
+    }).upgrade(async (tx) => {
+      const desmamas = await tx.table('desmamas').toArray();
+      for (const d of desmamas) {
+        const rec = d as { animalId?: string; nascimentoId?: string };
+        if (!rec.animalId && rec.nascimentoId) {
+          await tx.table('desmamas').update(d.id, { animalId: rec.nascimentoId });
+        }
+      }
+      const pesagens = await tx.table('pesagens').toArray();
+      for (const p of pesagens) {
+        const rec = p as { animalId?: string; nascimentoId?: string };
+        if (!rec.animalId && rec.nascimentoId) {
+          await tx.table('pesagens').update(p.id, { animalId: rec.nascimentoId });
+        }
+      }
+      const vacinacoes = await tx.table('vacinacoes').toArray();
+      for (const v of vacinacoes) {
+        const rec = v as { animalId?: string; nascimentoId?: string };
+        if (!rec.animalId && rec.nascimentoId) {
+          await tx.table('vacinacoes').update(v.id, { animalId: rec.nascimentoId });
+        }
+      }
+    });
+
+    // Versão 30: Tabela de ocorrências por animal (sanidade)
+    this.version(30).stores({
+      ocorrenciaAnimais: 'id, animalId, confinamentoAnimalId, data, tipo, synced, remoteId, deletedAt, [animalId+data], [confinamentoAnimalId+data]'
     });
   }
 }

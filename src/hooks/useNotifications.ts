@@ -39,7 +39,7 @@ interface NotificacaoMatrizSemCadastro {
 
 interface NotificacaoPesoForaPadrao {
   id: string;
-  nascimentoId: string;
+  animalId: string;
   brinco?: string;
   fazenda: string;
   pesoAtual: number;
@@ -51,7 +51,7 @@ interface NotificacaoPesoForaPadrao {
 
 interface NotificacaoVacina {
   id: string;
-  nascimentoId: string;
+  animalId: string;
   brinco?: string;
   fazenda: string;
   vacina: string;
@@ -94,12 +94,14 @@ function diffMeses(a: Date, b: Date) {
 
 export function useNotifications(): Notificacoes {
   const { fazendaAtivaId } = useFazendaContext();
-  const nascimentosTodosRaw = useLiveQuery(() => db.nascimentos.toArray(), []) || [];
+  const animaisTodosRaw = useLiveQuery(() => db.animais.toArray(), []) || [];
   const desmamas = useLiveQuery(() => db.desmamas.toArray(), []) || [];
   const pesagens = useLiveQuery(() => db.pesagens.toArray(), []) || [];
   const vacinacoes = useLiveQuery(() => db.vacinacoes.toArray(), []) || [];
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
   const matrizesRaw = useLiveQuery(() => db.matrizes.toArray(), []) || [];
+  const racasRaw = useLiveQuery(() => db.racas.toArray(), []) || [];
+  const statusAnimalRaw = useLiveQuery(() => db.statusAnimal.toArray(), []) || [];
   const notificacoesLidasRaw = useLiveQuery(() => db.notificacoesLidas.toArray(), []) || [];
   const { alertSettings } = useAlertSettings();
 
@@ -130,7 +132,7 @@ export function useNotifications(): Notificacoes {
           // Criar chave composta: identificador + fazendaId
           set.add(`${m.identificador}|${m.fazendaId}`);
         }
-        // Também adicionar o ID da matriz (UUID) caso o nascimento use o ID em vez do identificador
+        // Também adicionar o ID da matriz (UUID) caso o animal use o ID em vez do identificador
         if (m.id && m.fazendaId) {
           set.add(`${m.id}|${m.fazendaId}`);
         }
@@ -139,32 +141,48 @@ export function useNotifications(): Notificacoes {
     return set;
   }, [matrizesRaw]);
 
-  const matrizesEmNascimentos = useMemo(() => {
+  const racaMap = useMemo(() => {
+    const map = new Map<string, string>();
+    racasRaw.forEach((r) => { if (r.id && r.nome) map.set(r.id, r.nome); });
+    return map;
+  }, [racasRaw]);
+
+  const statusMap = useMemo(() => {
+    const map = new Map<string, string>();
+    statusAnimalRaw.forEach((s) => { if (s.id && s.nome) map.set(s.id, s.nome); });
+    return map;
+  }, [statusAnimalRaw]);
+
+  const matrizesEmAnimais = useMemo(() => {
     const map = new Map<string, { fazendaId: string; count: number }>();
-    // Filtrar por fazenda ativa antes de processar
-    const nascimentosFiltrados = fazendaAtivaId
-      ? nascimentosTodosRaw.filter(n => n.fazendaId === fazendaAtivaId)
-      : nascimentosTodosRaw;
-    
-    nascimentosFiltrados.forEach((n) => {
-      if (!n.matrizId) return;
-      const key = `${n.matrizId}|${n.fazendaId}`;
-      const existing = map.get(key) || { fazendaId: n.fazendaId, count: 0 };
+    const animaisFiltrados = fazendaAtivaId
+      ? animaisTodosRaw.filter(a => a.fazendaId === fazendaAtivaId)
+      : animaisTodosRaw;
+    animaisFiltrados.forEach((a) => {
+      if (!a.matrizId) return;
+      const key = `${a.matrizId}|${a.fazendaId}`;
+      const existing = map.get(key) || { fazendaId: a.fazendaId, count: 0 };
       existing.count += 1;
       map.set(key, existing);
     });
     return map;
-  }, [nascimentosTodosRaw, fazendaAtivaId]);
+  }, [animaisTodosRaw, fazendaAtivaId]);
 
   const desmamaSet = useMemo(() => {
     const set = new Set<string>();
     if (Array.isArray(desmamas)) {
       desmamas.forEach((d) => {
-        if (d.nascimentoId) set.add(d.nascimentoId);
+        if (d.animalId) set.add(d.animalId);
       });
     }
     return set;
   }, [desmamas]);
+
+  const animaisMap = useMemo(() => {
+    const m = new Map<string, (typeof animaisTodosRaw)[0]>();
+    animaisTodosRaw.forEach(a => m.set(a.id, a));
+    return m;
+  }, [animaisTodosRaw]);
 
   const notificacoesLidasSet = useMemo(() => {
     return new Set(notificacoesLidasRaw.map(n => n.id));
@@ -175,32 +193,32 @@ export function useNotifications(): Notificacoes {
     agora.setHours(0, 0, 0, 0);
     const { limiteMesesDesmama, janelaMesesMortalidade, limiarMortalidade } = alertSettings;
 
-    // Filtrar nascimentos por fazenda ativa
-    const nascimentosFiltrados = fazendaAtivaId
-      ? nascimentosTodosRaw.filter(n => n.fazendaId === fazendaAtivaId)
-      : nascimentosTodosRaw;
+    const animaisFiltrados = fazendaAtivaId
+      ? animaisTodosRaw.filter(a => a.fazendaId === fazendaAtivaId)
+      : animaisTodosRaw;
 
-    const desmamaAtrasada = nascimentosFiltrados
-      .filter((n) => {
-        if (n.morto) return false;
-        const dataNasc = parseDate(n.dataNascimento);
+    const desmamaAtrasada = animaisFiltrados
+      .filter((a) => {
+        const ehMorto = statusMap.get(a.statusId)?.toLowerCase().includes('morto');
+        if (ehMorto) return false;
+        const dataNasc = parseDate(a.dataNascimento);
         if (!dataNasc) return false;
         const meses = diffMeses(dataNasc, agora);
-        const semDesmama = !desmamaSet.has(n.id);
-        const naoLida = !notificacoesLidasSet.has(chaveDesmama(n.id));
+        const semDesmama = !desmamaSet.has(a.id);
+        const naoLida = !notificacoesLidasSet.has(chaveDesmama(a.id));
         return semDesmama && meses >= limiteMesesDesmama && naoLida;
       })
-      .map((n) => {
-        const dataNasc = parseDate(n.dataNascimento)!;
+      .map((a) => {
+        const dataNasc = parseDate(a.dataNascimento)!;
         const meses = diffMeses(dataNasc, agora);
-        const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+        const matrizIdentificador = matrizMap.get(a.matrizId!) || a.matrizId;
         return {
-          id: n.id,
+          id: a.id,
           matrizId: matrizIdentificador,
-          brinco: n.brincoNumero,
-          fazenda: fazendaMap.get(n.fazendaId) || 'Sem fazenda',
+          brinco: a.brinco,
+          fazenda: fazendaMap.get(a.fazendaId) || 'Sem fazenda',
           meses,
-          dataNascimento: n.dataNascimento
+          dataNascimento: a.dataNascimento
         };
       })
       .sort((a, b) => b.meses - a.meses);
@@ -208,14 +226,15 @@ export function useNotifications(): Notificacoes {
     const dataLimite = new Date(agora.getFullYear(), agora.getMonth() - (janelaMesesMortalidade - 1), 1);
     const estatisticas = new Map<string, { vivos: number; mortos: number; nome: string }>();
 
-    nascimentosFiltrados.forEach((n) => {
-      const dataRef = parseDate(n.dataNascimento) || parseDate(n.createdAt);
+    animaisFiltrados.forEach((a) => {
+      const dataRef = parseDate(a.dataNascimento) || parseDate(a.dataCadastro);
       if (!dataRef) return;
       if (dataRef < dataLimite) return;
-      const entry = estatisticas.get(n.fazendaId) || { vivos: 0, mortos: 0, nome: fazendaMap.get(n.fazendaId) || 'Sem fazenda' };
-      if (n.morto) entry.mortos += 1;
+      const entry = estatisticas.get(a.fazendaId) || { vivos: 0, mortos: 0, nome: fazendaMap.get(a.fazendaId) || 'Sem fazenda' };
+      const ehMorto = statusMap.get(a.statusId)?.toLowerCase().includes('morto');
+      if (ehMorto) entry.mortos += 1;
       else entry.vivos += 1;
-      estatisticas.set(n.fazendaId, entry);
+      estatisticas.set(a.fazendaId, entry);
     });
 
     const mortalidadeAlta = Array.from(estatisticas.entries())
@@ -233,36 +252,35 @@ export function useNotifications(): Notificacoes {
       .filter((f) => f.total >= 5 && f.taxa >= limiarMortalidade && !notificacoesLidasSet.has(chaveMortalidade(f.fazendaId)))
       .sort((a, b) => b.taxa - a.taxa);
 
-    // Dados incompletos: nascimentos sem informações importantes
-    const dadosIncompletos = nascimentosFiltrados
-      .filter((n) => {
-        if (n.morto) return false; // Ignorar mortos
+    // Dados incompletos: animais sem informações importantes
+    const dadosIncompletos = animaisFiltrados
+      .filter((a) => {
+        const ehMorto = statusMap.get(a.statusId)?.toLowerCase().includes('morto');
+        if (ehMorto) return false;
         const problemas: string[] = [];
-        if (!n.raca || n.raca.trim() === '') problemas.push('Sem raça');
-        if (!n.dataNascimento || n.dataNascimento.trim() === '') problemas.push('Sem data de nascimento');
-        // if (!n.brincoNumero || n.brincoNumero.trim() === '') problemas.push('Sem brinco');
+        if (!a.racaId || !racaMap.get(a.racaId)) problemas.push('Sem raça');
+        if (!a.dataNascimento || String(a.dataNascimento).trim() === '') problemas.push('Sem data de nascimento');
         const temProblemas = problemas.length > 0;
-        const naoLida = !notificacoesLidasSet.has(chaveDadosIncompletos(n.id));
+        const naoLida = !notificacoesLidasSet.has(chaveDadosIncompletos(a.id));
         return temProblemas && naoLida;
       })
-      .map((n) => {
+      .map((a) => {
         const problemas: string[] = [];
-        if (!n.raca || n.raca.trim() === '') problemas.push('Sem raça');
-        if (!n.dataNascimento || n.dataNascimento.trim() === '') problemas.push('Sem data de nascimento');
-        // if (!n.brincoNumero || n.brincoNumero.trim() === '') problemas.push('Sem brinco');
-        const matrizIdentificador = matrizMap.get(n.matrizId) || n.matrizId;
+        if (!a.racaId || !racaMap.get(a.racaId)) problemas.push('Sem raça');
+        if (!a.dataNascimento || String(a.dataNascimento).trim() === '') problemas.push('Sem data de nascimento');
+        const matrizIdentificador = matrizMap.get(a.matrizId!) || a.matrizId;
         return {
-          id: n.id,
+          id: a.id,
           matrizId: matrizIdentificador,
-          brinco: n.brincoNumero,
-          fazenda: fazendaMap.get(n.fazendaId) || 'Sem fazenda',
+          brinco: a.brinco,
+          fazenda: fazendaMap.get(a.fazendaId) || 'Sem fazenda',
           problemas
         };
       })
       .sort((a, b) => b.problemas.length - a.problemas.length);
 
-    // Matrizes sem cadastro completo: matrizes que aparecem em nascimentos mas não têm cadastro
-    const matrizesSemCadastro = Array.from(matrizesEmNascimentos.entries())
+    // Matrizes sem cadastro completo: matrizes que aparecem em animais mas não têm cadastro
+    const matrizesSemCadastro = Array.from(matrizesEmAnimais.entries())
       .filter(([key]) => !matrizSet.has(key))
       .map(([key, dados]) => {
         const [matrizIdRaw] = key.split('|');
@@ -280,99 +298,67 @@ export function useNotifications(): Notificacoes {
       .slice(0, 20); // Limitar a 20 para não sobrecarregar
 
     // Peso fora do padrão: animais com peso abaixo da média esperada
-    // Calcular média de peso por idade (em dias) e raça
     const pesoMedioPorIdadeERaca = (() => {
-      const map = new Map<string, { soma: number; count: number }>(); // chave: "idadeDias|raca"
-      
+      const map = new Map<string, { soma: number; count: number }>();
       pesagens.forEach((pesagem) => {
-        const nascimento = nascimentosFiltrados.find(n => n.id === pesagem.nascimentoId);
-        if (!nascimento || !nascimento.dataNascimento) return;
-        
-        const dataNasc = parseDate(nascimento.dataNascimento);
+        const animal = animaisMap.get(pesagem.animalId);
+        if (!animal || !animal.dataNascimento) return;
+        const dataNasc = parseDate(animal.dataNascimento);
         const dataPesagem = parseDate(pesagem.dataPesagem);
         if (!dataNasc || !dataPesagem) return;
-        
         const idadeDias = Math.floor((dataPesagem.getTime() - dataNasc.getTime()) / (1000 * 60 * 60 * 24));
         if (idadeDias < 0) return;
-        
-        const raca = nascimento.raca || 'Sem raça';
-        const chave = `${Math.floor(idadeDias / 30)}|${raca}`; // Agrupar por mês e raça
+        const raca = racaMap.get(animal.racaId!) || 'Sem raça';
+        const chave = `${Math.floor(idadeDias / 30)}|${raca}`;
         const existing = map.get(chave) || { soma: 0, count: 0 };
         existing.soma += pesagem.peso;
         existing.count += 1;
         map.set(chave, existing);
       });
-      
       const medias = new Map<string, number>();
-      map.forEach((value, key) => {
-        medias.set(key, value.soma / value.count);
-      });
-      
+      map.forEach((value, key) => { medias.set(key, value.soma / value.count); });
       return medias;
     })();
 
-    const pesoForaPadrao = nascimentosFiltrados
-      .filter((n) => {
-        if (n.morto) return false;
-        if (!n.dataNascimento) return false;
-        
-        // Buscar última pesagem do animal
+    const pesoForaPadrao = animaisFiltrados
+      .filter((a) => {
+        const ehMorto = statusMap.get(a.statusId)?.toLowerCase().includes('morto');
+        if (ehMorto) return false;
+        if (!a.dataNascimento) return false;
         const pesagensAnimal = pesagens
-          .filter(p => p.nascimentoId === n.id)
-          .sort((a, b) => {
-            const dataA = parseDate(a.dataPesagem);
-            const dataB = parseDate(b.dataPesagem);
-            if (!dataA || !dataB) return 0;
-            return dataB.getTime() - dataA.getTime();
-          });
-        
+          .filter(p => p.animalId === a.id)
+          .sort((x, y) => (parseDate(y.dataPesagem)?.getTime() ?? 0) - (parseDate(x.dataPesagem)?.getTime() ?? 0));
         if (pesagensAnimal.length === 0) return false;
-        
         const ultimaPesagem = pesagensAnimal[0];
-        const dataNasc = parseDate(n.dataNascimento);
+        const dataNasc = parseDate(a.dataNascimento);
         const dataPesagem = parseDate(ultimaPesagem.dataPesagem);
         if (!dataNasc || !dataPesagem) return false;
-        
         const idadeDias = Math.floor((dataPesagem.getTime() - dataNasc.getTime()) / (1000 * 60 * 60 * 24));
-        if (idadeDias < 30) return false; // Só alertar para animais com mais de 30 dias
-        
-        const raca = n.raca || 'Sem raça';
+        if (idadeDias < 30) return false;
+        const raca = racaMap.get(a.racaId!) || 'Sem raça';
         const chave = `${Math.floor(idadeDias / 30)}|${raca}`;
         const pesoMedioEsperado = pesoMedioPorIdadeERaca.get(chave);
-        
         if (!pesoMedioEsperado) return false;
-        
-        // Considerar fora do padrão se estiver 15% abaixo da média
         const diferencaPercentual = ((ultimaPesagem.peso - pesoMedioEsperado) / pesoMedioEsperado) * 100;
-        const foraPadrao = diferencaPercentual < -15;
-        const naoLida = !notificacoesLidasSet.has(chavePesoForaPadrao(n.id));
-        
-        return foraPadrao && naoLida;
+        return diferencaPercentual < -15 && !notificacoesLidasSet.has(chavePesoForaPadrao(a.id));
       })
-      .map((n) => {
+      .map((a) => {
         const pesagensAnimal = pesagens
-          .filter(p => p.nascimentoId === n.id)
-          .sort((a, b) => {
-            const dataA = parseDate(a.dataPesagem);
-            const dataB = parseDate(b.dataPesagem);
-            if (!dataA || !dataB) return 0;
-            return dataB.getTime() - dataA.getTime();
-          });
-        
+          .filter(p => p.animalId === a.id)
+          .sort((x, y) => (parseDate(y.dataPesagem)?.getTime() ?? 0) - (parseDate(x.dataPesagem)?.getTime() ?? 0));
         const ultimaPesagem = pesagensAnimal[0];
-        const dataNasc = parseDate(n.dataNascimento)!;
+        const dataNasc = parseDate(a.dataNascimento)!;
         const dataPesagem = parseDate(ultimaPesagem.dataPesagem)!;
         const idadeDias = Math.floor((dataPesagem.getTime() - dataNasc.getTime()) / (1000 * 60 * 60 * 24));
-        const raca = n.raca || 'Sem raça';
+        const raca = racaMap.get(a.racaId!) || 'Sem raça';
         const chave = `${Math.floor(idadeDias / 30)}|${raca}`;
         const pesoMedioEsperado = pesoMedioPorIdadeERaca.get(chave) || 0;
-        const diferencaPercentual = ((ultimaPesagem.peso - pesoMedioEsperado) / pesoMedioEsperado) * 100;
-        
+        const diferencaPercentual = pesoMedioEsperado ? ((ultimaPesagem.peso - pesoMedioEsperado) / pesoMedioEsperado) * 100 : 0;
         return {
           id: ultimaPesagem.id,
-          nascimentoId: n.id,
-          brinco: n.brincoNumero,
-          fazenda: fazendaMap.get(n.fazendaId) || 'Sem fazenda',
+          animalId: a.id,
+          brinco: a.brinco,
+          fazenda: fazendaMap.get(a.fazendaId) || 'Sem fazenda',
           pesoAtual: ultimaPesagem.peso,
           pesoMedioEsperado: Math.round(pesoMedioEsperado * 100) / 100,
           diferencaPercentual: Math.round(diferencaPercentual * 100) / 100,
@@ -380,7 +366,7 @@ export function useNotifications(): Notificacoes {
           ultimaPesagem: ultimaPesagem.dataPesagem
         };
       })
-      .sort((a, b) => a.diferencaPercentual - b.diferencaPercentual); // Mais críticos primeiro
+      .sort((a, b) => a.diferencaPercentual - b.diferencaPercentual);
 
     // Vacinas vencidas e vencendo (até 30 dias)
     const vacinas = Array.isArray(vacinacoes) ? vacinacoes : [];
@@ -394,14 +380,13 @@ export function useNotifications(): Notificacoes {
       dataVencimento.setHours(0, 0, 0, 0);
       const diffTime = dataVencimento.getTime() - agora.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      const nascimento = nascimentosTodosRaw.find(n => n.id === vacina.nascimentoId);
-      if (!nascimento) return;
-      const fazenda = fazendaMap.get(nascimento.fazendaId) || 'Sem fazenda';
-      const brinco = nascimento.brincoNumero;
+      const animal = animaisMap.get(vacina.animalId);
+      if (!animal) return;
+      const fazenda = fazendaMap.get(animal.fazendaId) || 'Sem fazenda';
       const base: NotificacaoVacina = {
         id: vacina.id,
-        nascimentoId: vacina.nascimentoId,
-        brinco,
+        animalId: vacina.animalId,
+        brinco: animal.brinco,
         fazenda,
         vacina: vacina.vacina || 'Vacina',
         dataAplicacao: vacina.dataAplicacao,
@@ -439,7 +424,7 @@ export function useNotifications(): Notificacoes {
         vacinasVencidas.length +
         vacinasVencendo.length
     };
-  }, [alertSettings, desmamaSet, fazendaMap, nascimentosTodosRaw, pesagens, vacinacoes, matrizSet, matrizesEmNascimentos, matrizMap, notificacoesLidasSet, fazendaAtivaId]);
+  }, [alertSettings, desmamaSet, fazendaMap, animaisTodosRaw, animaisMap, pesagens, vacinacoes, matrizSet, matrizesEmAnimais, matrizMap, racaMap, statusMap, notificacoesLidasSet, fazendaAtivaId]);
 
   return notificacoes;
 }

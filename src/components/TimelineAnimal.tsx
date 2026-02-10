@@ -2,24 +2,38 @@ import React, { useMemo, memo } from 'react';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getThemeClasses, getPrimaryBadgeClass, getPrimaryActionButtonLightClass } from '../utils/themeHelpers';
-import { Nascimento, Desmama, Pesagem, Vacina } from '../db/models';
+import { getPrimaryActionButtonLightClass } from '../utils/themeHelpers';
+import { Desmama, Pesagem, Vacina, ConfinamentoAnimal, OcorrenciaAnimal } from '../db/models';
+
+/** Dados do animal para exibir evento de nascimento na timeline */
+export interface TimelineAnimalDados {
+  id: string;
+  dataNascimento?: string;
+  brinco?: string;
+  sexo?: string;
+  raca?: string;
+  obs?: string;
+}
 
 interface TimelineAnimalProps {
-  nascimento: Nascimento;
+  animal: TimelineAnimalDados;
   desmama?: Desmama;
   pesagens: Pesagem[];
   vacinacoes: Vacina[];
-  onEditNascimento?: (nascimentoId: string) => void;
-  onAddPesagem?: (nascimentoId: string) => void;
+  /** Vínculos do animal com confinamentos (cada um com nome do confinamento) */
+  confinamentoVinculos?: Array<{ vinculo: ConfinamentoAnimal; confinamentoNome: string }>;
+  /** Ocorrências de sanidade (doença, tratamento, morte, outro) */
+  ocorrencias?: OcorrenciaAnimal[];
+  onEditAnimal?: (animalId: string) => void;
+  onAddPesagem?: (animalId: string) => void;
   onEditPesagem?: (pesagem: Pesagem) => void;
-  onAddVacina?: (nascimentoId: string) => void;
+  onAddVacina?: (animalId: string) => void;
   onEditVacina?: (vacina: Vacina) => void;
 }
 
 interface TimelineEvent {
   id: string;
-  tipo: 'nascimento' | 'desmama' | 'pesagem' | 'vacina';
+  tipo: 'nascimento' | 'desmama' | 'pesagem' | 'vacina' | 'confinamento_entrada' | 'confinamento_saida' | 'ocorrencia';
   data: string;
   titulo: string;
   descricao?: string;
@@ -29,12 +43,21 @@ interface TimelineEvent {
 }
 
 // Memoizar o componente para evitar re-renders desnecessários
+const TIPO_OCORRENCIA_LABEL: Record<string, string> = {
+  doenca: 'Doença',
+  tratamento: 'Tratamento',
+  morte: 'Morte',
+  outro: 'Outro'
+};
+
 const TimelineAnimal = memo(function TimelineAnimal({
-  nascimento,
+  animal,
   desmama,
   pesagens,
   vacinacoes,
-  onEditNascimento,
+  confinamentoVinculos = [],
+  ocorrencias = [],
+  onEditAnimal,
   onAddPesagem,
   onEditPesagem,
   onAddVacina,
@@ -78,20 +101,20 @@ const TimelineAnimal = memo(function TimelineAnimal({
     const lista: TimelineEvent[] = [];
 
     // Evento: Nascimento
-    if (nascimento.dataNascimento) {
+    if (animal.dataNascimento) {
       lista.push({
-        id: `nascimento-${nascimento.id}`,
+        id: `nascimento-${animal.id}`,
         tipo: 'nascimento',
-        data: nascimento.dataNascimento,
+        data: animal.dataNascimento,
         titulo: 'Nascimento',
         descricao: 'Animal nascido',
-        observacao: nascimento.obs || undefined,
+        observacao: animal.obs || undefined,
         meta: [
-          nascimento.brincoNumero ? { label: 'Brinco', value: nascimento.brincoNumero } : null,
-          nascimento.sexo ? { label: 'Sexo', value: nascimento.sexo } : null,
-          nascimento.raca ? { label: 'Raça', value: nascimento.raca } : null
+          animal.brinco ? { label: 'Brinco', value: animal.brinco } : null,
+          animal.sexo ? { label: 'Sexo', value: animal.sexo } : null,
+          animal.raca ? { label: 'Raça', value: animal.raca } : null
         ].filter(Boolean) as Array<{ label: string; value: string }>,
-        dados: nascimento
+        dados: animal
       });
     }
 
@@ -167,13 +190,60 @@ const TimelineAnimal = memo(function TimelineAnimal({
       });
     }
 
+    // Eventos: Confinamentos (entrada e saída)
+    const motivoSaidaLabel: Record<string, string> = { abate: 'Abate', venda: 'Venda', morte: 'Morte', outro: 'Outro' };
+    confinamentoVinculos.forEach(({ vinculo, confinamentoNome }) => {
+      lista.push({
+        id: `confinamento-entrada-${vinculo.id}`,
+        tipo: 'confinamento_entrada',
+        data: vinculo.dataEntrada,
+        titulo: 'Entrada em confinamento',
+        descricao: `${confinamentoNome} — Peso entrada: ${vinculo.pesoEntrada.toFixed(1)} kg`,
+        observacao: vinculo.observacoes || undefined,
+        meta: [{ label: 'Confinamento', value: confinamentoNome }],
+        dados: { vinculo, confinamentoNome }
+      });
+      if (vinculo.dataSaida) {
+        const motivo = vinculo.motivoSaida ? motivoSaidaLabel[vinculo.motivoSaida] || vinculo.motivoSaida : '';
+        lista.push({
+          id: `confinamento-saida-${vinculo.id}`,
+          tipo: 'confinamento_saida',
+          data: vinculo.dataSaida,
+          titulo: 'Saída do confinamento',
+          descricao: `${confinamentoNome}${vinculo.pesoSaida != null ? ` — Peso saída: ${vinculo.pesoSaida.toFixed(1)} kg` : ''}${motivo ? ` — ${motivo}` : ''}`,
+          observacao: vinculo.observacoes || undefined,
+          meta: [
+            { label: 'Confinamento', value: confinamentoNome },
+            ...(vinculo.pesoSaida != null ? [{ label: 'Peso saída', value: `${vinculo.pesoSaida} kg` }] : []),
+            ...(vinculo.motivoSaida ? [{ label: 'Motivo', value: motivo }] : [])
+          ],
+          dados: { vinculo, confinamentoNome }
+        });
+      }
+    });
+
+    // Eventos: Ocorrências (sanidade)
+    ocorrencias.forEach(oc => {
+      const tipoLabel = TIPO_OCORRENCIA_LABEL[oc.tipo] || oc.tipo;
+      lista.push({
+        id: `ocorrencia-${oc.id}`,
+        tipo: 'ocorrencia',
+        data: oc.data,
+        titulo: tipoLabel,
+        descricao: oc.observacoes || (oc.custo != null ? `Custo: R$ ${oc.custo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : undefined),
+        observacao: oc.observacoes,
+        meta: oc.custo != null ? [{ label: 'Custo', value: `R$ ${oc.custo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` }] : [],
+        dados: oc
+      });
+    });
+
     // Ordenar por data (mais antigo primeiro)
     return lista.sort((a, b) => {
       const dataA = parseDate(a.data) || new Date(0);
       const dataB = parseDate(b.data) || new Date(0);
       return dataA.getTime() - dataB.getTime();
     });
-  }, [nascimento, desmama, pesagens, vacinacoes]);
+  }, [animal, desmama, pesagens, vacinacoes, confinamentoVinculos, ocorrencias]);
 
   const getIcon = (tipo: TimelineEvent['tipo']) => {
     switch (tipo) {
@@ -185,6 +255,12 @@ const TimelineAnimal = memo(function TimelineAnimal({
         return Icons.Scale;
       case 'vacina':
         return Icons.Injection;
+      case 'confinamento_entrada':
+        return Icons.Warehouse;
+      case 'confinamento_saida':
+        return Icons.Warehouse;
+      case 'ocorrencia':
+        return Icons.AlertTriangle;
       default:
         return Icons.Calendar;
     }
@@ -200,6 +276,12 @@ const TimelineAnimal = memo(function TimelineAnimal({
         return 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800';
       case 'vacina':
         return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800';
+      case 'confinamento_entrada':
+        return 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800';
+      case 'confinamento_saida':
+        return 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800';
+      case 'ocorrencia':
+        return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800';
       default:
         return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800';
     }
@@ -280,11 +362,11 @@ const TimelineAnimal = memo(function TimelineAnimal({
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {evento.tipo === 'nascimento' && onEditNascimento && (
+                      {evento.tipo === 'nascimento' && onEditAnimal && (
                         <button
-                          onClick={() => onEditNascimento(nascimento.id)}
+                          onClick={() => onEditAnimal(animal.id)}
                           className={`p-2 ${getPrimaryActionButtonLightClass(primaryColor)} rounded-lg transition-all hover:scale-110`}
-                          title="Editar nascimento"
+                          title="Editar animal"
                         >
                           <Icons.Edit className="w-4 h-4" />
                         </button>
@@ -320,7 +402,7 @@ const TimelineAnimal = memo(function TimelineAnimal({
       <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex items-center justify-center gap-3 flex-wrap">
         {onAddPesagem && (
           <button
-            onClick={() => onAddPesagem(nascimento.id)}
+            onClick={() => onAddPesagem(animal.id)}
             className={`flex items-center gap-2 px-5 py-2.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded-lg transition-all hover:scale-105 font-medium shadow-sm`}
             title="Adicionar pesagem"
           >
@@ -330,7 +412,7 @@ const TimelineAnimal = memo(function TimelineAnimal({
         )}
         {onAddVacina && (
           <button
-            onClick={() => onAddVacina(nascimento.id)}
+            onClick={() => onAddVacina(animal.id)}
             className={`flex items-center gap-2 px-5 py-2.5 ${getPrimaryActionButtonLightClass(primaryColor)} rounded-lg transition-all hover:scale-105 font-medium shadow-sm`}
             title="Adicionar vacinação"
           >

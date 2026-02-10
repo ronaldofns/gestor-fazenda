@@ -15,6 +15,8 @@ import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
 import { registrarAudit } from '../utils/audit';
 import { recalculateTagUsage } from '../utils/fixTagUsageCount';
+import { encerrarVinculoPorStatusAnimal, calcularGMDParcial } from '../utils/confinamentoRules';
+import { validarBrincoUnico } from '../utils/unicidadeValidation';
 import Modal from './Modal';
 import Combobox, { ComboboxOption } from './Combobox';
 import AnimalSearchCombobox from './AnimalSearchCombobox';
@@ -333,7 +335,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
     () => {
       if (!open || !animalId) return Promise.resolve([]);
       return db.pesagens
-        .filter(p => p.animalId === animalId || p.nascimentoId === animalId)
+        .filter(p => p.animalId === animalId)
         .toArray();
     },
     [animalId, open]
@@ -343,7 +345,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
     () => {
       if (!open || !animalId) return Promise.resolve([]);
       return db.vacinacoes
-        .filter(v => v.animalId === animalId || v.nascimentoId === animalId)
+        .filter(v => v.animalId === animalId)
         .toArray();
     },
     [animalId, open]
@@ -353,11 +355,47 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
     () => {
       if (!open || !animalId) return Promise.resolve([]);
       return db.desmamas
-        .filter(d => d.animalId === animalId || d.nascimentoId === animalId)
+        .filter(d => d.animalId === animalId)
         .toArray();
     },
     [animalId, open]
   ) || [];
+
+  // Confinamento ativo do animal (no máximo um)
+  const confinamentoAtivo = useLiveQuery(
+    async () => {
+      if (!open || !animalId) return null;
+      const vinculos = await db.confinamentoAnimais
+        .where('animalId')
+        .equals(animalId)
+        .and(v => v.dataSaida == null && v.deletedAt == null)
+        .toArray();
+      const vinculo = vinculos[0] ?? null;
+      if (!vinculo) return null;
+      const confinamento = await db.confinamentos.get(vinculo.confinamentoId);
+      if (!confinamento || confinamento.deletedAt) return null;
+      const pesagensConf = await db.confinamentoPesagens
+        .where('confinamentoAnimalId')
+        .equals(vinculo.id)
+        .and(p => p.deletedAt == null)
+        .toArray();
+      const ultimaPesagem = pesagensConf.length > 0
+        ? pesagensConf.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())[0]
+        : null;
+      const animal = await db.animais.get(animalId);
+      const pesoAtual = ultimaPesagem?.peso ?? animal?.pesoAtual;
+      const gmdParcial = pesoAtual != null
+        ? calcularGMDParcial(vinculo.pesoEntrada, pesoAtual, vinculo.dataEntrada)
+        : { gmd: null, dias: 0 };
+      return {
+        confinamento,
+        vinculo,
+        gmdParcial,
+        pesoAtual: pesoAtual ?? null
+      };
+    },
+    [animalId, open]
+  );
 
   // Função para identificar qual aba tem erro e focar no campo
   const focarAbaComErro = (errors: FieldErrors<FormDataAnimal>) => {
@@ -913,6 +951,16 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
         if (animalAtualizadoCompleto) {
           setInternalInitialData(animalAtualizadoCompleto);
         }
+        // Encerrar vínculo de confinamento se status for vendido/morto/abate
+        const status = await db.statusAnimal.get(data.statusId);
+        const nomeStatus = (status?.nome || '').toLowerCase();
+        if (/vendido|venda/.test(nomeStatus)) {
+          await encerrarVinculoPorStatusAnimal(internalInitialData.id, 'venda');
+        } else if (/morto|morte/.test(nomeStatus)) {
+          await encerrarVinculoPorStatusAnimal(internalInitialData.id, 'morte');
+        } else if (/abate/.test(nomeStatus)) {
+          await encerrarVinculoPorStatusAnimal(internalInitialData.id, 'abate');
+        }
         showToast({ type: 'success', title: 'Animal atualizado', message: data.brinco });
         onSaved?.();
         setSaving(false);
@@ -932,24 +980,9 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           const segundo = String(agora.getSeconds()).padStart(2, '0');
           brincoFinal = `TEMP-${ano}${mes}${dia}-${hora}${minuto}${segundo}`;
         } else {
-          // Verificar duplicatas antes de criar
-          const animaisExistentes = await db.animais
-            .where('[fazendaId+brinco]')
-            .equals([data.fazendaId, brincoFinal])
-            .and(animal => !animal.deletedAt)
-            .toArray();
-          
-          if (animaisExistentes.length > 0) {
-            console.error('❌ Tentativa de criar animal duplicado bloqueada:', {
-              brinco: brincoFinal,
-              fazendaId: data.fazendaId,
-              animaisExistentes: animaisExistentes.map(a => ({ id: a.id, brinco: a.brinco, createdAt: a.createdAt }))
-            });
-            showToast({
-              type: 'error',
-              title: 'Animal já existe',
-              message: `Já existe um animal com o brinco "${brincoFinal}" nesta fazenda.`
-            });
+          const unico = await validarBrincoUnico(data.fazendaId, brincoFinal);
+          if (!unico.valido) {
+            showToast({ type: 'error', title: 'Brinco duplicado', message: unico.erro });
             setSaving(false);
             return;
           }
@@ -1106,6 +1139,12 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           return; // Não fechar o modal
         }
       } else if (internalMode === 'edit' && internalInitialData) {
+        const unico = await validarBrincoUnico(data.fazendaId, data.brinco.trim(), internalInitialData.id);
+        if (!unico.valido) {
+          showToast({ type: 'error', title: 'Brinco duplicado', message: unico.erro });
+          setSaving(false);
+          return;
+        }
         const animalAtualizado: Partial<Animal> = {
           brinco: data.brinco.trim(),
           nome: data.nome?.trim() || undefined,
@@ -1139,6 +1178,17 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           throw new Error('Animal não encontrado ou não foi possível atualizar');
         }
         console.log('✅ Animal atualizado no banco local:', initialData.id);
+
+        // Encerrar vínculo de confinamento se status for vendido/morto/abate
+        const status = await db.statusAnimal.get(data.statusId);
+        const nomeStatus = (status?.nome || '').toLowerCase();
+        if (/vendido|venda/.test(nomeStatus)) {
+          await encerrarVinculoPorStatusAnimal(initialData.id, 'venda');
+        } else if (/morto|morte/.test(nomeStatus)) {
+          await encerrarVinculoPorStatusAnimal(initialData.id, 'morte');
+        } else if (/abate/.test(nomeStatus)) {
+          await encerrarVinculoPorStatusAnimal(initialData.id, 'abate');
+        }
 
         // Criar/atualizar genealogia com tipoMatrizId
         const genealogiaExistente = await db.genealogias
@@ -1287,6 +1337,26 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
               <Icons.X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Confinamento ativo (quando o animal está em um confinamento) */}
+          {confinamentoAtivo && internalMode === 'edit' && (
+            <div className="flex-shrink-0 mx-3 sm:mx-6 mt-2 mb-1 p-3 rounded-lg border-2 border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-medium mb-2">
+                <Icons.Warehouse className="w-5 h-5" />
+                Confinado em: {confinamentoAtivo.confinamento.nome}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm text-gray-700 dark:text-slate-300">
+                <span>Data entrada: {confinamentoAtivo.vinculo.dataEntrada?.split('-').reverse().join('/') ?? '-'}</span>
+                <span>Peso entrada: {confinamentoAtivo.vinculo.pesoEntrada?.toFixed(1) ?? '-'} kg</span>
+                <span>Peso atual: {confinamentoAtivo.pesoAtual != null ? `${confinamentoAtivo.pesoAtual.toFixed(1)} kg` : '-'}</span>
+                <span>
+                  GMD atual: {confinamentoAtivo.gmdParcial.gmd != null
+                    ? `${confinamentoAtivo.gmdParcial.gmd.toFixed(3)} kg/dia (${confinamentoAtivo.gmdParcial.dias} dias)`
+                    : '-'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Abas */}
           <div className="flex-shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 sm:px-6">
@@ -2646,7 +2716,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           <PesagemModal
             open={pesagemModalOpen}
             mode={pesagemEditando ? 'edit' : 'create'}
-            nascimentoId={animalId || ''}
+            animalId={animalId || ''}
             initialData={pesagemEditando || undefined}
             onClose={() => {
               setPesagemModalOpen(false);
@@ -2665,7 +2735,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           <VacinaModal
             open={vacinaModalOpen}
             mode={vacinaEditando ? 'edit' : 'create'}
-            nascimentoId={animalId || ''}
+            animalId={animalId || ''}
             initialData={vacinaEditando || undefined}
             onClose={() => {
               setVacinaModalOpen(false);

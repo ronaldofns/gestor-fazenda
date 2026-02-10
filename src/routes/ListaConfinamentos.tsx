@@ -13,7 +13,8 @@ import { useFazendaContext } from '../hooks/useFazendaContext';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryButtonClass, getTitleTextClass } from '../utils/themeHelpers';
 import { formatDateBR } from '../utils/date';
-import { encerrarConfinamento } from '../utils/confinamentoRules';
+import { encerrarConfinamento, calcularGMD, calcularGMDParcial } from '../utils/confinamentoRules';
+import { estadoConfinamentoPorTotais } from '../utils/confinamentoEstado';
 import { createSyncEvent } from '../utils/syncEvents';
 import { registrarAudit } from '../utils/audit';
 import { useAuth } from '../hooks/useAuth';
@@ -65,6 +66,48 @@ export default function ListaConfinamentos() {
         .toArray();
       const ativos = vínculos.filter(v => v.dataSaida == null).length;
       map.set(conf.id, { total: vínculos.length, ativos });
+    }
+    return map;
+  }, [confinamentos]) || new Map();
+
+  // Indicadores por confinamento: peso médio entrada e GMD médio
+  const indicadoresPorConfinamento = useLiveQuery(async () => {
+    const map = new Map<string, { pesoMedioEntrada: number; gmdMedio: number }>();
+    const pesagensRaw = await db.confinamentoPesagens.toArray();
+    const animaisRaw = await db.animais.toArray();
+    const animaisMap = new Map(animaisRaw.map(a => [a.id, a]));
+    for (const conf of confinamentos) {
+      const vínculos = await db.confinamentoAnimais
+        .where('confinamentoId')
+        .equals(conf.id)
+        .and(v => v.deletedAt == null)
+        .toArray();
+      if (vínculos.length === 0) {
+        map.set(conf.id, { pesoMedioEntrada: 0, gmdMedio: 0 });
+        continue;
+      }
+      const pesoMedioEntrada = vínculos.reduce((s, v) => s + (v.pesoEntrada || 0), 0) / vínculos.length;
+      const gmdPorVinculo: number[] = [];
+      for (const v of vínculos) {
+        if (v.dataSaida && v.pesoSaida != null) {
+          const r = calcularGMD(v.pesoEntrada, v.pesoSaida, v.dataEntrada, v.dataSaida);
+          if (r.gmd != null) gmdPorVinculo.push(r.gmd);
+        } else {
+          const pesagensV = pesagensRaw.filter(p => p.confinamentoAnimalId === v.id && !p.deletedAt);
+          const ultima = pesagensV.length > 0
+            ? pesagensV.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())[0]
+            : null;
+          const pesoAtual = ultima?.peso ?? animaisMap.get(v.animalId)?.pesoAtual;
+          if (pesoAtual != null) {
+            const r = calcularGMDParcial(v.pesoEntrada, pesoAtual, v.dataEntrada);
+            if (r.gmd != null) gmdPorVinculo.push(r.gmd);
+          }
+        }
+      }
+      const gmdMedio = gmdPorVinculo.length > 0
+        ? gmdPorVinculo.reduce((a, b) => a + b, 0) / gmdPorVinculo.length
+        : 0;
+      map.set(conf.id, { pesoMedioEntrada, gmdMedio });
     }
     return map;
   }, [confinamentos]) || new Map();
@@ -277,6 +320,12 @@ export default function ListaConfinamentos() {
                       Animais
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      Peso méd. entrada
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                      GMD
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
@@ -285,6 +334,10 @@ export default function ListaConfinamentos() {
                   {confinamentos.map((confinamento) => {
                     const fazenda = fazendasMap.get(confinamento.fazendaId);
                     const animais = animaisPorConfinamento.get(confinamento.id);
+                    const ind = indicadoresPorConfinamento.get(confinamento.id);
+                    const total = animais?.total ?? 0;
+                    const ativos = animais?.ativos ?? 0;
+                    const statusDerivado = estadoConfinamentoPorTotais(confinamento, total, ativos);
                     return (
                       <tr key={confinamento.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td className="px-4 py-3">
@@ -299,10 +352,16 @@ export default function ListaConfinamentos() {
                           {formatDateBR(confinamento.dataInicio)}
                         </td>
                         <td className="px-4 py-3">
-                          {getStatusBadge(confinamento.status)}
+                          {getStatusBadge(statusDerivado)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-300">
                           {animais ? `${animais.ativos}/${animais.total}` : '0/0'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-300">
+                          {ind && ind.pesoMedioEntrada > 0 ? `${ind.pesoMedioEntrada.toFixed(1)} kg` : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-300">
+                          {ind && ind.gmdMedio > 0 ? `${ind.gmdMedio.toFixed(3)} kg/dia` : '-'}
                         </td>
                         <td className="px-4 py-3 text-sm font-medium">
                           <div className="flex items-center gap-2">
@@ -313,9 +372,16 @@ export default function ListaConfinamentos() {
                             >
                               <Icons.Eye className="w-4 h-4" />
                             </button>
+                            <button
+                              onClick={() => navigate(`/confinamentos/${confinamento.id}?aba=indicadores`)}
+                              className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              title="Ver relatório"
+                            >
+                              <Icons.FileText className="w-4 h-4" />
+                            </button>
                             {podeGerenciarConfinamentos && (
                               <>
-                                {confinamento.status === 'ativo' && (
+                                {statusDerivado === 'ativo' && (
                                   <button
                                     onClick={() => handleEncerrarConfinamento(confinamento)}
                                     className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
@@ -350,56 +416,80 @@ export default function ListaConfinamentos() {
             </div>
 
             {/* Cards Mobile */}
-            <div className="md:hidden divide-y divide-gray-200 dark:divide-slate-800">
+            <div className="md:hidden space-y-3 px-1">
               {confinamentos.map((confinamento) => {
                 const fazenda = fazendasMap.get(confinamento.fazendaId);
                 const animais = animaisPorConfinamento.get(confinamento.id);
+                const ind = indicadoresPorConfinamento.get(confinamento.id);
+                const totalM = animais?.total ?? 0;
+                const ativosM = animais?.ativos ?? 0;
+                const statusDerivadoM = estadoConfinamentoPorTotais(confinamento, totalM, ativosM);
                 return (
-                  <div key={confinamento.id} className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                          {confinamento.nome}
-                        </h3>
-                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                          {fazenda?.nome || 'N/A'}
-                        </p>
+                  <div
+                    key={confinamento.id}
+                    className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm overflow-hidden min-w-0"
+                  >
+                    <div className="p-4">
+                      <div className="flex justify-between items-start gap-2 mb-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">
+                            {confinamento.nome}
+                          </h3>
+                          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 truncate">
+                            {fazenda?.nome || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">{getStatusBadge(statusDerivadoM)}</div>
                       </div>
-                      {getStatusBadge(confinamento.status)}
-                    </div>
-                    <div className="flex justify-between items-center mt-3">
-                      <div className="text-xs text-gray-500 dark:text-slate-400">
-                        <p>Início: {formatDateBR(confinamento.dataInicio)}</p>
-                        <p>Animais: {animais ? `${animais.ativos}/${animais.total}` : '0/0'}</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-slate-400">
+                        <span>Início: {formatDateBR(confinamento.dataInicio)}</span>
+                        <span>Animais: {animais ? `${animais.ativos}/${animais.total}` : '0/0'}</span>
+                        {ind && ind.pesoMedioEntrada > 0 && (
+                          <span className="col-span-2 sm:col-span-1">Peso méd. entrada: {ind.pesoMedioEntrada.toFixed(1)} kg</span>
+                        )}
+                        {ind && ind.gmdMedio > 0 && (
+                          <span className="col-span-2 sm:col-span-1">GMD: {ind.gmdMedio.toFixed(3)} kg/dia</span>
+                        )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-slate-800">
                         <button
                           onClick={() => handleVerDetalhes(confinamento.id)}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50"
                         >
-                          <Icons.Eye className="w-4 h-4" />
+                          <Icons.Eye className="w-4 h-4 flex-shrink-0" />
+                          Ver
+                        </button>
+                        <button
+                          onClick={() => navigate(`/confinamentos/${confinamento.id}?aba=indicadores`)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                        >
+                          <Icons.FileText className="w-4 h-4 flex-shrink-0" />
+                          Relatório
                         </button>
                         {podeGerenciarConfinamentos && (
                           <>
-                            {confinamento.status === 'ativo' && (
+                            {statusDerivadoM === 'ativo' && (
                               <button
                                 onClick={() => handleEncerrarConfinamento(confinamento)}
-                                className="text-orange-600 hover:text-orange-900 dark:text-orange-400"
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/50"
                               >
-                                <Icons.XCircle className="w-4 h-4" />
+                                <Icons.XCircle className="w-4 h-4 flex-shrink-0" />
+                                Encerrar
                               </button>
                             )}
                             <button
                               onClick={() => handleEditarConfinamento(confinamento)}
-                              className="text-green-600 hover:text-green-900 dark:text-green-400"
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 text-xs font-medium hover:bg-gray-200 dark:hover:bg-slate-600"
                             >
-                              <Icons.Edit className="w-4 h-4" />
+                              <Icons.Edit className="w-4 h-4 flex-shrink-0" />
+                              Editar
                             </button>
                             <button
                               onClick={() => handleDelete(confinamento.id, confinamento.nome)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400"
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/50"
                             >
-                              <Icons.Trash className="w-4 h-4" />
+                              <Icons.Trash className="w-4 h-4 flex-shrink-0" />
+                              Excluir
                             </button>
                           </>
                         )}
