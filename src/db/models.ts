@@ -146,7 +146,7 @@ export interface Usuario {
   remoteId?: number | null; // ID remoto no Supabase
 }
 
-export type AuditEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario' | 'pesagem' | 'vacina' | 'animal' | 'tipoAnimal' | 'statusAnimal' | 'origem' | 'genealogia';
+export type AuditEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario' | 'pesagem' | 'vacina' | 'animal' | 'tipoAnimal' | 'statusAnimal' | 'origem' | 'genealogia' | 'confinamento' | 'confinamentoAnimal' | 'confinamentoPesagem' | 'confinamentoAlimentacao';
 
 export type AuditAction = 'create' | 'update' | 'delete';
 
@@ -238,7 +238,7 @@ export interface RolePermission {
 }
 
 // Tipos de entidades que podem ter eventos de sincronização
-export type SyncEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario' | 'audit' | 'notificacaoLida' | 'alertSettings' | 'appSettings' | 'rolePermission' | 'pesagem' | 'vacina';
+export type SyncEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario' | 'audit' | 'notificacaoLida' | 'alertSettings' | 'appSettings' | 'rolePermission' | 'pesagem' | 'vacina' | 'confinamento' | 'confinamentoAnimal' | 'confinamentoPesagem' | 'confinamentoAlimentacao';
 
 // Tipos de operações de sincronização
 export type SyncEventType = 'INSERT' | 'UPDATE' | 'DELETE';
@@ -375,6 +375,98 @@ export interface Genealogia {
   avoPaternoMaterno?: string; // FK para animais (avô materno)
   avoPaternoPatro?: string; // FK para animais (avô paterno)
   geracoes: number; // Número de gerações registradas
+  observacoes?: string;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+// ========================================
+// MÓDULO DE CONFINAMENTO
+// ========================================
+
+/**
+ * Confinamento representa um lote/ciclo de confinamento
+ * Um animal pode passar por vários confinamentos ao longo da vida
+ */
+export interface Confinamento {
+  id: string; // UUID (chave primária)
+  fazendaId: string; // FK para fazendas
+  nome: string; // Ex: "Confinamento Maio/2026 – Terminação"
+  dataInicio: string; // Data de início do confinamento (YYYY-MM-DD)
+  dataFimPrevista?: string; // Data prevista de término (YYYY-MM-DD)
+  dataFimReal?: string; // Data real de término (YYYY-MM-DD)
+  status: 'ativo' | 'finalizado' | 'cancelado';
+  observacoes?: string;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+/**
+ * Vínculo entre animal e confinamento
+ * Um animal pode ter múltiplos vínculos ao longo do tempo (histórico)
+ */
+export interface ConfinamentoAnimal {
+  id: string; // UUID (chave primária)
+  confinamentoId: string; // FK para confinamentos
+  animalId: string; // FK para animais
+  dataEntrada: string; // Data de entrada no confinamento (YYYY-MM-DD)
+  pesoEntrada: number; // Peso na entrada (kg)
+  dataSaida?: string; // Data de saída (YYYY-MM-DD) - null se ainda confinado
+  pesoSaida?: number; // Peso na saída (kg)
+  motivoSaida?: 'abate' | 'venda' | 'morte' | 'outro'; // Motivo da saída
+  observacoes?: string;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+/**
+ * Pesagens específicas do confinamento
+ * Alternativa: reutilizar pesagens gerais com contexto = 'confinamento'
+ */
+export interface ConfinamentoPesagem {
+  id: string; // UUID (chave primária)
+  confinamentoAnimalId: string; // FK para confinamento_animais
+  data: string; // Data da pesagem (YYYY-MM-DD)
+  peso: number; // Peso em kg
+  observacoes?: string;
+  lockedBy?: string | null;
+  lockedByNome?: string | null;
+  lockedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  synced: boolean;
+  remoteId?: number | null;
+  deletedAt?: string | null;
+}
+
+/**
+ * Controle de alimentação e custos do confinamento
+ * Fase 2 - opcional no MVP
+ */
+export interface ConfinamentoAlimentacao {
+  id: string; // UUID (chave primária)
+  confinamentoId: string; // FK para confinamentos
+  data: string; // Data da alimentação (YYYY-MM-DD)
+  tipoDieta?: string; // Tipo de dieta aplicada
+  custoTotal?: number; // Custo total da alimentação
   observacoes?: string;
   lockedBy?: string | null;
   lockedByNome?: string | null;

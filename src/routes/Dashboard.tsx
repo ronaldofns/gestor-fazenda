@@ -21,12 +21,7 @@ import {
   Tooltip,
   CartesianGrid,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Legend,
-  PieChart,
-  Pie,
-  Cell
+  Legend
 } from 'recharts';
 
 export default function Dashboard() {
@@ -92,42 +87,6 @@ export default function Dashboard() {
   const tooltipBg = isDark ? '#1e293b' : '#ffffff';
   const tooltipText = isDark ? '#f1f5f9' : '#111827';
   const tooltipBorder = isDark ? '#475569' : '#e5e7eb';
-  
-  // Cores para gráfico de pizza
-  const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
-  
-  // Dados para gráfico de pizza (distribuição por tipo)
-  const pieData = useMemo(() => {
-    return metrics.tiposOrdenados.slice(0, 5).map(t => ({
-      name: t.tipo,
-      value: t.total
-    }));
-  }, [metrics.tiposOrdenados]);
-
-  // Tooltip customizado para o PieChart
-  const CustomPieTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div
-          style={{
-            backgroundColor: tooltipBg,
-            border: `1px solid ${tooltipBorder}`,
-            borderRadius: '8px',
-            padding: '8px 12px',
-            fontSize: '12px'
-          }}
-        >
-          <p style={{ color: tooltipText, margin: 0, fontWeight: 'bold' }}>
-            {payload[0].name}
-          </p>
-          <p style={{ color: tooltipText, margin: '4px 0 0 0' }}>
-            {payload[0].value} animais ({((payload[0].value / metrics.totalAnimais) * 100).toFixed(1)}%)
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
@@ -306,6 +265,94 @@ export default function Dashboard() {
         {/* Banner de Alertas - FASE 3 */}
         <AlertasBanner fazendaId={fazendaAtivaId || undefined} />
 
+        {/* Card Tipos – acima dos demais; tipo, machos, fêmeas, total */}
+        <div className="mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-gray-200/80 dark:border-slate-700 overflow-hidden">
+            <div className={`bg-gradient-to-r ${getThemeClasses(primaryColor, 'gradient-to')} px-5 py-4`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <Icons.BarChart className="w-7 h-7 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Tipos</h3>
+                    <p className="text-sm text-white/90">Distribuição por categoria e sexo</p>
+                  </div>
+                </div>
+                {metrics.tiposOrdenados.length > 0 && (
+                  <div className="flex items-center gap-4 text-white/95 text-sm">
+                    <span className="flex items-center gap-1.5">
+                      <Icons.Mars className="w-4 h-4 opacity-90" />
+                      <strong>{metrics.machos.toLocaleString('pt-BR')}</strong> machos
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Icons.Venus className="w-4 h-4 opacity-90" />
+                      <strong>{metrics.femeas.toLocaleString('pt-BR')}</strong> fêmeas
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[360px]">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-slate-800/80 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="py-4 px-5 text-left rounded-tl-lg">Tipo</th>
+                    <th className="py-4 px-4 text-center w-28">
+                      <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                        <Icons.Mars className="w-4 h-4" /> Machos
+                      </span>
+                    </th>
+                    <th className="py-4 px-4 text-center w-28">
+                      <span className="inline-flex items-center gap-1.5 text-pink-600 dark:text-pink-400">
+                        <Icons.Venus className="w-4 h-4" /> Fêmeas
+                      </span>
+                    </th>
+                    <th className="py-4 px-5 text-right w-24 rounded-tr-lg">
+                      <span className="text-gray-700 dark:text-slate-300">Total</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {metrics.tiposOrdenados.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center text-sm text-gray-500 dark:text-slate-400">
+                        Nenhum tipo cadastrado
+                      </td>
+                    </tr>
+                  ) : (
+                    metrics.tiposOrdenados.map((t, i) => (
+                      <tr key={i} className="group hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="py-3.5 px-5 font-medium text-gray-900 dark:text-slate-100">
+                          {t.tipo}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="inline-flex items-center justify-center min-w-[2.5rem] py-1 px-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-semibold tabular-nums">
+                            {t.machos.toLocaleString('pt-BR')}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="inline-flex items-center justify-center min-w-[2.5rem] py-1 px-2 rounded-lg bg-pink-50 dark:bg-pink-950/50 text-pink-700 dark:text-pink-300 font-semibold tabular-nums">
+                            {t.femeas.toLocaleString('pt-BR')}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-5 text-right">
+                          <span className="font-bold text-gray-900 dark:text-slate-100 tabular-nums">{t.total.toLocaleString('pt-BR')}</span>
+                          {t.total > 0 && (
+                            <span className="ml-1.5 text-xs text-gray-500 dark:text-slate-400">
+                              ({t.percentual.toFixed(1)}%)
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         {/* Cards de Métricas Principais - FASE 1 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
           
@@ -342,70 +389,6 @@ export default function Dashboard() {
                   </span>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Card: Bezerras (Fêmeas) */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-5 border-l-4 border-pink-500 hover:shadow-md transition-all duration-200">
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div>
-                <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">
-                  Bezerras
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-500 mt-0.5">Fêmeas jovens</p>
-              </div>
-              <Icons.Venus className="w-7 h-7 text-pink-500" />
-            </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">
-              {metrics.bezerrasFemeas.toLocaleString('pt-BR')}
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-gray-200 dark:bg-slate-700 rounded-full h-2">
-                  <div 
-                    className="bg-pink-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${metrics.percentualBezerrasFemeas}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">
-                  {metrics.percentualBezerrasFemeas.toFixed(1)}%
-                </span>
-              </div>
-              <div className="text-xs text-gray-500 dark:text-slate-400">
-                Total de fêmeas: <span className="font-semibold text-gray-700 dark:text-slate-300">{metrics.femeas}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card: Bezerros (Machos) */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-5 border-l-4 border-blue-500 hover:shadow-md transition-all duration-200">
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div>
-                <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">
-                  Bezerros
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-500 mt-0.5">Machos jovens</p>
-              </div>
-              <Icons.Mars className="w-7 h-7 text-blue-500" />
-            </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">
-              {metrics.bezerrosMachos.toLocaleString('pt-BR')}
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-gray-200 dark:bg-slate-700 rounded-full h-2">
-                  <div 
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${metrics.percentualBezerrosMachos}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">
-                  {metrics.percentualBezerrosMachos.toFixed(1)}%
-                </span>
-              </div>
-              <div className="text-xs text-gray-500 dark:text-slate-400">
-                Total de machos: <span className="font-semibold text-gray-700 dark:text-slate-300">{metrics.machos}</span>
-              </div>
             </div>
           </div>
 
@@ -448,29 +431,6 @@ export default function Dashboard() {
               {metrics.totalMortos} {metrics.totalMortos === 1 ? 'animal morto' : 'animais mortos'}
             </div>
           </div>
-
-          {/* Card: Top Tipo */}
-          {metrics.tiposOrdenados.length > 0 && (
-            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-5 border-l-4 border-emerald-500 hover:shadow-md transition-all duration-200">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-600 dark:text-slate-400 tracking-wide uppercase">
-                    Tipo Predominante
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-slate-500 mt-0.5">Categoria com mais animais</p>
-                </div>
-                <Icons.Award className="w-7 h-7 text-emerald-500" />
-              </div>
-              <div className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-2">
-                {metrics.tiposOrdenados[0].tipo}
-              </div>
-              <div className="text-xs text-gray-600 dark:text-slate-400">
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  {metrics.tiposOrdenados[0].total} animais
-                </span> ({metrics.tiposOrdenados[0].percentual.toFixed(1)}%)
-              </div>
-            </div>
-          )}
 
           {/* === FASE 2: MÉTRICAS DE PRODUTIVIDADE === */}
           
@@ -636,10 +596,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Gráficos - FASE 1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          
-          {/* Gráfico: Evolução do Rebanho */}
+        {/* Gráfico: Evolução do Rebanho (único gráfico principal – tendência e decisão) */}
+        <div className="mb-6">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-5 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -647,12 +605,12 @@ export default function Dashboard() {
                   Evolução do Rebanho
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                  Últimos 12 meses
+                  Últimos 12 meses — total, nascimentos e mortes
                 </p>
               </div>
               <Icons.TrendingUp className="w-5 h-5 text-gray-400" />
             </div>
-            <ResponsiveContainer width="100%" height={250} className="min-w-0">
+            <ResponsiveContainer width="100%" height={280} className="min-w-0">
               <LineChart data={metrics.evolucaoRebanho} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                 <XAxis
@@ -710,74 +668,6 @@ export default function Dashboard() {
                 />
               </LineChart>
             </ResponsiveContainer>
-          </div>
-
-          {/* Gráfico: Distribuição por Tipo */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                  Distribuição por Tipo
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                  Top 5 categorias
-                </p>
-              </div>
-              <Icons.BarChart3 className="w-5 h-5 text-gray-400" />
-            </div>
-            {pieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250} className="min-w-0">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(props) => {
-                      const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props;
-                      const RADIAN = Math.PI / 180;
-                      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-                      return (
-                        <text
-                          x={x}
-                          y={y}
-                          fill={isDark ? '#f1f5f9' : '#1e293b'}
-                          textAnchor={x > cx ? 'start' : 'end'}
-                          dominantBaseline="central"
-                          style={{ fontSize: 12, fontWeight: 'bold' }}
-                        >
-                          {`${name}: ${(percent * 100).toFixed(0)}%`}
-                        </text>
-                      );
-                    }}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomPieTooltip />} />
-                  <Legend
-                    wrapperStyle={{ fontSize: 11 }}
-                    formatter={(value: string) => (
-                      <span style={{ color: textColor }}>{value}</span>
-                    )}
-                    iconSize={12}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[250px]">
-                <p className="text-sm text-gray-500 dark:text-slate-400">
-                  Nenhum dado disponível
-                </p>
-              </div>
-            )}
           </div>
         </div>
 

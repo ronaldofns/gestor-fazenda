@@ -86,29 +86,51 @@ export default function AnimalSearchCombobox({
 
   // Busca assíncrona quando o usuário digita
   useEffect(() => {
-    if (!isOpen || !searchTerm || searchTerm.length < 2) {
+    const term = searchTerm?.trim() ?? '';
+    const minChars = term.length >= 1 ? 1 : 2;
+    if (!isOpen || !term || term.length < minChars) {
       setSearchResults([]);
       return;
     }
 
     setIsSearching(true);
-    
-    // Buscar por brinco OU nome (limitado a 20 resultados)
-    const term = searchTerm.toLowerCase().trim();
-    
+    const termLower = term.toLowerCase();
+    // Brinco pode vir como string ou número do banco; normalizar para string
+    const brincoStr = (v: unknown) => String(v ?? '').trim().toLowerCase();
+    const nomeStr = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
     db.animais
       .filter(a => {
         if (a.deletedAt) return false;
         if (excludeAnimalId && a.id === excludeAnimalId) return false;
-        
-        const brincoMatch = a.brinco.toLowerCase().includes(term);
-        const nomeMatch = a.nome?.toLowerCase().includes(term);
-        return brincoMatch || nomeMatch;
+        const b = brincoStr(a.brinco);
+        const n = nomeStr(a.nome);
+        return b.includes(termLower) || n.includes(termLower);
       })
-      .limit(20) // Limitar a 20 resultados para performance
       .toArray()
       .then(results => {
-        setSearchResults(results);
+        // Ordenar por relevância e exibir no máximo 20
+        const sorted = [...results].sort((a, b) => {
+          const brincoA = brincoStr(a.brinco);
+          const brincoB = brincoStr(b.brinco);
+          const nomeA = nomeStr(a.nome);
+          const nomeB = nomeStr(b.nome);
+          const scoreA =
+            (brincoA === termLower ? 40 : 0) +
+            (brincoA.startsWith(termLower) ? 30 : 0) +
+            (brincoA.includes(termLower) ? 20 : 0) +
+            (nomeA.startsWith(termLower) ? 10 : 0) +
+            (nomeA.includes(termLower) ? 5 : 0);
+          const scoreB =
+            (brincoB === termLower ? 40 : 0) +
+            (brincoB.startsWith(termLower) ? 30 : 0) +
+            (brincoB.includes(termLower) ? 20 : 0) +
+            (nomeB.startsWith(termLower) ? 10 : 0) +
+            (nomeB.includes(termLower) ? 5 : 0);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return brincoA.localeCompare(brincoB);
+        });
+        setSearchResults(sorted.slice(0, 20));
         setIsSearching(false);
       })
       .catch(err => {
@@ -270,8 +292,8 @@ export default function AnimalSearchCombobox({
               </div>
             ) : searchResults.length === 0 ? (
               <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-slate-400">
-                {inputValue.length < 2 
-                  ? 'Digite pelo menos 2 caracteres para buscar'
+                {inputValue.trim().length < 1
+                  ? 'Digite o brinco ou nome para buscar'
                   : 'Nenhum animal encontrado'}
               </div>
             ) : (
@@ -422,8 +444,8 @@ export default function AnimalSearchCombobox({
             </div>
           ) : searchResults.length === 0 ? (
             <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-slate-400">
-              {inputValue.length < 2 
-                ? 'Digite pelo menos 2 caracteres para buscar'
+              {inputValue.trim().length < 1
+                ? 'Digite o brinco ou nome para buscar'
                 : 'Nenhum animal encontrado'}
             </div>
           ) : (

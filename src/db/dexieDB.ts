@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType, SyncEvent, Pesagem, Vacina, Animal, TipoAnimal, StatusAnimal, Origem, Genealogia } from './models';
+import { Nascimento, Desmama, Fazenda, Raca, Categoria, Usuario, Matriz, AuditLog, NotificacaoLida, AlertSettingsDB, AppSettingsDB, RolePermission, UserRole, PermissionType, SyncEvent, Pesagem, Vacina, Animal, TipoAnimal, StatusAnimal, Origem, Genealogia, Confinamento, ConfinamentoAnimal, ConfinamentoPesagem, ConfinamentoAlimentacao } from './models';
 
 interface DeletedRecord {
   id: string;
@@ -63,6 +63,12 @@ class AppDB extends Dexie {
   statusAnimal!: Dexie.Table<StatusAnimal, string>; // Status (Ativo, Vendido, etc.)
   origens!: Dexie.Table<Origem, string>; // Origens (Nascido, Comprado, etc.)
   genealogias!: Dexie.Table<Genealogia, string>; // Árvore genealógica completa
+  
+  // MÓDULO DE CONFINAMENTO
+  confinamentos!: Dexie.Table<Confinamento, string>; // Tabela de confinamentos (lotes/ciclos)
+  confinamentoAnimais!: Dexie.Table<ConfinamentoAnimal, string>; // Vínculo animal-confinamento
+  confinamentoPesagens!: Dexie.Table<ConfinamentoPesagem, string>; // Pesagens específicas do confinamento
+  confinamentoAlimentacao!: Dexie.Table<ConfinamentoAlimentacao, string>; // Controle de alimentação e custos
 
   constructor() {
     super('FazendaDB');
@@ -827,6 +833,38 @@ class AppDB extends Dexie {
       statusAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
       origens: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
       genealogias: 'id, animalId, matrizId, reprodutorId, synced, remoteId, deletedAt, [animalId+synced]'
+    });
+
+    // Versão 27: Adicionar módulo de confinamento
+    this.version(27).stores({
+      fazendas: 'id, nome, synced, remoteId, [synced+nome]',
+      racas: 'id, nome, synced, remoteId',
+      categorias: 'id, nome, synced, remoteId',
+      nascimentos: 'id, matrizId, fazendaId, mes, ano, dataNascimento, sexo, raca, brincoNumero, synced, remoteId, [fazendaId+mes+ano], [matrizId+synced], [fazendaId+dataNascimento], [fazendaId+synced]',
+      desmamas: 'id, nascimentoId, animalId, dataDesmama, synced, remoteId, [nascimentoId+synced], [animalId+synced]',
+      pesagens: 'id, nascimentoId, animalId, dataPesagem, synced, remoteId, [nascimentoId+dataPesagem], [nascimentoId+synced], [animalId+dataPesagem], [animalId+synced]',
+      vacinacoes: 'id, nascimentoId, animalId, dataAplicacao, dataVencimento, synced, remoteId, [nascimentoId+dataAplicacao], [nascimentoId+synced], [animalId+dataAplicacao], [animalId+synced]',
+      usuarios: 'id, email, nome, role, fazendaId, ativo, synced, [fazendaId+ativo]',
+      matrizes: 'id, identificador, fazendaId, [identificador+fazendaId], [fazendaId+ativo], categoriaId, raca, dataNascimento, ativo, synced',
+      deletedRecords: 'id, uuid, remoteId, deletedAt, synced, [synced+deletedAt]',
+      audits: 'id, entity, entityId, action, timestamp, userId, [entity+entityId], [userId+timestamp]',
+      notificacoesLidas: 'id, tipo, usuarioId, marcadaEm, synced, remoteId, [usuarioId+tipo]',
+      alertSettings: 'id, synced, remoteId',
+      rolePermissions: 'id, role, permission, synced, remoteId, [role+permission]',
+      appSettings: 'id, synced, remoteId',
+      syncEvents: 'id, tipo, entidade, entityId, synced, createdAt, [entidade+entityId+tipo], [synced+createdAt]',
+      tags: 'id, name, category, createdBy, synced, remoteId, [createdBy+synced], usageCount',
+      tagAssignments: 'id, entityId, entityType, tagId, [entityId+entityType], [entityType+tagId], [tagId+entityId], assignedBy, synced, remoteId, [synced+entityType]',
+      animais: 'id, brinco, tipoId, racaId, sexo, statusId, fazendaId, [fazendaId+brinco], [fazendaId+statusId], [fazendaId+synced], [tipoId+statusId], dataNascimento, dataCadastro, synced, remoteId, deletedAt, createdAt',
+      tiposAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      statusAnimal: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      origens: 'id, nome, ativo, synced, remoteId, deletedAt, ordem',
+      genealogias: 'id, animalId, matrizId, reprodutorId, synced, remoteId, deletedAt, [animalId+synced]',
+      // MÓDULO DE CONFINAMENTO
+      confinamentos: 'id, fazendaId, nome, status, dataInicio, dataFimPrevista, dataFimReal, synced, remoteId, deletedAt, updatedAt, [fazendaId+status], [fazendaId+synced], [status+dataInicio]',
+      confinamentoAnimais: 'id, confinamentoId, animalId, dataEntrada, dataSaida, synced, remoteId, deletedAt, updatedAt, [confinamentoId+animalId], [animalId+dataSaida], [animalId+synced], [confinamentoId+synced]',
+      confinamentoPesagens: 'id, confinamentoAnimalId, data, peso, synced, remoteId, deletedAt, updatedAt, [confinamentoAnimalId+data], [confinamentoAnimalId+synced]',
+      confinamentoAlimentacao: 'id, confinamentoId, data, synced, remoteId, deletedAt, updatedAt, [confinamentoId+data], [confinamentoId+synced]'
     });
   }
 }

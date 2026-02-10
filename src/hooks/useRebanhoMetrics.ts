@@ -36,9 +36,9 @@ interface RebanhoMetrics {
   percentualBezerrasFemeas: number;
   percentualBezerrosMachos: number;
   
-  // Distribuição por tipo
+  // Distribuição por tipo (com machos/fêmeas por tipo)
   distribuicaoPorTipo: Map<string, number>;
-  tiposOrdenados: Array<{ tipo: string; total: number; percentual: number }>;
+  tiposOrdenados: Array<{ tipo: string; total: number; machos: number; femeas: number; percentual: number }>;
   
   // Matrizes
   totalMatrizes: number;
@@ -232,19 +232,29 @@ export function useRebanhoMetrics(fazendaId?: string, filtros?: FiltrosDashboard
     const percentualBezerrasFemeas = totalBezerros > 0 ? (bezerrasFemeas / totalBezerros) * 100 : 0;
     const percentualBezerrosMachos = totalBezerros > 0 ? (bezerrosMachos / totalBezerros) * 100 : 0;
     
-    // Distribuição por tipo
+    // Distribuição por tipo (com machos e fêmeas por tipo)
     const distribuicaoPorTipo = new Map<string, number>();
+    const porTipoSexo = new Map<string, { machos: number; femeas: number }>();
     animais.forEach(a => {
       const tipoNome = a.tipoId ? (tipoMap.get(a.tipoId) || 'Sem tipo') : 'Sem tipo';
       distribuicaoPorTipo.set(tipoNome, (distribuicaoPorTipo.get(tipoNome) || 0) + 1);
+      const sexo = porTipoSexo.get(tipoNome) || { machos: 0, femeas: 0 };
+      if (a.sexo === 'M') sexo.machos += 1;
+      else sexo.femeas += 1;
+      porTipoSexo.set(tipoNome, sexo);
     });
     
     const tiposOrdenados = Array.from(distribuicaoPorTipo.entries())
-      .map(([tipo, total]) => ({
-        tipo,
-        total,
-        percentual: totalAnimais > 0 ? (total / totalAnimais) * 100 : 0
-      }))
+      .map(([tipo, total]) => {
+        const { machos, femeas } = porTipoSexo.get(tipo) || { machos: 0, femeas: 0 };
+        return {
+          tipo,
+          total,
+          machos,
+          femeas,
+          percentual: totalAnimais > 0 ? (total / totalAnimais) * 100 : 0
+        };
+      })
       .sort((a, b) => b.total - a.total);
     
     // Matrizes: fêmeas que (1) têm filho na genealogia OU (2) têm tipo Matriz/Vaca (cadastro)
@@ -463,22 +473,23 @@ export function useRebanhoMetrics(fazendaId?: string, filtros?: FiltrosDashboard
     // FASE 4: ANÁLISE AVANÇADA
     // ========================================
     
-    // Total atual para comparativo: apenas animais com DATA DE NASCIMENTO e vivos (nunca data de cadastro)
+    // Total atual para comparativo: alinhado ao card "Total de Animais" = usar totalVivos (rebanho atual)
+    // Assim o "total atual" nos cards Comparativo Mensal/Anual confere com "X vivos" do card principal.
     const totalVivosComDataNascimento = animais.filter(a => {
       if (!parseDataBR(a.dataNascimento)) return false;
       const statusNome = statusMap.get(a.statusId)?.toLowerCase() || '';
       return statusNome !== 'morto';
     }).length;
 
-    // Comparativo mês atual vs mês anterior (índice último = atual, penúltimo = anterior)
+    // Comparativo mês atual vs mês anterior: totalAtual = totalVivos para bater com o card Total de Animais
     const mesAtual = evolucaoRebanho[numMeses - 1];
     const mesAnterior = numMeses >= 2 ? evolucaoRebanho[numMeses - 2] : null;
     const comparativoMes = {
-      totalAtual: mesAtual?.total ?? totalVivosComDataNascimento,
+      totalAtual: totalVivos,
       totalAnterior: mesAnterior?.total ?? 0,
-      variacao: (mesAtual?.total ?? totalAnimais) - (mesAnterior?.total ?? 0),
+      variacao: totalVivos - (mesAnterior?.total ?? 0),
       variacaoPercentual: (mesAnterior?.total ?? 0) > 0
-        ? ((((mesAtual?.total ?? totalAnimais) - (mesAnterior?.total ?? 0)) / (mesAnterior?.total ?? 0)) * 100)
+        ? (((totalVivos - (mesAnterior?.total ?? 0)) / (mesAnterior?.total ?? 0)) * 100)
         : 0,
       nascimentosAtual: mesAtual?.nascimentos ?? 0,
       nascimentosAnterior: mesAnterior?.nascimentos ?? 0,
@@ -486,14 +497,14 @@ export function useRebanhoMetrics(fazendaId?: string, filtros?: FiltrosDashboard
       mortesAnterior: mesAnterior?.mortes ?? 0
     };
     
-    // Comparativo ano: total atual (por data nascimento) vs total de 12 meses atrás (evolucaoRebanho[0])
+    // Comparativo ano: totalAtual = totalVivos (mesmo critério do card e do comparativo mensal)
     const anoPassado = evolucaoRebanho[0];
     const totalAnoPassado = anoPassado?.total ?? 0;
     const comparativoAno = {
-      totalAtual: totalVivosComDataNascimento,
+      totalAtual: totalVivos,
       totalAnterior: totalAnoPassado,
-      variacao: totalVivosComDataNascimento - totalAnoPassado,
-      variacaoPercentual: totalAnoPassado > 0 ? (((totalVivosComDataNascimento - totalAnoPassado) / totalAnoPassado) * 100) : 0,
+      variacao: totalVivos - totalAnoPassado,
+      variacaoPercentual: totalAnoPassado > 0 ? (((totalVivos - totalAnoPassado) / totalAnoPassado) * 100) : 0,
       nascimentosAtual: evolucaoRebanho.slice(0, 12).reduce((s, m) => s + (m?.nascimentos ?? 0), 0),
       nascimentosAnterior: 0, // não temos 24 meses
       mortesAtual: evolucaoRebanho.slice(0, 12).reduce((s, m) => s + (m?.mortes ?? 0), 0),

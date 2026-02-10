@@ -1362,7 +1362,7 @@ export async function pushPending() {
 
 export async function pullUpdates() {
   console.log('📥 Iniciando pull de atualizações do servidor...');
-  const totalSteps = 24; // Total de etapas no pull
+  const totalSteps = 28; // Total de etapas no pull (24 + 4 confinamento)
   let currentStep = 0;
 
   // Buscar categorias (motor genérico) — forceFullPull: tabela pequena
@@ -2772,6 +2772,134 @@ export async function pullUsuarios() {
   } catch (err) {
     console.error('Erro ao processar pull de auditoria:', err);
     // Não lançar erro - auditoria não é crítica para funcionamento
+  }
+
+  // ========================================
+  // MÓDULO DE CONFINAMENTO
+  // ========================================
+
+  // Pull de confinamentos
+  try {
+    currentStep++;
+    startSyncStep('Pull Confinamentos');
+    emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Confinamentos...');
+    const n = await pullEntity({
+      remoteTable: 'confinamentos_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.confinamentos as any,
+      mapper: (s: any) => ({
+        id: s.uuid,
+        fazendaId: s.fazenda_uuid || s.fazenda_id || '',
+        nome: s.nome,
+        dataInicio: s.data_inicio,
+        dataFimPrevista: s.data_fim_prevista || undefined,
+        dataFimReal: s.data_fim_real || undefined,
+        status: s.status,
+        observacoes: s.observacoes || undefined,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        synced: true,
+        remoteId: s.id,
+        deletedAt: s.deleted_at || undefined
+      })
+    });
+    endSyncStep('Pull Confinamentos', n);
+  } catch (err) {
+    console.error('Erro ao processar pull de confinamentos:', err);
+    endSyncStep('Pull Confinamentos', 0);
+  }
+
+  // Pull de confinamento_animais
+  try {
+    currentStep++;
+    startSyncStep('Pull Confinamento Animais');
+    emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Vínculos Animal-Confinamento...');
+    const n = await pullEntity({
+      remoteTable: 'confinamento_animais_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.confinamentoAnimais as any,
+      mapper: (s: any) => ({
+        id: s.uuid,
+        confinamentoId: s.confinamento_uuid || s.confinamento_id || '',
+        animalId: s.animal_uuid || s.animal_id || '',
+        dataEntrada: s.data_entrada,
+        pesoEntrada: s.peso_entrada,
+        dataSaida: s.data_saida || undefined,
+        pesoSaida: s.peso_saida || undefined,
+        motivoSaida: s.motivo_saida || undefined,
+        observacoes: s.observacoes || undefined,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        synced: true,
+        remoteId: s.id,
+        deletedAt: s.deleted_at || undefined
+      })
+    });
+    endSyncStep('Pull Confinamento Animais', n);
+  } catch (err) {
+    console.error('Erro ao processar pull de confinamento_animais:', err);
+    endSyncStep('Pull Confinamento Animais', 0);
+  }
+
+  // Pull de confinamento_pesagens
+  try {
+    currentStep++;
+    startSyncStep('Pull Confinamento Pesagens');
+    emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Pesagens de Confinamento...');
+    const n = await pullEntity({
+      remoteTable: 'confinamento_pesagens_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.confinamentoPesagens as any,
+      mapper: (s: any) => ({
+        id: s.uuid,
+        confinamentoAnimalId: s.confinamento_animal_uuid || s.confinamento_animal_id || '',
+        data: s.data,
+        peso: s.peso,
+        observacoes: s.observacoes || undefined,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        synced: true,
+        remoteId: s.id,
+        deletedAt: s.deleted_at || undefined
+      })
+    });
+    endSyncStep('Pull Confinamento Pesagens', n);
+  } catch (err) {
+    console.error('Erro ao processar pull de confinamento_pesagens:', err);
+    endSyncStep('Pull Confinamento Pesagens', 0);
+  }
+
+  // Pull de confinamento_alimentacao
+  try {
+    currentStep++;
+    startSyncStep('Pull Confinamento Alimentação');
+    emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Alimentação de Confinamento...');
+    const n = await pullEntity({
+      remoteTable: 'confinamento_alimentacao_online',
+      orderBy: 'updated_at',
+      updatedAtField: 'updated_at',
+      localTable: db.confinamentoAlimentacao as any,
+      mapper: (s: any) => ({
+        id: s.uuid,
+        confinamentoId: s.confinamento_uuid || s.confinamento_id || '',
+        data: s.data,
+        tipoDieta: s.tipo_dieta || undefined,
+        custoTotal: s.custo_total || undefined,
+        observacoes: s.observacoes || undefined,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        synced: true,
+        remoteId: s.id,
+        deletedAt: s.deleted_at || undefined
+      })
+    });
+    endSyncStep('Pull Confinamento Alimentação', n);
+  } catch (err) {
+    console.error('Erro ao processar pull de confinamento_alimentacao:', err);
+    endSyncStep('Pull Confinamento Alimentação', 0);
   }
 }
 

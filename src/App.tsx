@@ -31,6 +31,8 @@ const Sincronizacao = lazy(() => import('./routes/Sincronizacao'));
 const Animais = lazy(() => import('./routes/Animais'));
 const PendenciasCurral = lazy(() => import('./routes/PendenciasCurral'));
 const Relatorios = lazy(() => import('./routes/Relatorios'));
+const ListaConfinamentos = lazy(() => import('./routes/ListaConfinamentos'));
+const DetalheConfinamento = lazy(() => import('./routes/DetalheConfinamento'));
 
 // Componente de loading para Suspense
 function RouteLoader() {
@@ -152,6 +154,16 @@ export default function App() {
                             <Route path="/relatorios" element={
                               <ProtectedRoute requiredPermission="gerar_relatorios">
                                 <Relatorios />
+                              </ProtectedRoute>
+                            } />
+                            <Route path="/confinamentos" element={
+                              <ProtectedRoute requiredPermission="ver_planilha">
+                                <ListaConfinamentos />
+                              </ProtectedRoute>
+                            } />
+                            <Route path="/confinamentos/:confinamentoId" element={
+                              <ProtectedRoute requiredPermission="ver_planilha">
+                                <DetalheConfinamento />
                               </ProtectedRoute>
                             } />
                             <Route path="/perfil" element={<Perfil />} />

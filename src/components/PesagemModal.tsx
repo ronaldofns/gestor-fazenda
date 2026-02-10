@@ -70,9 +70,9 @@ function PesagemModalComponent({
     onConfirm: () => {}
   });
 
-  // Buscar todas as pesagens do animal
+  // Buscar todas as pesagens do animal (por nascimentoId ou animalId – mesmo valor no sistema atual)
   const todasPesagens = useLiveQuery(
-    () => db.pesagens.where('nascimentoId').equals(nascimentoId).toArray(),
+    () => db.pesagens.filter(p => p.nascimentoId === nascimentoId || p.animalId === nascimentoId).toArray(),
     [nascimentoId, open]
   ) || [];
 
@@ -304,7 +304,8 @@ function PesagemModalComponent({
 
         const novaPesagem: Pesagem = {
           id,
-          nascimentoId,
+          nascimentoId, // compatibilidade com sistema antigo
+          animalId: nascimentoId, // UUID do animal (sistema atual) – mesmo valor que nascimentoId
           dataPesagem: dataFormatada,
           peso: values.peso,
           observacao: values.observacao || '',

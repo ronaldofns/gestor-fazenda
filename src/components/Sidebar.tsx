@@ -122,7 +122,8 @@ export default function Sidebar() {
     ...(hasPermission('ver_notificacoes') ? [{ path: '/notificacoes', label: 'Notificações', icon: Icons.Bell, badge: notificacoes.total > 0 ? notificacoes.total : undefined }] : []),
     ...(hasPermission('ver_planilha') ? [
       { path: '/animais', label: 'Animais', icon: Icons.Cow },
-      { path: '/pendencias-curral', label: 'Pendências do Curral', icon: Icons.List }
+      { path: '/pendencias-curral', label: 'Pendências do Curral', icon: Icons.List },
+      { path: '/confinamentos', label: 'Confinamentos', icon: Icons.Warehouse }
     ] : []),
     ...(hasPermission('ver_fazendas') ? [{ path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 }] : []),
     ...(hasPermission('ver_sincronizacao') ? [{ path: '/sincronizacao', label: 'Sincronização', icon: Icons.RefreshCw }] : []),
@@ -278,10 +279,10 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm
+          fixed top-0 left-0 h-screen bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm
           transform transition-all duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0 w-64 z-50' : '-translate-x-full z-40'}
-          lg:translate-x-0 lg:z-40
+          lg:translate-x-0 lg:z-[30]
           ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
         `}
       >

@@ -10,6 +10,7 @@ import {
   FaHome,           // LayoutDashboard
   FaFileExcel,      // FileSpreadsheet
   FaBuilding,       // Building2
+  FaWarehouse,      // Warehouse (confinamento)
   FaUpload,         // Upload
   FaSignOutAlt,     // LogOut
   FaBars,           // Menu
@@ -110,6 +111,7 @@ export const Icons = {
   LayoutDashboard: FaHome,
   FileSpreadsheet: FaFileExcel,
   Building2: FaBuilding,
+  Warehouse: FaWarehouse,  // Para confinamentos
   Upload: FaUpload,
   LogOut: FaSignOutAlt,
   Menu: FaBars,

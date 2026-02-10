@@ -55,11 +55,68 @@ const numeroOpcional = z.preprocess(
   z.number().optional()
 );
 
+// Função para criar schema com validação de brinco único por fazenda
+const createSchemaAnimal = (mode: 'create' | 'edit', animalIdExcluir?: string) => {
+  return z.object({
+    brinco: z.string().min(1, msg.obrigatorio),
+    nome: z.string().optional(),
+    tipoId: z.string().min(1, msg.selecione),
+    tipoMatrizId: z.string().optional(), // Será salvo na Genealogia
+    racaId: z.string().optional(),
+    sexo: z.enum(['M', 'F'], { required_error: msg.selecione }),
+    statusId: z.string().min(1, msg.selecione),
+    dataNascimento: z.string().min(1, msg.dataObrigatoria).regex(/^\d{2}\/\d{2}\/\d{4}$/, msg.formatoData),
+    dataCadastro: z.string().optional(),
+    dataEntrada: z.string().optional(),
+    dataSaida: z.string().optional(),
+    origemId: z.string().min(1, msg.selecione),
+    fazendaId: z.string().min(1, msg.selecione),
+    fazendaOrigemId: z.string().optional(),
+    proprietarioAnterior: z.string().optional(),
+    matrizId: z.string().optional(),
+    reprodutorId: z.string().optional(),
+    valorCompra: numeroOpcional,
+    valorVenda: numeroOpcional,
+    pelagem: z.string().optional(),
+    pesoAtual: numeroOpcional,
+    lote: z.string().optional(),
+    obs: z.string().optional()
+  }).refine(async (data) => {
+    // Validar brinco único por fazenda
+    if (!data.brinco || !data.fazendaId) {
+      return true; // Deixa outras validações tratarem campos obrigatórios
+    }
+    
+    const brincoTrimmed = data.brinco.trim();
+    if (!brincoTrimmed) {
+      return true; // Deixa validação de obrigatório tratar
+    }
+    
+    // Buscar animais com mesmo brinco na mesma fazenda
+    const animaisExistentes = await db.animais
+      .where('[fazendaId+brinco]')
+      .equals([data.fazendaId, brincoTrimmed])
+      .and(animal => !animal.deletedAt)
+      .toArray();
+    
+    // Se estiver editando, excluir o próprio animal da verificação
+    const animaisConflito = animalIdExcluir
+      ? animaisExistentes.filter(a => a.id !== animalIdExcluir)
+      : animaisExistentes;
+    
+    return animaisConflito.length === 0;
+  }, {
+    message: 'Já existe um animal com este brinco nesta fazenda',
+    path: ['brinco']
+  });
+};
+
+// Schema padrão (será sobrescrito no componente)
 const schemaAnimal = z.object({
   brinco: z.string().min(1, msg.obrigatorio),
   nome: z.string().optional(),
   tipoId: z.string().min(1, msg.selecione),
-  tipoMatrizId: z.string().optional(), // Será salvo na Genealogia
+  tipoMatrizId: z.string().optional(),
   racaId: z.string().optional(),
   sexo: z.enum(['M', 'F'], { required_error: msg.selecione }),
   statusId: z.string().min(1, msg.selecione),
@@ -128,6 +185,30 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('identificacao');
   
+  // Estado interno para controlar o modo quando o animal é criado
+  const [internalMode, setInternalMode] = useState<'create' | 'edit'>(mode);
+  const [internalInitialData, setInternalInitialData] = useState<Animal | null | undefined>(initialData);
+  
+  // Sincronizar com props quando mudarem (mas não sobrescrever se já estiver em modo edit após criar)
+  useEffect(() => {
+    // Se o modal foi fechado e reaberto, resetar os estados internos
+    if (!open) {
+      setInternalMode(mode);
+      setInternalInitialData(initialData);
+      return;
+    }
+    
+    // Se mudou de create para edit via props, atualizar
+    if (mode === 'edit' && initialData && internalMode === 'create') {
+      setInternalMode(mode);
+      setInternalInitialData(initialData);
+    } else if (mode !== internalMode && !(internalMode === 'edit' && mode === 'create')) {
+      // Só atualizar se não estiver em modo edit interno (após criar)
+      setInternalMode(mode);
+      setInternalInitialData(initialData);
+    }
+  }, [mode, initialData, open]);
+  
   // Modais de cadastro rápido
   const [tipoModalOpen, setTipoModalOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -163,6 +244,11 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
   const podeGerenciarRacas = hasPermission('gerenciar_racas');
   const podeGerenciarTipos = hasPermission('gerenciar_tipos_animais');
   const podeGerenciarStatus = hasPermission('gerenciar_status_animais');
+
+  // Criar schema dinâmico com validação de brinco único por fazenda
+  const schemaAnimalDinamico = useMemo(() => {
+    return createSchemaAnimal(internalMode, internalInitialData?.id);
+  }, [internalMode, internalInitialData?.id]);
 
   const refetchRacas = useCallback(() => {
     db.racas.toArray().then(setRacas);
@@ -211,7 +297,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
     watch,
     getValues
   } = useForm<FormDataAnimal>({
-    resolver: zodResolver(schemaAnimal),
+    resolver: zodResolver(schemaAnimalDinamico),
     defaultValues: {
       brinco: '',
       nome: '',
@@ -240,7 +326,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
   });
 
   // Buscar pesagens e vacinações do animal (apenas em modo edição)
-  const animalId = mode === 'edit' && initialData ? initialData.id : null;
+  const animalId = (internalMode === 'edit' && internalInitialData) ? internalInitialData.id : null;
   
   // Usar useMemo para evitar queries desnecessárias
   const pesagens = useLiveQuery(
@@ -509,11 +595,13 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
 
   useEffect(() => {
     if (open) {
-      // Resetar para a primeira aba quando abrir o modal
-      setActiveTab('identificacao');
+      // Resetar para a primeira aba quando abrir o modal (só se não estiver em modo de edição interno)
+      if (internalMode === 'create') {
+        setActiveTab('identificacao');
+      }
       
       // Sempre limpar primeiro quando abrir o modal
-      if (mode === 'create') {
+      if (mode === 'create' && internalMode === 'create') {
         // Data atual no formato DD/MM/YYYY
         const hoje = new Date();
         const dia = String(hoje.getDate()).padStart(2, '0');
@@ -787,11 +875,52 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
     }
     setSaving(true);
     try {
-      console.log('🔄 Salvando animal:', { mode, animalId: initialData?.id, data });
+      console.log('🔄 Salvando animal:', { mode, internalMode, animalId: initialData?.id, internalAnimalId: internalInitialData?.id, data });
       const now = new Date().toISOString();
 
+      // Se já está em modo de edição internamente, não criar novo animal
+      if (mode === 'create' && internalMode === 'edit' && internalInitialData) {
+        console.warn('⚠️ Tentativa de criar animal quando já está em modo de edição, redirecionando para atualização');
+        // Forçar atualização ao invés de criação
+        const animalAtualizado: Partial<Animal> = {
+          brinco: data.brinco.trim(),
+          nome: data.nome?.trim() || undefined,
+          tipoId: data.tipoId,
+          racaId: data.racaId?.trim() || undefined,
+          sexo: data.sexo,
+          statusId: data.statusId,
+          dataNascimento: converterDataParaFormatoBanco(data.dataNascimento),
+          dataCadastro: data.dataCadastro?.trim() ? converterDataParaFormatoBanco(data.dataCadastro) : undefined,
+          dataEntrada: data.dataEntrada?.trim() ? converterDataParaFormatoBanco(data.dataEntrada) : undefined,
+          dataSaida: data.dataSaida?.trim() ? converterDataParaFormatoBanco(data.dataSaida) : undefined,
+          origemId: data.origemId,
+          fazendaId: data.fazendaId,
+          fazendaOrigemId: data.fazendaOrigemId?.trim() || undefined,
+          proprietarioAnterior: data.proprietarioAnterior?.trim() || undefined,
+          matrizId: data.matrizId?.trim() || undefined,
+          reprodutorId: data.reprodutorId?.trim() || undefined,
+          valorCompra: data.valorCompra,
+          valorVenda: data.valorVenda,
+          pelagem: data.pelagem?.trim() || undefined,
+          pesoAtual: data.pesoAtual,
+          lote: data.lote?.trim() || undefined,
+          obs: data.obs?.trim() || undefined,
+          updatedAt: now,
+          synced: false
+        };
+        await db.animais.update(internalInitialData.id, animalAtualizado);
+        const animalAtualizadoCompleto = await db.animais.get(internalInitialData.id);
+        if (animalAtualizadoCompleto) {
+          setInternalInitialData(animalAtualizadoCompleto);
+        }
+        showToast({ type: 'success', title: 'Animal atualizado', message: data.brinco });
+        onSaved?.();
+        setSaving(false);
+        return;
+      }
+
       if (mode === 'create') {
-        // Se o brinco estiver vazio, gerar um temporário
+        // Verificar se já existe um animal com este brinco nesta fazenda ANTES de criar
         let brincoFinal = data.brinco.trim();
         if (!brincoFinal) {
           const agora = new Date();
@@ -802,6 +931,28 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           const minuto = String(agora.getMinutes()).padStart(2, '0');
           const segundo = String(agora.getSeconds()).padStart(2, '0');
           brincoFinal = `TEMP-${ano}${mes}${dia}-${hora}${minuto}${segundo}`;
+        } else {
+          // Verificar duplicatas antes de criar
+          const animaisExistentes = await db.animais
+            .where('[fazendaId+brinco]')
+            .equals([data.fazendaId, brincoFinal])
+            .and(animal => !animal.deletedAt)
+            .toArray();
+          
+          if (animaisExistentes.length > 0) {
+            console.error('❌ Tentativa de criar animal duplicado bloqueada:', {
+              brinco: brincoFinal,
+              fazendaId: data.fazendaId,
+              animaisExistentes: animaisExistentes.map(a => ({ id: a.id, brinco: a.brinco, createdAt: a.createdAt }))
+            });
+            showToast({
+              type: 'error',
+              title: 'Animal já existe',
+              message: `Já existe um animal com o brinco "${brincoFinal}" nesta fazenda.`
+            });
+            setSaving(false);
+            return;
+          }
         }
         
         const novoAnimal: Animal = {
@@ -834,6 +985,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           synced: false
         };
 
+        console.log('✅ Criando novo animal:', { id: novoAnimal.id, brinco: novoAnimal.brinco, fazendaId: novoAnimal.fazendaId });
         await db.animais.add(novoAnimal);
 
         // Criar/atualizar genealogia com tipoMatrizId
@@ -899,7 +1051,61 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
         });
 
         showToast({ type: 'success', title: 'Animal cadastrado', message: `Brinco: ${novoAnimal.brinco}` });
-      } else if (mode === 'edit' && initialData) {
+        
+        // Buscar o animal recém-criado e mudar para modo de edição
+        const animalCriado = await db.animais.get(novoAnimal.id);
+        if (animalCriado) {
+          // Buscar tags do animal criado
+          const tagsDoAnimal = await db.tagAssignments
+            .where('[entityId+entityType]')
+            .equals([animalCriado.id, 'animal'])
+            .and(a => !a.deletedAt)
+            .toArray();
+          const tagIdsDoAnimal = tagsDoAnimal.map(a => a.tagId);
+          
+          // Buscar genealogia se existir
+          const genealogia = await db.genealogias
+            .where('animalId')
+            .equals(animalCriado.id)
+            .first();
+          
+          setInternalMode('edit');
+          setInternalInitialData(animalCriado);
+          setSelectedTagIds(tagIdsDoAnimal);
+          
+          // Atualizar formulário com os dados do animal criado
+          reset({
+            brinco: animalCriado.brinco || '',
+            nome: animalCriado.nome || '',
+            tipoId: animalCriado.tipoId || '',
+            tipoMatrizId: genealogia?.tipoMatrizId || '',
+            racaId: animalCriado.racaId || '',
+            sexo: animalCriado.sexo || 'M',
+            statusId: animalCriado.statusId || '',
+            dataNascimento: animalCriado.dataNascimento ? converterDataParaFormatoInput(animalCriado.dataNascimento) : '',
+            dataCadastro: animalCriado.dataCadastro ? converterDataParaFormatoInput(animalCriado.dataCadastro) : '',
+            dataEntrada: animalCriado.dataEntrada ? converterDataParaFormatoInput(animalCriado.dataEntrada) : '',
+            dataSaida: animalCriado.dataSaida ? converterDataParaFormatoInput(animalCriado.dataSaida) : '',
+            origemId: animalCriado.origemId || '',
+            fazendaId: animalCriado.fazendaId || '',
+            fazendaOrigemId: animalCriado.fazendaOrigemId || '',
+            proprietarioAnterior: animalCriado.proprietarioAnterior || '',
+            matrizId: genealogia?.matrizId || animalCriado.matrizId || '',
+            reprodutorId: genealogia?.reprodutorId || animalCriado.reprodutorId || '',
+            valorCompra: animalCriado.valorCompra,
+            valorVenda: animalCriado.valorVenda,
+            pelagem: animalCriado.pelagem || '',
+            pesoAtual: animalCriado.pesoAtual,
+            lote: animalCriado.lote || '',
+            obs: animalCriado.obs || ''
+          });
+          
+          setActiveTab('pesagens'); // Mudar para aba de pesagens para facilitar
+          // Não fechar o modal, apenas chamar onSaved para atualizar a lista
+          onSaved?.();
+          return; // Não fechar o modal
+        }
+      } else if (internalMode === 'edit' && internalInitialData) {
         const animalAtualizado: Partial<Animal> = {
           brinco: data.brinco.trim(),
           nome: data.nome?.trim() || undefined,
@@ -967,7 +1173,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           // Buscar tags anteriores
           const tagsAnteriores = await db.tagAssignments
             .where('[entityId+entityType]')
-            .equals([initialData.id, 'animal'])
+            .equals([internalInitialData.id, 'animal'])
             .and(a => !a.deletedAt)
             .toArray();
 
@@ -990,7 +1196,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
           for (const tagId of tagsAdicionadas) {
             await db.tagAssignments.add({
               id: uuid(),
-              entityId: initialData.id,
+              entityId: internalInitialData.id,
               entityType: 'animal',
               tagId,
               assignedBy: user.id,
@@ -1072,7 +1278,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
         <div className="bg-white dark:bg-slate-900 rounded-none sm:rounded-lg shadow-xl w-full h-full sm:w-[80vw] sm:h-[80vh] flex flex-col overflow-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
           <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-3 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 flex items-center justify-between z-10">
             <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate pr-2">
-              {mode === 'create' ? 'Cadastrar Novo Animal' : 'Editar Animal'}
+              {internalMode === 'create' ? 'Cadastrar Novo Animal' : 'Editar Animal'}
             </h2>
             <button
               onClick={onClose}
@@ -1092,10 +1298,10 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                 { id: 'origem' as TabType, label: 'Origem', icon: Icons.MapPin },
                 { id: 'genealogia' as TabType, label: 'Genealogia', icon: Icons.GitBranch },
                 { id: 'financeiro' as TabType, label: 'Financeiro', icon: Icons.DollarSign },
-                ...(mode === 'edit' ? [
-                  { id: 'desmama' as TabType, label: `Desmama${desmamas.length > 0 ? ` (${desmamas.length})` : ''}`, icon: Icons.Baby },
-                  { id: 'pesagens' as TabType, label: `Pesagens${pesagens.length > 0 ? ` (${pesagens.length})` : ''}`, icon: Icons.Scale },
-                  { id: 'vacinacoes' as TabType, label: `Vacinações${vacinacoes.length > 0 ? ` (${vacinacoes.length})` : ''}`, icon: Icons.Injection }
+                { id: 'pesagens' as TabType, label: `Pesagens${pesagens.length > 0 ? ` (${pesagens.length})` : ''}`, icon: Icons.Scale },
+                { id: 'vacinacoes' as TabType, label: `Vacinações${vacinacoes.length > 0 ? ` (${vacinacoes.length})` : ''}`, icon: Icons.Injection },
+                ...(internalMode === 'edit' && animalId ? [
+                  { id: 'desmama' as TabType, label: `Desmama${desmamas.length > 0 ? ` (${desmamas.length})` : ''}`, icon: Icons.Baby }
                 ] : []),
                 { id: 'tags' as TabType, label: 'Tags/Obs', icon: Icons.Tag }
               ].map((tab) => {
@@ -1923,7 +2129,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
             )}
 
             {/* ABA: Desmama */}
-            {activeTab === 'desmama' && mode === 'edit' && animalId && (
+            {activeTab === 'desmama' && internalMode === 'edit' && animalId && (
               <div className="space-y-4">
                 <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-4">
@@ -2037,32 +2243,33 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
             )}
 
             {/* ABA: Pesagens */}
-            {activeTab === 'pesagens' && mode === 'edit' && animalId && (
+            {activeTab === 'pesagens' && (
               <div className="space-y-4">
-                <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
-                      <Icons.Scale className="w-4 h-4" />
-                      Pesagens
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPesagemEditando(null);
-                        setPesagemModalOpen(true);
-                      }}
-                      className={`px-3 py-1.5 text-sm ${getPrimaryButtonClass(primaryColor)} text-white rounded-md hover:opacity-90 transition-opacity flex items-center gap-2`}
-                    >
-                      <Icons.Plus className="w-4 h-4" />
-                      Adicionar Pesagem
-                    </button>
-                  </div>
-                  
-                  {pesagens.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                      Nenhuma pesagem cadastrada ainda.
-                    </p>
-                  ) : (
+                {animalId ? (
+                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
+                        <Icons.Scale className="w-4 h-4" />
+                        Pesagens
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPesagemEditando(null);
+                          setPesagemModalOpen(true);
+                        }}
+                        className={`px-3 py-1.5 text-sm ${getPrimaryButtonClass(primaryColor)} text-white rounded-md hover:opacity-90 transition-opacity flex items-center gap-2`}
+                      >
+                        <Icons.Plus className="w-4 h-4" />
+                        Adicionar Pesagem
+                      </button>
+                    </div>
+                    
+                    {pesagens.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                        Nenhuma pesagem cadastrada ainda.
+                      </p>
+                    ) : (
                     <div className="space-y-2">
                       {pesagens
                         .sort((a, b) => {
@@ -2162,37 +2369,48 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                         })}
                     </div>
                   )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                    <div className="text-center py-8">
+                      <Icons.Scale className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Salve o animal primeiro para adicionar pesagens.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* ABA: Vacinações */}
-            {activeTab === 'vacinacoes' && mode === 'edit' && animalId && (
+            {activeTab === 'vacinacoes' && (
               <div className="space-y-4">
-                <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
-                      <Icons.Injection className="w-4 h-4" />
-                      Vacinações
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVacinaEditando(null);
-                        setVacinaModalOpen(true);
-                      }}
-                      className={`px-3 py-1.5 text-sm ${getPrimaryButtonClass(primaryColor)} text-white rounded-md hover:opacity-90 transition-opacity flex items-center gap-2`}
-                    >
-                      <Icons.Plus className="w-4 h-4" />
-                      Adicionar Vacinação
-                    </button>
-                  </div>
-                  
-                  {vacinacoes.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                      Nenhuma vacinação cadastrada ainda.
-                    </p>
-                  ) : (
+                {animalId ? (
+                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
+                        <Icons.Injection className="w-4 h-4" />
+                        Vacinações
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVacinaEditando(null);
+                          setVacinaModalOpen(true);
+                        }}
+                        className={`px-3 py-1.5 text-sm ${getPrimaryButtonClass(primaryColor)} text-white rounded-md hover:opacity-90 transition-opacity flex items-center gap-2`}
+                      >
+                        <Icons.Plus className="w-4 h-4" />
+                        Adicionar Vacinação
+                      </button>
+                    </div>
+                    
+                    {vacinacoes.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                        Nenhuma vacinação cadastrada ainda.
+                      </p>
+                    ) : (
                     <div className="space-y-2">
                       {vacinacoes
                         .sort((a, b) => {
@@ -2305,7 +2523,17 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
                         })}
                     </div>
                   )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                    <div className="text-center py-8">
+                      <Icons.Injection className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Salve o animal primeiro para adicionar vacinações.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2382,8 +2610,8 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
               ) : (
                 <>
                   <Icons.Check className="w-4 h-4" />
-                  <span className="hidden sm:inline">{mode === 'create' ? 'Cadastrar Animal' : 'Salvar Alterações'}</span>
-                  <span className="sm:hidden">{mode === 'create' ? 'Salvar' : 'Salvar'}</span>
+                  <span className="hidden sm:inline">{internalMode === 'create' ? 'Cadastrar Animal' : 'Salvar Alterações'}</span>
+                  <span className="sm:hidden">{internalMode === 'create' ? 'Salvar' : 'Salvar'}</span>
                 </>
               )}
             </button>
@@ -2413,7 +2641,7 @@ export default function AnimalModal({ open, mode, initialData, onClose, onSaved 
       />
 
       {/* Modais de Pesagem e Vacinação */}
-      {mode === 'edit' && animalId && (
+      {internalMode === 'edit' && animalId && (
         <>
           <PesagemModal
             open={pesagemModalOpen}

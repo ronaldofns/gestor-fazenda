@@ -21,7 +21,11 @@ const tableMap: Record<SyncEntity, string> = {
   appSettings: 'app_settings_online',
   rolePermission: 'role_permissions_online',
   pesagem: 'pesagens_online',
-  vacina: 'vacinacoes_online'
+  vacina: 'vacinacoes_online',
+  confinamento: 'confinamentos_online',
+  confinamentoAnimal: 'confinamento_animais_online',
+  confinamentoPesagem: 'confinamento_pesagens_online',
+  confinamentoAlimentacao: 'confinamento_alimentacao_online'
 };
 
 // Campo de conflito para upsert (uuid ou id)
@@ -39,7 +43,11 @@ const uuidFieldMap: Record<SyncEntity, string> = {
   appSettings: 'id',
   rolePermission: 'id',
   pesagem: 'uuid',
-  vacina: 'uuid'
+  vacina: 'uuid',
+  confinamento: 'uuid',
+  confinamentoAnimal: 'uuid',
+  confinamentoPesagem: 'uuid',
+  confinamentoAlimentacao: 'uuid'
 };
 
 /**

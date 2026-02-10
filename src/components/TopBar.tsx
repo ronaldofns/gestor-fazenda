@@ -299,9 +299,28 @@ export default function TopBar() {
   const IconComponent = metadata.icon ? Icons[metadata.icon] : Icons.LayoutDashboard;
   const primaryColor = (appSettings?.primaryColor || 'gray') as ColorPaletteKey;
 
+  // Verificar se sidebar está recolhida em telas menores
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sidebarCollapsed');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    const handleSidebarToggle = (e: Event) => {
+      const customEvent = e as CustomEvent<{ collapsed: boolean }>;
+      setSidebarCollapsed(customEvent.detail.collapsed);
+    };
+    
+    window.addEventListener('sidebarToggle', handleSidebarToggle);
+    return () => window.removeEventListener('sidebarToggle', handleSidebarToggle);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-[60] w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-slate-700 shadow-sm max-w-full overflow-x-hidden">
-      <div className="flex items-center justify-between pl-14 pr-2 sm:pl-4 sm:pr-4 md:px-6 lg:px-8 h-16 w-full min-w-0 overflow-x-hidden">
+    <header className="sticky top-0 z-[60] bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-slate-700 shadow-sm overflow-x-hidden">
+      <div className={`flex items-center justify-between pr-2 sm:pr-4 md:px-6 lg:px-8 h-16 w-full min-w-0 overflow-x-hidden pl-14 md:pl-16 lg:pl-0`}>
         {/* Título e Subtítulo (Esquerda) */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {IconComponent && (

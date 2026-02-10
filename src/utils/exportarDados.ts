@@ -172,13 +172,12 @@ export function exportarParaCSV(dados: DadosExportacao) {
 }
 
 /**
- * Exporta backup completo de todos os dados locais
+ * Exporta backup completo de todos os dados locais (inclui animais, confinamentos, etc.)
  */
 export async function exportarBackupCompleto() {
   try {
     const { db } = await import('../db/dexieDB');
     
-    // Buscar todos os dados de TODAS as tabelas
     const [
       fazendas,
       racas,
@@ -191,7 +190,16 @@ export async function exportarBackupCompleto() {
       usuarios,
       rolePermissions,
       alertSettings,
-      appSettings
+      appSettings,
+      tiposAnimal,
+      statusAnimal,
+      origens,
+      animais,
+      genealogias,
+      confinamentos,
+      confinamentoAnimais,
+      confinamentoPesagens,
+      confinamentoAlimentacao
     ] = await Promise.all([
       db.fazendas.toArray(),
       db.racas.toArray(),
@@ -204,12 +212,20 @@ export async function exportarBackupCompleto() {
       db.usuarios.toArray(),
       db.rolePermissions.toArray(),
       db.alertSettings.toArray(),
-      db.appSettings.toArray()
+      db.appSettings.toArray(),
+      db.tiposAnimal.toArray(),
+      db.statusAnimal.toArray(),
+      db.origens.toArray(),
+      db.animais.toArray(),
+      db.genealogias.toArray(),
+      db.confinamentos.toArray(),
+      db.confinamentoAnimais.toArray(),
+      db.confinamentoPesagens.toArray(),
+      db.confinamentoAlimentacao.toArray()
     ]);
     
-    // Criar objeto de backup
     const backup = {
-      versao: '2.0', // Versão atualizada com todas as tabelas
+      versao: '3.0',
       dataBackup: new Date().toISOString(),
       dados: {
         fazendas,
@@ -223,7 +239,16 @@ export async function exportarBackupCompleto() {
         usuarios,
         rolePermissions,
         alertSettings,
-        appSettings
+        appSettings,
+        tiposAnimal,
+        statusAnimal,
+        origens,
+        animais,
+        genealogias,
+        confinamentos,
+        confinamentoAnimais,
+        confinamentoPesagens,
+        confinamentoAlimentacao
       },
       metadados: {
         totalFazendas: fazendas.length,
@@ -237,7 +262,16 @@ export async function exportarBackupCompleto() {
         totalUsuarios: usuarios.length,
         totalRolePermissions: rolePermissions.length,
         totalAlertSettings: alertSettings.length,
-        totalAppSettings: appSettings.length
+        totalAppSettings: appSettings.length,
+        totalTiposAnimal: tiposAnimal.length,
+        totalStatusAnimal: statusAnimal.length,
+        totalOrigens: origens.length,
+        totalAnimais: animais.length,
+        totalGenealogias: genealogias.length,
+        totalConfinamentos: confinamentos.length,
+        totalConfinamentoAnimais: confinamentoAnimais.length,
+        totalConfinamentoPesagens: confinamentoPesagens.length,
+        totalConfinamentoAlimentacao: confinamentoAlimentacao.length
       }
     };
     
@@ -281,29 +315,18 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
     const conteudo = await arquivo.text();
     const backup = JSON.parse(conteudo);
 
-    // Validar estrutura do backup
     if (!backup.versao || !backup.dados) {
       throw new Error('Arquivo de backup inválido ou corrompido');
     }
 
     const { db } = await import('../db/dexieDB');
-    
-    // Contar itens existentes antes da importação
+    const { dados } = backup;
     const existentesAntes = {
       fazendas: await db.fazendas.count(),
       racas: await db.racas.count(),
-      categorias: await db.categorias.count(),
-      matrizes: await db.matrizes.count(),
-      nascimentos: await db.nascimentos.count(),
-      desmamas: await db.desmamas.count(),
-      pesagens: await db.pesagens.count(),
-      vacinacoes: await db.vacinacoes.count(),
-      usuarios: await db.usuarios.count()
+      animais: await db.animais.count(),
+      confinamentos: await db.confinamentos.count()
     };
-
-    // Importar dados (fazer merge, não substituir tudo)
-    const { dados } = backup;
-    
     let importados = {
       fazendas: 0,
       racas: 0,
@@ -316,7 +339,16 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       usuarios: 0,
       rolePermissions: 0,
       alertSettings: 0,
-      appSettings: 0
+      appSettings: 0,
+      tiposAnimal: 0,
+      statusAnimal: 0,
+      origens: 0,
+      animais: 0,
+      genealogias: 0,
+      confinamentos: 0,
+      confinamentoAnimais: 0,
+      confinamentoPesagens: 0,
+      confinamentoAlimentacao: 0
     };
 
     // Importar fazendas
@@ -440,11 +472,93 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       }
     }
 
-    // Importar appSettings (substituir se existir)
     if (Array.isArray(dados.appSettings)) {
       for (const setting of dados.appSettings) {
         await db.appSettings.put(setting);
         importados.appSettings++;
+      }
+    }
+
+    // Tabelas do sistema de animais (backup v3.0 ou compatível)
+    if (Array.isArray(dados.tiposAnimal)) {
+      for (const item of dados.tiposAnimal) {
+        const existe = await db.tiposAnimal.get(item.id);
+        if (!existe) {
+          await db.tiposAnimal.put(item);
+          importados.tiposAnimal++;
+        }
+      }
+    }
+    if (Array.isArray(dados.statusAnimal)) {
+      for (const item of dados.statusAnimal) {
+        const existe = await db.statusAnimal.get(item.id);
+        if (!existe) {
+          await db.statusAnimal.put(item);
+          importados.statusAnimal++;
+        }
+      }
+    }
+    if (Array.isArray(dados.origens)) {
+      for (const item of dados.origens) {
+        const existe = await db.origens.get(item.id);
+        if (!existe) {
+          await db.origens.put(item);
+          importados.origens++;
+        }
+      }
+    }
+    if (Array.isArray(dados.animais)) {
+      for (const item of dados.animais) {
+        const existe = await db.animais.get(item.id);
+        if (!existe) {
+          await db.animais.put(item);
+          importados.animais++;
+        }
+      }
+    }
+    if (Array.isArray(dados.genealogias)) {
+      for (const item of dados.genealogias) {
+        const existe = await db.genealogias.get(item.id);
+        if (!existe) {
+          await db.genealogias.put(item);
+          importados.genealogias++;
+        }
+      }
+    }
+    if (Array.isArray(dados.confinamentos)) {
+      for (const item of dados.confinamentos) {
+        const existe = await db.confinamentos.get(item.id);
+        if (!existe) {
+          await db.confinamentos.put(item);
+          importados.confinamentos++;
+        }
+      }
+    }
+    if (Array.isArray(dados.confinamentoAnimais)) {
+      for (const item of dados.confinamentoAnimais) {
+        const existe = await db.confinamentoAnimais.get(item.id);
+        if (!existe) {
+          await db.confinamentoAnimais.put(item);
+          importados.confinamentoAnimais++;
+        }
+      }
+    }
+    if (Array.isArray(dados.confinamentoPesagens)) {
+      for (const item of dados.confinamentoPesagens) {
+        const existe = await db.confinamentoPesagens.get(item.id);
+        if (!existe) {
+          await db.confinamentoPesagens.put(item);
+          importados.confinamentoPesagens++;
+        }
+      }
+    }
+    if (Array.isArray(dados.confinamentoAlimentacao)) {
+      for (const item of dados.confinamentoAlimentacao) {
+        const existe = await db.confinamentoAlimentacao.get(item.id);
+        if (!existe) {
+          await db.confinamentoAlimentacao.put(item);
+          importados.confinamentoAlimentacao++;
+        }
       }
     }
 

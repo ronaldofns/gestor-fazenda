@@ -14,6 +14,10 @@ export interface AuditPayload<T = any> {
   before?: T | null;
   after?: T | null;
   user?: AuditUserInfo | null;
+  /** Alternativa a user: id do usuário (usado por ConfinamentoModal, ConfinamentoAnimalModal, etc.) */
+  userId?: string | null;
+  /** Alternativa a user: nome do usuário */
+  userNome?: string | null;
   description?: string | null;
 }
 
@@ -31,8 +35,8 @@ export async function registrarAudit<T = any>(payload: AuditPayload<T>) {
       entityId: payload.entityId,
       action: payload.action,
       timestamp: now,
-      userId: payload.user?.id ?? null,
-      userNome: payload.user?.nome ?? null,
+      userId: payload.user?.id ?? payload.userId ?? null,
+      userNome: payload.user?.nome ?? payload.userNome ?? null,
       before: payload.before != null ? JSON.stringify(payload.before) : null,
       after: payload.after != null ? JSON.stringify(payload.after) : null,
       description: payload.description ?? null,
