@@ -328,6 +328,7 @@ class AppDB extends Dexie {
         'ver_notificacoes',
         'ver_sincronizacao',
         'ver_planilha',
+        'ver_confinamentos',
         'ver_fazendas',
         'ver_usuarios',
         'exportar_dados',
@@ -342,6 +343,7 @@ class AppDB extends Dexie {
           'ver_notificacoes',
           'ver_sincronizacao',
           'ver_planilha',
+          'ver_confinamentos',
           'ver_fazendas',
           'cadastrar_animal',
           'editar_animal',
@@ -358,6 +360,7 @@ class AppDB extends Dexie {
           'ver_dashboard',
           'ver_notificacoes',
           'ver_planilha',
+          'ver_confinamentos',
           'cadastrar_animal',
           'cadastrar_desmama',
           'cadastrar_pesagem',
@@ -367,6 +370,7 @@ class AppDB extends Dexie {
           'ver_dashboard',
           'ver_notificacoes',
           'ver_planilha',
+          'ver_confinamentos',
           'ver_fazendas'
         ]
       };

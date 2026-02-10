@@ -157,12 +157,12 @@ export default function App() {
                               </ProtectedRoute>
                             } />
                             <Route path="/confinamentos" element={
-                              <ProtectedRoute requiredPermission="ver_planilha">
+                              <ProtectedRoute requiredPermission="ver_confinamentos">
                                 <ListaConfinamentos />
                               </ProtectedRoute>
                             } />
                             <Route path="/confinamentos/:confinamentoId" element={
-                              <ProtectedRoute requiredPermission="ver_planilha">
+                              <ProtectedRoute requiredPermission="ver_confinamentos">
                                 <DetalheConfinamento />
                               </ProtectedRoute>
                             } />

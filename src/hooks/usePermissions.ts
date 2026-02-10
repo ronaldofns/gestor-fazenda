@@ -132,6 +132,7 @@ export function usePermissions() {
         'ver_notificacoes',
         'ver_sincronizacao',
         'ver_planilha',
+        'ver_confinamentos',
         'ver_fazendas',
         'ver_usuarios',
         'exportar_dados',
@@ -142,6 +143,7 @@ export function usePermissions() {
         'ver_notificacoes',
         'ver_sincronizacao',
         'ver_planilha',
+        'ver_confinamentos',
         'ver_fazendas',
         'cadastrar_animal',
         'editar_animal',
@@ -158,6 +160,7 @@ export function usePermissions() {
         'ver_dashboard',
         'ver_notificacoes',
         'ver_planilha',
+        'ver_confinamentos',
         'cadastrar_animal',
         'cadastrar_desmama',
         'cadastrar_pesagem',
@@ -167,6 +170,7 @@ export function usePermissions() {
         'ver_dashboard',
         'ver_notificacoes',
         'ver_planilha',
+        'ver_confinamentos',
         'ver_fazendas'
       ]
     };
@@ -192,6 +196,7 @@ export function usePermissions() {
       'ver_notificacoes',
       'ver_sincronizacao',
       'ver_planilha',
+      'ver_confinamentos',
       'ver_fazendas',
       'ver_usuarios',
       'exportar_dados',

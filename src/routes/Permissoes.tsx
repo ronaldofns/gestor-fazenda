@@ -40,12 +40,13 @@ const PERMISSION_LABELS: Record<PermissionType, string> = {
   ver_fazendas: 'Ver Fazendas',
   ver_usuarios: 'Ver Usuários',
   ver_planilha: 'Ver Animais',
+  ver_confinamentos: 'Ver Confinamentos',
   exportar_dados: 'Exportar Dados',
   gerar_relatorios: 'Gerar Relatórios'
 };
 
 const PERMISSION_GROUPS: Record<string, PermissionType[]> = {
-  'Visualização': ['ver_dashboard', 'ver_notificacoes', 'ver_sincronizacao', 'ver_planilha', 'ver_fazendas', 'ver_usuarios'],
+  'Visualização': ['ver_dashboard', 'ver_notificacoes', 'ver_sincronizacao', 'ver_planilha', 'ver_confinamentos', 'ver_fazendas', 'ver_usuarios'],
   'Gerenciamento': ['gerenciar_usuarios', 'gerenciar_fazendas', 'gerenciar_racas', 'gerenciar_categorias'],
   'Animais': ['cadastrar_animal', 'editar_animal', 'excluir_animal'],
   'Desmamas': ['cadastrar_desmama', 'editar_desmama', 'excluir_desmama'],

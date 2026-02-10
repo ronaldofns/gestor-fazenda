@@ -122,9 +122,9 @@ export default function Sidebar() {
     ...(hasPermission('ver_notificacoes') ? [{ path: '/notificacoes', label: 'Notificações', icon: Icons.Bell, badge: notificacoes.total > 0 ? notificacoes.total : undefined }] : []),
     ...(hasPermission('ver_planilha') ? [
       { path: '/animais', label: 'Animais', icon: Icons.Cow },
-      { path: '/pendencias-curral', label: 'Pendências do Curral', icon: Icons.List },
-      { path: '/confinamentos', label: 'Confinamentos', icon: Icons.Warehouse }
+      { path: '/pendencias-curral', label: 'Pendências do Curral', icon: Icons.List }
     ] : []),
+    ...(hasPermission('ver_confinamentos') ? [{ path: '/confinamentos', label: 'Confinamentos', icon: Icons.Warehouse }] : []),
     ...(hasPermission('ver_fazendas') ? [{ path: '/fazendas', label: 'Fazendas', icon: Icons.Building2 }] : []),
     ...(hasPermission('ver_sincronizacao') ? [{ path: '/sincronizacao', label: 'Sincronização', icon: Icons.RefreshCw }] : []),
     ...(hasPermission('gerar_relatorios') ? [{ path: '/relatorios', label: 'Relatórios', icon: Icons.BarChart3 }] : []),

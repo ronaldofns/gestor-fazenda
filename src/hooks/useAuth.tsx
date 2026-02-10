@@ -20,20 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Carregar sessão do localStorage (persiste após reload da PWA/atualização)
+  // Carregar sessão do sessionStorage (mantém login só na aba atual; ao fechar aba/app pede login de novo)
   useEffect(() => {
     const loadSession = async () => {
       try {
-        // Migrar sessionStorage → localStorage (evita logout após reload da PWA)
-        let savedUserId = localStorage.getItem('gestor-fazenda-user-id');
-        if (!savedUserId) {
-          const fromSession = sessionStorage.getItem('gestor-fazenda-user-id');
-          if (fromSession) {
-            localStorage.setItem('gestor-fazenda-user-id', fromSession);
-            sessionStorage.removeItem('gestor-fazenda-user-id');
-            savedUserId = fromSession;
-          }
-        }
+        // Limpar id em localStorage se existir (migração: sessão não persiste mais ao fechar app)
+        localStorage.removeItem('gestor-fazenda-user-id');
+        const savedUserId = sessionStorage.getItem('gestor-fazenda-user-id');
         if (savedUserId) {
           await db.open(); // Garantir que o IndexedDB está pronto antes de buscar
           let usuario = await getUserById(savedUserId);
@@ -53,12 +46,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (usuario && usuario.ativo) {
             setUser(usuario);
           } else {
-            localStorage.removeItem('gestor-fazenda-user-id');
+            sessionStorage.removeItem('gestor-fazenda-user-id');
           }
         }
       } catch (error) {
         console.error('Erro ao carregar sessão:', error);
-        localStorage.removeItem('gestor-fazenda-user-id');
+        sessionStorage.removeItem('gestor-fazenda-user-id');
       } finally {
         setLoading(false);
       }
@@ -73,12 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Email ou senha incorretos');
     }
     setUser(usuario);
-    localStorage.setItem('gestor-fazenda-user-id', usuario.id);
+    sessionStorage.setItem('gestor-fazenda-user-id', usuario.id);
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('gestor-fazenda-user-id');
+    sessionStorage.removeItem('gestor-fazenda-user-id');
   };
 
   const refreshUser = async () => {
