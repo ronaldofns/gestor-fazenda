@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/dexieDB';
 import { PermissionType, UserRole, RolePermission } from '../db/models';
 import { useAuth } from './useAuth';
+import { createSyncEvent } from '../utils/syncEvents';
 
 /**
  * Hook para gerenciar permissões do sistema
@@ -78,9 +79,11 @@ export function usePermissions() {
         updatedAt: now,
         synced: false
       });
+      const updated = { ...existing, granted, updatedAt: now };
+      await createSyncEvent('UPDATE', 'rolePermission', updated.id, updated);
     } else {
       const { v4: uuidv4 } = await import('uuid');
-      await db.rolePermissions.add({
+      const newRec = {
         id: uuidv4(),
         role,
         permission,
@@ -89,7 +92,9 @@ export function usePermissions() {
         updatedAt: now,
         synced: false,
         remoteId: null
-      });
+      };
+      await db.rolePermissions.add(newRec);
+      await createSyncEvent('UPDATE', 'rolePermission', newRec.id, newRec);
     }
   };
 

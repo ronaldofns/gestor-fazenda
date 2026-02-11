@@ -40,7 +40,7 @@ const uuidFieldMap: Record<SyncEntity, string> = {
   notificacaoLida: 'id',
   alertSettings: 'id',
   appSettings: 'id',
-  rolePermission: 'id',
+  rolePermission: 'uuid',
   pesagem: 'uuid',
   vacina: 'uuid',
   confinamento: 'uuid',
@@ -306,6 +306,7 @@ async function processUpsertBatch(
   const sample = events[0];
   const table = tableMap[sample.entidade];
   const conflictField = uuidFieldMap[sample.entidade] === 'uuid' ? 'uuid' : 'id';
+  const isRolePermission = sample.entidade === 'rolePermission';
 
   if (!table) {
     await markBatchError(events, `Tabela não encontrada: ${sample.entidade}`, now);
@@ -383,7 +384,9 @@ async function processUpsertBatch(
   // Deduplicar por chave de conflito: Postgres "ON CONFLICT DO UPDATE" não pode afetar a mesma linha duas vezes no mesmo comando
   const byConflictKey = new Map<string, Record<string, unknown>>();
   for (const p of payloads) {
-    const key = String(p[conflictField] ?? (p as any).id ?? (p as any).uuid ?? '');
+    const key = isRolePermission
+      ? `${String((p as any).role ?? '')}\0${String((p as any).permission ?? '')}`
+      : String(p[conflictField] ?? (p as any).id ?? (p as any).uuid ?? '');
     if (key) byConflictKey.set(key, p);
   }
   const payloadsToSend = Array.from(byConflictKey.values());
@@ -392,10 +395,11 @@ async function processUpsertBatch(
   try {
     const { supabase } = await import('../api/supabaseClient');
 
+    const upsertConflict = isRolePermission ? ['role', 'permission'] : conflictField;
     const { data: upserted, error } = await supabase
       .from(table)
-      .upsert(payloadsToSend, { onConflict: conflictField })
-      .select('id, uuid');
+      .upsert(payloadsToSend, { onConflict: upsertConflict })
+      .select('id, uuid, role, permission');
 
     if (error) {
       await markBatchError(eventosValidos, error.message || 'Erro no upsert', now);
@@ -408,13 +412,22 @@ async function processUpsertBatch(
     if (upserted && upserted.length > 0) {
       const localTable = getLocalTableForEntity(entidade);
       if (localTable) {
-        const updates = upserted
-          .filter((r: any) => (r.uuid != null || r.id != null))
-          .map((r: any) => ({
-            key: conflictField === 'uuid' ? r.uuid : String(r.id),
-            changes: { remoteId: r.id, synced: true }
-          }));
-        if (updates.length > 0) await localTable.bulkUpdate(updates);
+        if (isRolePermission) {
+          for (const r of upserted as any[]) {
+            if (r.role != null && r.permission != null) {
+              const locais = await db.rolePermissions.where({ role: r.role, permission: r.permission }).toArray();
+              await Promise.all(locais.map(rec => db.rolePermissions.update(rec.id, { remoteId: r.id, synced: true })));
+            }
+          }
+        } else {
+          const updates = upserted
+            .filter((r: any) => (r.uuid != null || r.id != null))
+            .map((r: any) => ({
+              key: conflictField === 'uuid' ? r.uuid : String(r.id),
+              changes: { remoteId: r.id, synced: true }
+            }));
+          if (updates.length > 0) await localTable.bulkUpdate(updates);
+        }
       }
     }
 
