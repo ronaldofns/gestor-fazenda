@@ -195,10 +195,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data'] | null = null;
+    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error'] = null;
+    try {
+      const result = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      data = result.data;
+      error = result.error;
+    } catch (networkErr: unknown) {
+      // Sem internet ou servidor inacessível (Failed to fetch, etc.) — tentar login local
+      const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
+      const isNetworkError =
+        /failed to fetch|network error|load failed|networkrequestfailed|err_connection/i.test(msg) ||
+        (networkErr instanceof TypeError && msg.includes('fetch'));
+      if (isNetworkError) {
+        const usuario = await authenticateUser(email, password);
+        if (!usuario) throw new Error('Email ou senha incorretos. Sem conexão: use as credenciais já cadastradas neste dispositivo.');
+        setUser(usuario);
+        sessionStorage.setItem('gestor-fazenda-user-id', usuario.id);
+        sessionStorage.setItem(OFFLINE_LOGIN_FLAG, '1');
+        console.info('[Auth] Login OK (rede falhou, Dexie). Sincronize quando a conexão voltar.');
+        return;
+      }
+      throw networkErr;
+    }
 
     if (!error && data?.session?.user?.email) {
       const usuario = await getUsuarioFromSupabaseByEmail(data.session.user.email);
