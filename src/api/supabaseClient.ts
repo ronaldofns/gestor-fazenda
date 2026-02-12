@@ -32,12 +32,13 @@ async function fetchWithSession(input: RequestInfo | URL, options?: RequestInit)
   return fetch(input, options);
 }
 
+// sessionStorage: sessão termina ao fechar aba/janela (usuário precisa logar de novo)
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
     storageKey: 'gestor-fazenda-auth',
   },
   global: {
