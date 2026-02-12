@@ -1,7 +1,9 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { db } from '../db/dexieDB';
 import { supabase } from './supabaseClient';
+import { getSupabaseForSync } from './supabaseSyncClient';
 import { processSyncQueue } from '../utils/syncEvents';
-import { pullEntity, pullEntitySimple, fetchAllPaginated } from './syncEngine';
+import { pullEntity, pullEntitySimple, fetchAllPaginated, fetchFromSupabase } from './syncEngine';
 
 // ========================================
 // SISTEMA DE PROGRESSO DE SINCRONIZAÇÃO
@@ -85,17 +87,19 @@ export function getCurrentSyncStats(): SyncStats | null {
 }
 
 /**
- * Função helper para buscar todos os registros de uma tabela do Supabase com paginação
- * O Supabase PostgREST limita a 1000 registros por padrão
+ * Função helper para buscar todos os registros de uma tabela do Supabase com paginação.
+ * O Supabase PostgREST limita a 1000 registros por padrão.
+ * @param client - Se passado, usa este client (JWT) para evitar PGRST301.
  */
-async function fetchAllFromSupabase(tableName: string, orderBy: string = 'id'): Promise<any[]> {
+async function fetchAllFromSupabase(tableName: string, orderBy: string = 'id', client?: SupabaseClient): Promise<any[]> {
+  const sb = client ?? supabase;
   let allRecords: any[] = [];
   let from = 0;
   const pageSize = 1000;
   let hasMore = true;
 
   while (hasMore) {
-    const { data: page, error } = await supabase
+    const { data: page, error } = await sb
       .from(tableName)
       .select('*')
       .range(from, from + pageSize - 1)
@@ -209,12 +213,9 @@ export async function pushPending() {
   } catch (err) {
     console.error('Erro geral ao sincronizar exclusões:', err);
   }
-
-  // Modo antigo (fallback) removido: envio é feito apenas pela fila (processSyncQueue). Use "Criar eventos para pendências" na tela de Sincronização se precisar migrar registros antigos.
-
 }
 
-export async function pullUpdates() {
+export async function pullUpdates(syncClient: SupabaseClient) {
   console.log('📥 Iniciando pull de atualizações do servidor...');
   const totalSteps = 11; // Categorias, Raças, Fazendas, Usuários, Animais, Confinamento x4, Notificações lidas, Auditoria
   let currentStep = 0;
@@ -231,7 +232,7 @@ export async function pullUpdates() {
       localTable: db.categorias as any,
       mapper: (s: any) => ({ id: s.uuid, nome: s.nome, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id }),
       forceFullPull: true
-    });
+    }, syncClient);
     endSyncStep('Pull Categorias', n);
   } catch (err) {
     console.error('Erro ao processar pull de categorias:', err);
@@ -250,7 +251,7 @@ export async function pullUpdates() {
       localTable: db.racas as any,
       mapper: (s: any) => ({ id: s.uuid, nome: s.nome, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id }),
       forceFullPull: true
-    });
+    }, syncClient);
     endSyncStep('Pull Raças', n);
   } catch (err) {
     console.error('Erro ao processar pull de raças:', err);
@@ -269,7 +270,7 @@ export async function pullUpdates() {
       localTable: db.fazendas as any,
       mapper: (s: any) => ({ id: s.uuid, nome: s.nome, logoUrl: s.logo_url, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id }),
       forceFullPull: true
-    });
+    }, syncClient);
     endSyncStep('Pull Fazendas', n);
   } catch (err) {
     console.error('Erro ao processar pull de fazendas:', err);
@@ -286,17 +287,17 @@ export async function pullUpdates() {
       updatedAtField: 'updated_at',
       localTable: db.desmamas as any,
       mapper: (s: any) => ({
-        id: s.uuid,
+              id: s.uuid,
         animalId: s.animal_id ?? s.nascimento_uuid,
-        dataDesmama: s.data_desmama,
-        pesoDesmama: s.peso_desmama,
-        createdAt: s.created_at,
-        updatedAt: s.updated_at,
-        synced: true,
-        remoteId: s.id
+            dataDesmama: s.data_desmama,
+            pesoDesmama: s.peso_desmama,
+            createdAt: s.created_at,
+            updatedAt: s.updated_at,
+            synced: true,
+            remoteId: s.id
       }),
       forceFullPull: true
-    });
+    }, syncClient);
   } catch (err) {
     console.error('Erro ao processar pull de desmamas:', err);
     throw err;
@@ -304,7 +305,7 @@ export async function pullUpdates() {
 
   // Buscar pesagens (motor bulk: toPut/toUpdate/bulkDelete)
   try {
-    const servPesagens = await fetchAllFromSupabase('pesagens_online', 'id');
+    const servPesagens = await fetchAllFromSupabase('pesagens_online', 'id', syncClient);
     if (servPesagens && servPesagens.length > 0) {
       const servUuids = new Set(servPesagens.map((p: any) => p.uuid).filter(Boolean));
       const todasPesagensLocais = await db.pesagens.toArray();
@@ -326,19 +327,19 @@ export async function pullUpdates() {
         if (!s.uuid || deletedUuids.has(s.uuid)) continue;
         const local = localMap.get(s.uuid);
         const mapped = {
-          id: s.uuid,
+              id: s.uuid,
           animalId: s.animal_id ?? s.nascimento_id ?? s.nascimento_uuid,
-          dataPesagem: s.data_pesagem,
-          peso: s.peso,
-          observacao: s.observacao || undefined,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id
+              dataPesagem: s.data_pesagem,
+              peso: s.peso,
+              observacao: s.observacao || undefined,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
         };
         if (!local) {
           toPut.push(mapped);
-        } else {
+            } else {
           if (!local.synced) {
             const servUpdated = s.updated_at ? new Date(s.updated_at).getTime() : 0;
             const localUpdated = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
@@ -361,7 +362,7 @@ export async function pullUpdates() {
   try {
     let servVacinacoes: any[] = [];
     try {
-      servVacinacoes = await fetchAllFromSupabase('vacinacoes_online', 'id');
+      servVacinacoes = await fetchAllFromSupabase('vacinacoes_online', 'id', syncClient);
     } catch (errorVacinacoes: any) {
       if (errorVacinacoes?.code === 'PGRST205' || errorVacinacoes?.code === '42P01' || errorVacinacoes?.message?.includes('Could not find the table')) {
         console.warn('Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.');
@@ -390,22 +391,22 @@ export async function pullUpdates() {
         if (!s.uuid || deletedUuids.has(s.uuid)) continue;
         const local = localMap.get(s.uuid);
         const mapped = {
-          id: s.uuid,
+              id: s.uuid,
           animalId: s.animal_id ?? s.nascimento_id ?? s.nascimento_uuid,
-          vacina: s.vacina,
-          dataAplicacao: s.data_aplicacao,
-          dataVencimento: s.data_vencimento || undefined,
-          lote: s.lote || undefined,
-          responsavel: s.responsavel || undefined,
-          observacao: s.observacao || undefined,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id
+              vacina: s.vacina,
+              dataAplicacao: s.data_aplicacao,
+              dataVencimento: s.data_vencimento || undefined,
+              lote: s.lote || undefined,
+              responsavel: s.responsavel || undefined,
+              observacao: s.observacao || undefined,
+              createdAt: s.created_at,
+              updatedAt: s.updated_at,
+              synced: true,
+              remoteId: s.id
         };
         if (!local) {
           toPut.push(mapped);
-        } else {
+            } else {
           if (!local.synced) {
             const servUpdated = s.updated_at ? new Date(s.updated_at).getTime() : 0;
             const localUpdated = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
@@ -429,7 +430,7 @@ export async function pullUpdates() {
 
   // Buscar tags (incluir deletadas para sincronizar soft deletes)
   try {
-    const { data: servTags, error: errorTags } = await supabase
+    const { data: servTags, error: errorTags } = await syncClient
       .from('tags')
       .select('*'); // Remover filtro de deleted_at para sincronizar exclusões
       
@@ -475,7 +476,7 @@ export async function pullUpdates() {
     }
 
     // Buscar atribuições de tags (incluir deletadas para sincronizar soft deletes)
-    const { data: servAssignments, error: errorAssignments } = await supabase
+    const { data: servAssignments, error: errorAssignments } = await syncClient
       .from('tag_assignments')
       .select('*'); // Remover filtro de deleted_at para sincronizar exclusões
       
@@ -527,7 +528,7 @@ export async function pullUpdates() {
       updatedAtField: 'updated_at',
       localTable: db.usuarios as any,
       mapper: (s: any) => ({ id: s.uuid, nome: s.nome, email: s.email, senhaHash: s.senha_hash, role: s.role, fazendaId: s.fazenda_uuid || undefined, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id })
-    });
+    }, syncClient);
     endSyncStep('Pull Usuários', nUsuarios);
   } catch (err) {
     console.error('Erro ao processar pull de usuários:', err);
@@ -546,7 +547,7 @@ export async function pullUpdates() {
         localTable: db.audits as any,
         limit: 1000,
         mapper: (s: any) => ({ id: s.uuid, entity: s.entity, entityId: s.entity_id, action: s.action, timestamp: s.timestamp, userId: s.user_uuid || null, userNome: s.user_nome || null, before: s.before_json ? JSON.stringify(s.before_json) : null, after: s.after_json ? JSON.stringify(s.after_json) : null, description: s.description || null, synced: true, remoteId: s.id })
-      });
+      }, syncClient);
     }
   } catch (err) {
     console.error('Erro ao processar pull de auditoria:', err);
@@ -555,7 +556,7 @@ export async function pullUpdates() {
   // Buscar configurações de alerta
   try {
     if (db.alertSettings) {
-      const { data: servSettings, error: errorSettings } = await supabase
+      const { data: servSettings, error: errorSettings } = await syncClient
         .from('alert_settings_online')
         .select('*')
         .order('updated_at', { ascending: false })
@@ -668,7 +669,7 @@ export async function pullUpdates() {
   // Buscar configurações do app
   try {
     if (db.appSettings) {
-      const { data: servSettings, error: errorSettings } = await supabase
+      const { data: servSettings, error: errorSettings } = await syncClient
         .from('app_settings_online')
         .select('*')
         .order('updated_at', { ascending: false })
@@ -775,15 +776,39 @@ export async function pullUpdates() {
     // Não lançar erro - configurações não são críticas para funcionamento
   }
 
-  // Buscar permissões por role (motor genérico: incremental + batch)
+  // Pull de permissões: merge por (role, permission) — não deleta locais, evita "reset" ao sincronizar
   try {
-    await pullEntity({
-      remoteTable: 'role_permissions_online',
-      orderBy: 'updated_at',
-      updatedAtField: 'updated_at',
-      localTable: db.rolePermissions as any,
-      mapper: (s: any) => ({ id: s.uuid, role: s.role, permission: s.permission, granted: s.granted, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id })
-    });
+    const { getLastPulledAt, setLastPulledAt } = await import('../utils/syncCheckpoints');
+    const lastPulled = getLastPulledAt('role_permissions_online');
+    const servRecords = await fetchFromSupabase<any>(
+      'role_permissions_online',
+      { orderBy: 'updated_at', updatedAtField: 'updated_at', lastPulledAt: lastPulled || undefined },
+      syncClient
+    );
+    if (servRecords && servRecords.length > 0) {
+      const localRecords = await db.rolePermissions.toArray();
+      const localByRolePerm = new Map(localRecords.map((r: any) => [`${r.role}\0${r.permission}`, r]));
+      const toPut: any[] = [];
+      const toUpdate: Array<{ key: string; changes: any }> = [];
+      for (const s of servRecords) {
+        if (!s.uuid) continue;
+        const key = `${s.role}\0${s.permission}`;
+        const local = localByRolePerm.get(key);
+        const payload = { role: s.role, permission: s.permission, granted: s.granted, createdAt: s.created_at, updatedAt: s.updated_at, synced: true, remoteId: s.id };
+        if (local) {
+          toUpdate.push({ key: local.id, changes: payload });
+        } else {
+          toPut.push({ id: s.uuid, ...payload });
+        }
+      }
+      if (toPut.length > 0) await db.rolePermissions.bulkPut(toPut);
+      if (toUpdate.length > 0) await db.rolePermissions.bulkUpdate(toUpdate);
+      const maxUpdated = servRecords.reduce((max: string | null, r: any) => (r.updated_at && (!max || r.updated_at > max) ? r.updated_at : max), null);
+      if (maxUpdated) setLastPulledAt('role_permissions_online', maxUpdated);
+    } else {
+      const { setLastPulledAt: setCheck } = await import('../utils/syncCheckpoints');
+      setCheck('role_permissions_online', new Date().toISOString());
+    }
   } catch (err) {
     console.error('Erro ao processar pull de permissões:', err);
     // Não lançar erro - permissões não são críticas para funcionamento básico
@@ -795,17 +820,17 @@ export async function pullUpdates() {
 
   // Pull tipos, status e origens (motor genérico - bulkPut)
   try {
-    await pullEntitySimple('tipos_animal_online', db.tiposAnimal as any, (s: any) => ({ id: s.uuid, nome: s.nome, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }));
+    await pullEntitySimple('tipos_animal_online', db.tiposAnimal as any, (s: any) => ({ id: s.uuid, nome: s.nome, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }), {}, syncClient);
   } catch (err) {
     console.error('Erro ao fazer pull de tipos de animal:', err);
   }
   try {
-    await pullEntitySimple('status_animal_online', db.statusAnimal as any, (s: any) => ({ id: s.uuid, nome: s.nome, cor: s.cor, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }));
+    await pullEntitySimple('status_animal_online', db.statusAnimal as any, (s: any) => ({ id: s.uuid, nome: s.nome, cor: s.cor, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }), {}, syncClient);
   } catch (err) {
     console.error('Erro ao fazer pull de status de animal:', err);
   }
   try {
-    await pullEntitySimple('origens_online', db.origens as any, (s: any) => ({ id: s.uuid, nome: s.nome, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }));
+    await pullEntitySimple('origens_online', db.origens as any, (s: any) => ({ id: s.uuid, nome: s.nome, descricao: s.descricao, ordem: s.ordem, ativo: s.ativo, createdAt: s.created_at, updatedAt: s.updated_at, deletedAt: s.deleted_at, synced: true, remoteId: s.id }), {}, syncClient);
   } catch (err) {
     console.error('Erro ao fazer pull de origens:', err);
   }
@@ -828,7 +853,7 @@ export async function pullUpdates() {
       orderBy: 'id',
       updatedAtField: lastPulledAnimais ? 'updated_at' : undefined,
       lastPulledAt: lastPulledAnimais || undefined
-    });
+    }, syncClient);
 
     if (servAnimais && servAnimais.length > 0) {
       // 🚀 OTIMIZAÇÃO: Carregar todos locais em memória (evita 1857× get individuais)
@@ -853,7 +878,7 @@ export async function pullUpdates() {
       );
       if (racasIdsAusentes.length > 0) {
         try {
-          const { data: racasSupabase } = await supabase.from('racas_online').select('*').in('id', racasIdsAusentes);
+          const { data: racasSupabase } = await syncClient.from('racas_online').select('*').in('id', racasIdsAusentes);
           if (racasSupabase) {
             const toPutRacas = racasSupabase.map((r: any) => ({ id: r.uuid, nome: r.nome, createdAt: r.created_at, updatedAt: r.updated_at, synced: true, remoteId: r.id }));
             await db.racas.bulkPut(toPutRacas);
@@ -931,7 +956,7 @@ export async function pullUpdates() {
       orderBy: 'id',
       updatedAtField: lastPulledGenealogias ? 'updated_at' : undefined,
       lastPulledAt: lastPulledGenealogias || undefined
-    });
+    }, syncClient);
     if (servGenealogias && servGenealogias.length > 0) {
       // Mapear remoteIds para UUIDs locais - criar Map para lookup O(1)
       const tiposLocais = await db.tiposAnimal.toArray();
@@ -1032,7 +1057,7 @@ export async function pullUpdates() {
         remoteId: s.id,
         deletedAt: s.deleted_at || undefined
       })
-    });
+    }, syncClient);
     endSyncStep('Pull Confinamentos', n);
     if (n > 0) console.log('✅ Pull Confinamentos:', n, 'registro(s)');
   } catch (err: any) {
@@ -1072,7 +1097,7 @@ export async function pullUpdates() {
         remoteId: s.id,
         deletedAt: s.deleted_at || undefined
       })
-    });
+    }, syncClient);
     endSyncStep('Pull Confinamento Animais', n);
     if (n > 0) console.log('✅ Pull Confinamento Animais:', n, 'registro(s)');
   } catch (err: any) {
@@ -1108,7 +1133,7 @@ export async function pullUpdates() {
         remoteId: s.id,
         deletedAt: s.deleted_at || undefined
       })
-    });
+    }, syncClient);
     endSyncStep('Pull Confinamento Pesagens', n);
     if (n > 0) console.log('✅ Pull Confinamento Pesagens:', n, 'registro(s)');
   } catch (err: any) {
@@ -1138,7 +1163,7 @@ export async function pullUpdates() {
         remoteId: s.id,
         deletedAt: s.deleted_at || undefined
       })
-    });
+    }, syncClient);
     endSyncStep('Pull Confinamento Alimentação', n);
     if (n > 0) console.log('✅ Pull Confinamento Alimentação:', n, 'registro(s)');
   } catch (err: any) {
@@ -1148,7 +1173,7 @@ export async function pullUpdates() {
 
   // Pull ocorrências animal (motor bulk; só executa se a tabela existir no backend — evita 404/PGRST205 no console)
   if (db.ocorrenciaAnimais) {
-    const { error: tableCheck } = await supabase.from('ocorrencia_animais_online').select('id').limit(1);
+    const { error: tableCheck } = await syncClient.from('ocorrencia_animais_online').select('id').limit(1);
     if (!tableCheck) {
       try {
         const vinculosLocaisForOcorrencia = await db.confinamentoAnimais.toArray();
@@ -1177,7 +1202,7 @@ export async function pullUpdates() {
             synced: true,
             remoteId: s.id
           })
-        });
+        }, syncClient);
         if (n > 0) console.log('✅ Pull Ocorrências Animal:', n, 'registro(s)');
       } catch (err: any) {
         console.error('Erro ao processar pull de ocorrencia_animais:', err?.message ?? err);
@@ -1199,7 +1224,7 @@ export async function pullUpdates() {
         updatedAtFieldLocal: 'marcadaEm',
         localTable: db.notificacoesLidas as any,
         mapper: (s: any) => ({ id: s.uuid, tipo: s.tipo, usuarioId: s.usuario_uuid || s.usuario_id || '', marcadaEm: s.marcada_em, synced: true, remoteId: s.id })
-      });
+      }, syncClient);
     }
     endSyncStep('Pull Notificações lidas', nNotif);
   } catch (err: any) {
@@ -1214,7 +1239,7 @@ export async function pullUpdates() {
     emitSyncProgress('pull', currentStep, totalSteps, 'Sincronizando Auditoria...');
     let nAudit = 0;
     if (db.audits) {
-      const { data: servAudits, error: errorAudits } = await supabase
+      const { data: servAudits, error: errorAudits } = await syncClient
         .from('audits_online')
         .select('*')
         .order('timestamp', { ascending: false })
@@ -1330,14 +1355,22 @@ export async function pullUsuarios() {
 let isSyncing = false;
 
 export async function syncAll(): Promise<{ ran: boolean }> {
-  // Evitar múltiplas sincronizações simultâneas
   if (isSyncing) {
+    return { ran: false };
+  }
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    const { showToast } = await import('../utils/toast');
+    showToast({
+      type: 'warning',
+      title: 'Sem conexão',
+      message: 'Sincronização não realizada. Conecte-se à internet e tente novamente.',
+    });
     return { ran: false };
   }
 
   isSyncing = true;
   
-  // Inicializar estatísticas de sincronização
   currentSyncStats = {
     startTime: Date.now(),
     steps: {}
@@ -1347,16 +1380,19 @@ export async function syncAll(): Promise<{ ran: boolean }> {
   console.log('🚀 INICIANDO SINCRONIZAÇÃO COMPLETA');
   console.log('🚀 ========================================');
   
-  // Atualizar estado global de sincronização (usado por TopBar e página Sincronização)
   if (typeof window !== 'undefined') {
     const { setGlobalSyncing } = await import('../utils/syncState');
     setGlobalSyncing(true);
   }
   
   try {
+    const syncClient = await getSupabaseForSync();
+    if (!syncClient) {
+      throw new Error('Sessão não disponível. Faça login com Supabase Auth e tente sincronizar novamente.');
+    }
+
     // IMPORTANTE: Fazer pull ANTES do push para evitar conflitos de timestamp
-    // Isso garante que pegamos as mudanças do servidor antes de enviar as nossas
-    await pullUpdates();
+    await pullUpdates(syncClient);
     await pushPending();
     
     // Finalizar estatísticas
@@ -1405,7 +1441,11 @@ export async function syncAll(): Promise<{ ran: boolean }> {
       }));
     }
     return { ran: true };
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as { code?: string };
+    if (err?.code === 'PGRST301') {
+      console.warn('[Sync] PGRST301: O servidor rejeitou o request. Use Supabase Auth (signInWithPassword) e políticas RLS com auth.uid().');
+    }
     console.error('❌ ========================================');
     console.error('❌ ERRO DURANTE SINCRONIZAÇÃO');
     console.error('❌ ========================================');

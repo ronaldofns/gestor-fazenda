@@ -1,8 +1,10 @@
 /**
  * Motor genérico de sync - reduz código, bugs e custo mental
  * Pull incremental + batch no IndexedDB
+ * Quando client (JWT) é passado, usa-o para que auth.uid() seja preenchido no servidor.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { getLastPulledAt, setLastPulledAt } from '../utils/syncCheckpoints';
 
@@ -30,7 +32,8 @@ export interface PullEntityConfig<TLocal, TServer> {
 }
 
 /**
- * Busca registros do Supabase com suporte a incremental
+ * Busca registros do Supabase com suporte a incremental.
+ * @param client - Se passado, usa este client (ex.: com JWT) para evitar PGRST301.
  */
 export async function fetchFromSupabase<T>(
   tableName: string,
@@ -39,9 +42,11 @@ export async function fetchFromSupabase<T>(
     updatedAtField?: string;
     lastPulledAt?: string | null;
     limit?: number;
-  } = {}
+  } = {},
+  client?: SupabaseClient
 ): Promise<T[]> {
-  let query = supabase.from(tableName).select('*');
+  const sb = client ?? supabase;
+  let query = sb.from(tableName).select('*');
   const { orderBy = 'id', updatedAtField, lastPulledAt, limit } = options;
 
   // gt (>) em vez de gte (>=): evita re-buscar o mesmo registro a cada sync
@@ -62,12 +67,15 @@ export async function fetchFromSupabase<T>(
 }
 
 /**
- * Busca todos com paginação (para tabelas grandes)
+ * Busca todos com paginação (para tabelas grandes).
+ * @param client - Se passado, usa este client (ex.: com JWT).
  */
 export async function fetchAllPaginated<T>(
   tableName: string,
-  options: { orderBy?: string; updatedAtField?: string; lastPulledAt?: string | null; limit?: number } = {}
+  options: { orderBy?: string; updatedAtField?: string; lastPulledAt?: string | null; limit?: number } = {},
+  client?: SupabaseClient
 ): Promise<T[]> {
+  const sb = client ?? supabase;
   const allRecords: T[] = [];
   let from = 0;
   const { orderBy = 'id', updatedAtField, lastPulledAt, limit } = options;
@@ -75,7 +83,7 @@ export async function fetchAllPaginated<T>(
 
   let hasMore = true;
   while (hasMore) {
-    let query = supabase.from(tableName).select('*').range(from, from + pageSize - 1).order(orderBy, { ascending: true });
+    let query = sb.from(tableName).select('*').range(from, from + pageSize - 1).order(orderBy, { ascending: true });
     // gt (>) evita re-buscar os mesmos registros a cada sync
     if (updatedAtField && lastPulledAt) {
       query = query.gt(updatedAtField, lastPulledAt);
@@ -100,10 +108,12 @@ export async function fetchAllPaginated<T>(
 
 /**
  * Pull genérico com batch - bulkPut/bulkUpdate, zero await em loop
- * Suporta incremental, paginação e limite
+ * Suporta incremental, paginação e limite.
+ * @param client - Se passado, usa este client (JWT) para as requisições.
  */
 export async function pullEntity<TLocal, TServer extends Record<string, any>>(
-  config: PullEntityConfig<TLocal, TServer>
+  config: PullEntityConfig<TLocal, TServer>,
+  client?: SupabaseClient
 ): Promise<number> {
   const {
     remoteTable,
@@ -128,8 +138,8 @@ export async function pullEntity<TLocal, TServer extends Record<string, any>>(
     limit
   };
   const servRecords = usePagination
-    ? await fetchAllPaginated<TServer>(remoteTable, fetchOpts)
-    : await fetchFromSupabase<TServer>(remoteTable, fetchOpts);
+    ? await fetchAllPaginated<TServer>(remoteTable, fetchOpts, client)
+    : await fetchFromSupabase<TServer>(remoteTable, fetchOpts, client);
 
   if (!servRecords || servRecords.length === 0) {
     setLastPulledAt(remoteTable, new Date().toISOString());
@@ -182,13 +192,15 @@ export async function pullEntity<TLocal, TServer extends Record<string, any>>(
 }
 
 /**
- * Pull simples - bulkPut com suporte a incremental
+ * Pull simples - bulkPut com suporte a incremental.
+ * @param client - Se passado, usa este client (JWT).
  */
 export async function pullEntitySimple<TLocal, TServer>(
   remoteTable: string,
   localTable: any,
   mapper: (s: TServer) => TLocal,
-  opts: { uuidField?: string; updatedAtField?: string; usePagination?: boolean } = {}
+  opts: { uuidField?: string; updatedAtField?: string; usePagination?: boolean } = {},
+  client?: SupabaseClient
 ): Promise<number> {
   const { uuidField = 'uuid', updatedAtField = 'updated_at', usePagination = false } = opts;
   const lastPulledAt = getLastPulledAt(remoteTable);
@@ -198,8 +210,8 @@ export async function pullEntitySimple<TLocal, TServer>(
     lastPulledAt: lastPulledAt || undefined
   };
   const records = usePagination
-    ? await fetchAllPaginated<TServer>(remoteTable, fetchOpts)
-    : await fetchFromSupabase<TServer>(remoteTable, fetchOpts);
+    ? await fetchAllPaginated<TServer>(remoteTable, fetchOpts, client)
+    : await fetchFromSupabase<TServer>(remoteTable, fetchOpts, client);
   if (!records || records.length === 0) {
     if (lastPulledAt) setLastPulledAt(remoteTable, new Date().toISOString());
     return 0;

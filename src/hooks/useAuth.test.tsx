@@ -7,6 +7,24 @@ vi.mock('../utils/auth', () => ({
   authenticateUser: vi.fn()
 }));
 
+vi.mock('../api/supabaseClient', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      signInWithPassword: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn()
+    }
+  }
+}));
+
+vi.mock('../db/dexieDB', () => ({
+  db: {
+    open: vi.fn().mockResolvedValue(undefined),
+    usuarios: { get: vi.fn() }
+  }
+}));
+
 const getUserById = (await import('../utils/auth')).getUserById as ReturnType<typeof vi.fn>;
 
 function TestUser() {

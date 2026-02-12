@@ -236,7 +236,7 @@ export interface RolePermission {
 }
 
 // Tipos de entidades que podem ter eventos de sincronização
-export type SyncEntity = 'fazenda' | 'raca' | 'categoria' | 'desmama' | 'matriz' | 'usuario' | 'audit' | 'notificacaoLida' | 'alertSettings' | 'appSettings' | 'rolePermission' | 'pesagem' | 'vacina' | 'confinamento' | 'confinamentoAnimal' | 'confinamentoPesagem' | 'confinamentoAlimentacao' | 'ocorrenciaAnimal';
+export type SyncEntity = 'fazenda' | 'raca' | 'categoria' | 'desmama' | 'matriz' | 'usuario' | 'audit' | 'notificacaoLida' | 'alertSettings' | 'appSettings' | 'rolePermission' | 'pesagem' | 'vacina' | 'confinamento' | 'confinamentoAnimal' | 'confinamentoPesagem' | 'confinamentoAlimentacao' | 'ocorrenciaAnimal' | 'animal';
 
 // Tipos de operações de sincronização
 export type SyncEventType = 'INSERT' | 'UPDATE' | 'DELETE';

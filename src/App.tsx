@@ -16,6 +16,7 @@ import TopBar from './components/TopBar';
 import { cleanupExpiredLocks } from './utils/recordLock';
 import { FazendaContextProvider } from './hooks/useFazendaContext';
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
+import ErrorPage from './components/ErrorPage';
 
 // Lazy loading das rotas para melhorar performance inicial
 const Login = lazy(() => import('./routes/Login'));
@@ -173,6 +174,7 @@ export default function App() {
                                 <Sincronizacao />
                               </ProtectedRoute>
                             } />
+                            <Route path="*" element={<ErrorPage variant="not_found" code={404} />} />
                             </Routes>
                           </Suspense>
                         </ErrorBoundary>

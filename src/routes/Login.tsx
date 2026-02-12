@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Icons } from '../utils/iconMapping';
 import { t } from '../i18n/pt-BR';
 import { useAuth } from '../hooks/useAuth';
@@ -11,7 +11,6 @@ import { getThemeClasses, getPrimaryButtonClass } from '../utils/themeHelpers';
 
 export default function Login() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, loading: authLoading, login } = useAuth();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
@@ -53,14 +52,12 @@ export default function Login() {
     verificarUsuarios();
   }, []);
 
-  // Verificar se já está autenticado
+  // Verificar se já está autenticado — sempre redirecionar para o dashboard
   useEffect(() => {
     if (!authLoading && user) {
-      // Usuário já autenticado, redirecionar
-      const from = (location.state as any)?.from?.pathname || '/dashboard';
-      navigate(from, { replace: true });
+      navigate('/dashboard', { replace: true });
     }
-  }, [user, authLoading, navigate, location]);
+  }, [user, authLoading, navigate]);
 
   // Redirecionar para setup se não há usuários (após verificação)
   useEffect(() => {
@@ -77,9 +74,8 @@ export default function Login() {
       const { email, password } = data;
       await login(email, password);
       
-      // Login bem-sucedido, redirecionar
-      const from = (location.state as any)?.from?.pathname || '/dashboard';
-      navigate(from, { replace: true });
+      // Login bem-sucedido — sempre redirecionar para o dashboard
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login');
     } finally {

@@ -2,6 +2,30 @@ import { db } from '../db/dexieDB';
 import { SyncEvent, SyncEventType, SyncEntity } from '../db/models';
 import { uuid } from './uuid';
 
+/**
+ * Verifica se há usuário logado (sessionStorage + Dexie). O sync usa getSupabaseForSync()
+ * que retorna o client quando há sessão Supabase Auth (auth.uid() no servidor).
+ */
+async function hasLoggedInUser(): Promise<boolean> {
+  try {
+    if (typeof sessionStorage === 'undefined') return false;
+    const userId = sessionStorage.getItem('gestor-fazenda-user-id');
+    if (!userId) {
+      console.warn('[Sync] sessionStorage sem gestor-fazenda-user-id. Faça login.');
+      return false;
+    }
+    const user = await db.usuarios.get(userId);
+    if (!user || !user.ativo) {
+      console.warn('[Sync] Usuário não encontrado ou inativo no Dexie:', userId);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('[Sync] hasLoggedInUser falhou:', e);
+    return false;
+  }
+}
+
 const MAX_TENTATIVAS = 5; // Máximo de tentativas antes de marcar como erro permanente
 const MAX_CONCURRENCY = 3; // Batches concorrentes (2-3 ideal)
 const BATCH_SIZE = 50; // Tamanho do lote para INSERT/UPDATE/DELETE
@@ -25,7 +49,8 @@ const tableMap: Record<SyncEntity, string> = {
   confinamentoAnimal: 'confinamento_animais_online',
   confinamentoPesagem: 'confinamento_pesagens_online',
   confinamentoAlimentacao: 'confinamento_alimentacao_online',
-  ocorrenciaAnimal: 'ocorrencia_animais_online'
+  ocorrenciaAnimal: 'ocorrencia_animais_online',
+  animal: 'animais_online'
 };
 
 // Campo de conflito para upsert (uuid ou id)
@@ -35,7 +60,7 @@ const uuidFieldMap: Record<SyncEntity, string> = {
   categoria: 'uuid',
   desmama: 'uuid',
   matriz: 'uuid',
-  usuario: 'id',
+  usuario: 'uuid',
   audit: 'uuid',
   notificacaoLida: 'id',
   alertSettings: 'id',
@@ -47,12 +72,14 @@ const uuidFieldMap: Record<SyncEntity, string> = {
   confinamentoAnimal: 'uuid',
   confinamentoPesagem: 'uuid',
   confinamentoAlimentacao: 'uuid',
-  ocorrenciaAnimal: 'uuid'
+  ocorrenciaAnimal: 'uuid',
+  animal: 'uuid'
 };
+
+const toSnake = (s: string) => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
 
 /** Converte keys do payload de camelCase para snake_case (Supabase). Remove synced/remoteId. id vira uuid quando for chave. */
 function payloadToServerSnake(payload: Record<string, unknown>, conflictField: string): Record<string, unknown> {
-  const toSnake = (s: string) => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(payload)) {
     if (k === 'synced' || k === 'remoteId') continue;
@@ -88,65 +115,146 @@ function payloadToServerAudit(payload: Record<string, unknown>): Record<string, 
   };
 }
 
-/** Converte payload local (camelCase) para formato do Supabase (snake_case) nas entidades de confinamento. Resolve FKs (uuid → remoteId). */
-async function payloadToServerConfinamento(entidade: SyncEntity, payload: Record<string, unknown>): Promise<Record<string, unknown> | null> {
-  const toSnake = (s: string) => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
-  const mapKeys = (obj: Record<string, unknown>, exclude?: Set<string>): Record<string, unknown> => {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj)) {
-      if (k === 'synced' || k === 'remoteId' || exclude?.has(k)) continue;
-      const key = k === 'id' ? 'uuid' : toSnake(k);
-      out[key] = v;
-    }
-    return out;
-  };
+function mapKeysConfinamento(obj: Record<string, unknown>, exclude?: Set<string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === 'synced' || k === 'remoteId' || exclude?.has(k)) continue;
+    const key = k === 'id' ? 'uuid' : toSnake(k);
+    out[key] = v;
+  }
+  return out;
+}
 
+/** Maps de FK para confinamento (uma leitura por batch, zero await no loop). */
+interface ConfinamentoFkMaps {
+  fazendas: Map<string, number | null>;
+  confinamentos: Map<string, number | null>;
+  confinamentoAnimais: Map<string, number | null>;
+}
+
+async function loadConfinamentoFkMaps(): Promise<ConfinamentoFkMaps> {
+  const [fazendasArr, confinamentosArr, vinculosArr] = await Promise.all([
+    db.fazendas.toArray(),
+    db.confinamentos.toArray(),
+    db.confinamentoAnimais.toArray()
+  ]);
+  return {
+    fazendas: new Map(fazendasArr.map(f => [f.id, f.remoteId ?? null])),
+    confinamentos: new Map(confinamentosArr.map(c => [c.id, c.remoteId ?? null])),
+    confinamentoAnimais: new Map(vinculosArr.map(v => [v.id, v.remoteId ?? null]))
+  };
+}
+
+/** Converte payload de confinamento usando maps pré-carregados (síncrono). */
+function payloadToServerConfinamentoWithMaps(
+  entidade: SyncEntity,
+  payload: Record<string, unknown>,
+  maps: ConfinamentoFkMaps
+): Record<string, unknown> | null {
   if (entidade === 'confinamento') {
-    const fazenda = await db.fazendas.get((payload.fazendaId as string) || '');
-    const fazendaIdRemote = fazenda?.remoteId ?? null;
+    const fazendaIdRemote = maps.fazendas.get((payload.fazendaId as string) || '');
     if (fazendaIdRemote == null && payload.fazendaId) return null;
-    // Exclui precoVendaKg até a coluna preco_venda_kg existir no Supabase (migration 058)
-    const base = mapKeys(payload as Record<string, unknown>, new Set(['fazendaId', 'precoVendaKg']));
+    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['fazendaId', 'precoVendaKg']));
     return { ...base, fazenda_id: fazendaIdRemote };
   }
-
   if (entidade === 'confinamentoAnimal') {
-    const confinamento = await db.confinamentos.get((payload.confinamentoId as string) || '');
-    const confinamentoIdRemote = confinamento?.remoteId ?? null;
+    const confinamentoIdRemote = maps.confinamentos.get((payload.confinamentoId as string) || '');
     if (confinamentoIdRemote == null && payload.confinamentoId) return null;
-    const base = mapKeys(payload as Record<string, unknown>, new Set(['confinamentoId']));
+    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoId']));
     return { ...base, confinamento_id: confinamentoIdRemote, animal_id: payload.animalId };
   }
-
   if (entidade === 'confinamentoPesagem') {
-    const vinculo = await db.confinamentoAnimais.get((payload.confinamentoAnimalId as string) || '');
-    const confinamentoAnimalIdRemote = vinculo?.remoteId ?? null;
+    const confinamentoAnimalIdRemote = maps.confinamentoAnimais.get((payload.confinamentoAnimalId as string) || '');
     if (confinamentoAnimalIdRemote == null && payload.confinamentoAnimalId) return null;
-    const base = mapKeys(payload as Record<string, unknown>, new Set(['confinamentoAnimalId']));
+    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoAnimalId']));
     return { ...base, confinamento_animal_id: confinamentoAnimalIdRemote };
   }
-
   if (entidade === 'confinamentoAlimentacao') {
-    const confinamento = await db.confinamentos.get((payload.confinamentoId as string) || '');
-    const confinamentoIdRemote = confinamento?.remoteId ?? null;
+    const confinamentoIdRemote = maps.confinamentos.get((payload.confinamentoId as string) || '');
     if (confinamentoIdRemote == null && payload.confinamentoId) return null;
-    const base = mapKeys(payload as Record<string, unknown>, new Set(['confinamentoId']));
+    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoId']));
     return { ...base, confinamento_id: confinamentoIdRemote };
   }
-
   if (entidade === 'ocorrenciaAnimal') {
-    const base = mapKeys(payload as Record<string, unknown>, new Set(['confinamentoAnimalId']));
+    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoAnimalId']));
     const out: Record<string, unknown> = { ...base, animal_id: payload.animalId };
     if (payload.confinamentoAnimalId) {
-      const vinculo = await db.confinamentoAnimais.get(payload.confinamentoAnimalId as string);
-      const confinamentoAnimalIdRemote = vinculo?.remoteId ?? null;
+      const confinamentoAnimalIdRemote = maps.confinamentoAnimais.get(payload.confinamentoAnimalId as string);
       if (confinamentoAnimalIdRemote == null) return null;
       out.confinamento_animal_id = confinamentoAnimalIdRemote;
     }
     return out;
   }
-
   return null;
+}
+
+/** Maps de FK para conversão de animais em batch (uma leitura por batch, zero await no loop). */
+interface AnimalFkMaps {
+  tipos: Map<string, number | null>;
+  status: Map<string, number | null>;
+  origens: Map<string, number | null>;
+  fazendas: Map<string, number | null>;
+  racas: Map<string, number | null>;
+}
+
+/** Carrega todas as tabelas de FK de animais de uma vez (motor batch). */
+async function loadAnimalFkMaps(): Promise<AnimalFkMaps> {
+  const [tiposArr, statusArr, origensArr, fazendasArr, racasArr] = await Promise.all([
+    db.tiposAnimal.toArray(),
+    db.statusAnimal.toArray(),
+    db.origens.toArray(),
+    db.fazendas.toArray(),
+    db.racas.toArray()
+  ]);
+  return {
+    tipos: new Map(tiposArr.map(t => [t.id, t.remoteId ?? null])),
+    status: new Map(statusArr.map(s => [s.id, s.remoteId ?? null])),
+    origens: new Map(origensArr.map(o => [o.id, o.remoteId ?? null])),
+    fazendas: new Map(fazendasArr.map(f => [f.id, f.remoteId ?? null])),
+    racas: new Map(racasArr.map(r => [r.id, r.remoteId ?? null]))
+  };
+}
+
+/** Converte um payload local de animal para animais_online usando maps pré-carregados (síncrono, zero await). */
+function payloadToServerAnimalWithMaps(
+  payload: Record<string, unknown>,
+  maps: AnimalFkMaps
+): Record<string, unknown> | null {
+  const fazendaId = maps.fazendas.get((payload.fazendaId as string) || '');
+  if (payload.fazendaId != null && (fazendaId === undefined || fazendaId === null)) return null;
+  const racaId = (payload.racaId as string) ? maps.racas.get(payload.racaId as string) ?? null : null;
+  const fazendaOrigemId = (payload.fazendaOrigemId as string)
+    ? maps.fazendas.get(payload.fazendaOrigemId as string) ?? null
+    : null;
+  return {
+    uuid: payload.id,
+    brinco: payload.brinco,
+    nome: payload.nome ?? null,
+    tipo_id: maps.tipos.get((payload.tipoId as string) || '') ?? null,
+    raca_id: racaId,
+    sexo: payload.sexo ?? null,
+    status_id: maps.status.get((payload.statusId as string) || '') ?? null,
+    data_nascimento: payload.dataNascimento ?? null,
+    data_cadastro: payload.dataCadastro ?? null,
+    data_entrada: payload.dataEntrada ?? null,
+    data_saida: payload.dataSaida ?? null,
+    origem_id: maps.origens.get((payload.origemId as string) || '') ?? null,
+    fazenda_id: fazendaId ?? null,
+    fazenda_origem_id: fazendaOrigemId,
+    proprietario_anterior: payload.proprietarioAnterior ?? null,
+    matriz_id: payload.matrizId ?? null,
+    reprodutor_id: payload.reprodutorId ?? null,
+    valor_compra: payload.valorCompra ?? null,
+    valor_venda: payload.valorVenda ?? null,
+    pelagem: payload.pelagem ?? null,
+    peso_atual: payload.pesoAtual ?? null,
+    lote: payload.lote ?? null,
+    categoria: payload.categoria ?? null,
+    obs: payload.obs ?? null,
+    created_at: payload.createdAt ?? null,
+    updated_at: payload.updatedAt ?? null,
+    deleted_at: payload.deletedAt ?? null
+  };
 }
 
 /**
@@ -249,8 +357,28 @@ async function processDeleteBatch(
     return resultados;
   }
 
+  const sessionOk = await hasLoggedInUser();
+  if (!sessionOk) {
+    const msg = 'Sessão JWT não disponível. Faça login novamente e tente sincronizar.';
+    const comRemoteId = events.filter(e => e.remoteId != null);
+    await markBatchError(comRemoteId, msg, now);
+    resultados.falhas = ids.length;
+    comRemoteId.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    return resultados;
+  }
+
+  const { getSupabaseForSync } = await import('../api/supabaseSyncClient');
+  const supabase = await getSupabaseForSync();
+  if (!supabase) {
+    const msg = 'Sessão não disponível para sync. Faça login com Supabase Auth e tente novamente.';
+    const comRemoteId = events.filter(e => e.remoteId != null);
+    await markBatchError(comRemoteId, msg, now);
+    resultados.falhas = ids.length;
+    comRemoteId.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    return resultados;
+  }
+
   try {
-    const { supabase } = await import('../api/supabaseClient');
     const table = tableMap[events[0].entidade];
     if (!table) {
       await markBatchError(events.filter(e => e.remoteId != null), `Tabela não encontrada: ${events[0].entidade}`, now);
@@ -352,11 +480,33 @@ async function processUpsertBatch(
   let payloads: Record<string, unknown>[];
   let eventosValidos: SyncEvent[];
 
-  if (isConfinamentoEntity) {
+  if (entidade === 'animal') {
+    const maps = await loadAnimalFkMaps();
     const converted: { event: SyncEvent; payload: Record<string, unknown> }[] = [];
     const falhas: SyncEvent[] = [];
     for (const { event, payload } of parsed) {
-      const serverPayload = await payloadToServerConfinamento(entidade, payload as Record<string, unknown>);
+      const serverPayload = payloadToServerAnimalWithMaps(payload as Record<string, unknown>, maps);
+      if (serverPayload != null) {
+        converted.push({ event, payload: serverPayload });
+      } else {
+        falhas.push(event);
+      }
+    }
+    if (falhas.length > 0) {
+      const msg = 'FK não resolvida (fazenda/tipo/status/origem ainda não sincronizada?). Sincronize fazendas e cadastros primeiro.';
+      await markBatchError(falhas, msg, now);
+      resultados.falhas = falhas.length;
+      falhas.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    }
+    payloads = converted.map(c => c.payload);
+    eventosValidos = converted.map(c => c.event);
+    if (payloads.length === 0) return resultados;
+  } else if (isConfinamentoEntity) {
+    const confMaps = await loadConfinamentoFkMaps();
+    const converted: { event: SyncEvent; payload: Record<string, unknown> }[] = [];
+    const falhas: SyncEvent[] = [];
+    for (const { event, payload } of parsed) {
+      const serverPayload = payloadToServerConfinamentoWithMaps(entidade, payload as Record<string, unknown>, confMaps);
       if (serverPayload != null) {
         converted.push({ event, payload: serverPayload });
       } else {
@@ -392,19 +542,52 @@ async function processUpsertBatch(
   const payloadsToSend = Array.from(byConflictKey.values());
   if (payloadsToSend.length === 0) return resultados;
 
-  try {
-    const { supabase } = await import('../api/supabaseClient');
+  // Usuário logado? Sync usa client com JWT explícito (getSupabaseForSync), não o client global.
+  const sessionOk = await hasLoggedInUser();
+  if (!sessionOk) {
+    const msg = 'Sessão JWT não disponível. Faça login novamente e tente sincronizar.';
+    await markBatchError(eventosValidos, msg, now);
+    resultados.falhas = eventosValidos.length;
+    eventosValidos.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    return resultados;
+  }
 
-    const upsertConflict = isRolePermission ? ['role', 'permission'] : conflictField;
+  const { getSupabaseForSync } = await import('../api/supabaseSyncClient');
+  const supabase = await getSupabaseForSync();
+  if (!supabase) {
+    const msg = 'Sessão não disponível para sync. Faça login com Supabase Auth e tente novamente.';
+    await markBatchError(eventosValidos, msg, now);
+    resultados.falhas = eventosValidos.length;
+    eventosValidos.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    return resultados;
+  }
+
+  if (entidade === 'audit') {
+    console.info('[Sync] Enviando upsert para audits_online (client com JWT)');
+  }
+
+  try {
+    const upsertConflict = isRolePermission ? 'role,permission' : conflictField;
+    const selectCols = isRolePermission ? 'id, uuid, role, permission' : 'id, uuid';
     const { data: upserted, error } = await supabase
       .from(table)
       .upsert(payloadsToSend, { onConflict: upsertConflict })
-      .select('id, uuid, role, permission');
+      .select(selectCols);
 
     if (error) {
-      await markBatchError(eventosValidos, error.message || 'Erro no upsert', now);
+      const is401 = error.message?.includes('401') || (error as any).status === 401;
+      const isRls = (error as any).code === '42501' || error.message?.includes('row-level security');
+      if (is401 || entidade === 'audit') {
+        console.warn('[Sync] Erro no upsert', table, ':', error.code, error.message, error);
+      }
+      const msg = is401
+        ? 'Não autorizado (401). Faça login novamente com Supabase Auth.'
+        : isRls
+          ? 'RLS bloqueou a escrita (auth.uid() nulo). Faça login com Supabase Auth e sincronize de novo.'
+          : (error.message || 'Erro no upsert');
+      await markBatchError(eventosValidos, msg, now);
       resultados.falhas = eventosValidos.length;
-      eventosValidos.forEach(e => resultados.erros.push({ event: e, error: error.message || 'Erro' }));
+      eventosValidos.forEach(e => resultados.erros.push({ event: e, error: msg }));
       return resultados;
     }
 
@@ -486,6 +669,7 @@ function getLocalTableForEntity(entidade: SyncEntity): any {
     case 'confinamentoPesagem': return db.confinamentoPesagens;
     case 'confinamentoAlimentacao': return db.confinamentoAlimentacao;
     case 'ocorrenciaAnimal': return db.ocorrenciaAnimais;
+    case 'animal': return db.animais;
     default: return null;
   }
 }
@@ -527,6 +711,8 @@ export async function processSyncQueue(): Promise<{
   if (pendentes.length === 0) {
     return { processados: 0, sucesso: 0, falhas: 0, erros: [] };
   }
+
+  await hasLoggedInUser();
 
   // Filtrar eventos que excederam tentativas
   const elegiveis = pendentes.filter(e => e.tentativas < MAX_TENTATIVAS);
@@ -803,6 +989,15 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
     }
   } catch (err: any) {
     result.errors.push(`rolePermissions: ${err?.message || err}`);
+  }
+
+  try {
+    const animais = await db.animais.toArray();
+    for (const a of animais.filter((r: any) => !r.deletedAt && r.synced === false)) {
+      await addEvent('animal', a.id, a);
+    }
+  } catch (err: any) {
+    result.errors.push(`animais: ${err?.message || err}`);
   }
 
   try {

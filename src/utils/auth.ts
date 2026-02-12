@@ -53,6 +53,33 @@ export async function createUser(data: {
   };
 
   await db.usuarios.add(usuario);
+
+  // Criar usuário no Supabase Auth (auth.users) para login com signInWithPassword e RLS
+  try {
+    const { supabase } = await import('../api/supabaseClient');
+    const { error } = await supabase.auth.signUp({
+      email: data.email.toLowerCase(),
+      password: data.senha,
+      options: { data: { nome: data.nome } },
+    });
+    if (error && !error.message.includes('already been registered')) {
+      console.warn('[Auth] signUp Supabase Auth:', error.message);
+    }
+  } catch (e) {
+    console.warn('[Auth] Erro ao criar usuário no Supabase Auth:', e);
+  }
+
+  // Enviar para usuarios_online: criar evento na fila e processar (se online)
+  try {
+    const { createSyncEvent, processSyncQueue } = await import('./syncEvents');
+    await createSyncEvent('UPDATE', 'usuario', usuario.id, usuario);
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      await processSyncQueue();
+    }
+  } catch (e) {
+    console.warn('[Auth] Erro ao enfileirar/enviar usuário para usuarios_online:', e);
+  }
+
   return usuario;
 }
 

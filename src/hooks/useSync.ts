@@ -5,23 +5,22 @@ import { useAppSettings } from './useAppSettings';
 import { syncAll } from '../api/syncService';
 
 /**
- * Hook para sincronização automática
- * IMPORTANTE: Só sincroniza outras tabelas (não usuários) após o usuário estar logado
- * A sincronização de usuários deve ser feita antes do login (em Login.tsx e SetupInicial.tsx)
+ * Hook para sincronização automática.
+ * Conforme doc: sync ao abrir o app, quando volta online (evento "online") e a cada intervalo.
+ * IMPORTANTE: Só sincroniza outras tabelas (não usuários) após o usuário estar logado.
+ * A sincronização de usuários deve ser feita antes do login (em Login.tsx e SetupInicial.tsx).
  */
 export default function useSync() {
   const online = useOnline();
-  const { user } = useAuth(); // Verificar se usuário está logado
-  const { appSettings } = useAppSettings(); // Obter intervalo de sincronização das configurações
+  const { user, isOfflineLogin } = useAuth();
+  const { appSettings } = useAppSettings();
   const ref = useRef<number | null>(null);
-  
-  // Converter segundos para milissegundos
+
   const intervalMs = (appSettings.intervaloSincronizacao || 30) * 1000;
 
   useEffect(() => {
-    // Só sincronizar se estiver online E usuário estiver logado
-    // A sincronização de usuários é feita separadamente antes do login
-    if (!online || !user) {
+    // Não sincronizar: sem conexão, sem usuário ou login offline (Dexie) — sync exige sessão Supabase Auth
+    if (!online || !user || isOfflineLogin) {
       if (ref.current) {
         window.clearInterval(ref.current);
         ref.current = null;
@@ -49,5 +48,5 @@ export default function useSync() {
         ref.current = null;
       }
     };
-  }, [online, user, intervalMs]);
+  }, [online, user, isOfflineLogin, intervalMs]);
 }
