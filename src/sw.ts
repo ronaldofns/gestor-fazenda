@@ -7,7 +7,15 @@ declare let self: ServiceWorkerGlobalScope;
 precacheAndRoute(self.__WB_MANIFEST || []);
 cleanupOutdatedCaches();
 
-self.addEventListener('install', () => self.skipWaiting());
+// Não chamar skipWaiting() no install — aguardar o usuário clicar em "Atualizar" no PWAUpdatePrompt
+self.addEventListener('install', () => {});
+
+self.addEventListener('message', (event: ExtendableMessageEvent) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('activate', () => self.clients.claim());
 
 // Notificações push: exibir quando o app estiver em segundo plano ou fechado

@@ -33,14 +33,8 @@ export default function PWAUpdatePrompt() {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed') {
                 if (navigator.serviceWorker.controller) {
-                  // Novo service worker instalado e há um controlador ativo (página já carregada)
+                  // Novo service worker instalado — mostrar apenas o card com botão "Atualizar" (sem toast no topo)
                   setNeedRefresh(true);
-                  showToast({
-                    type: 'info',
-                    title: 'Nova versão disponível',
-                    message: 'Uma nova versão do aplicativo está disponível. Clique em "Atualizar" para aplicar.',
-                    duration: 10000,
-                  });
                 } else {
                   // Primeira instalação - app pronto para offline
                   setOfflineReady(true);
@@ -71,17 +65,24 @@ export default function PWAUpdatePrompt() {
 
   const update = () => {
     if (registration?.waiting) {
-      // Enviar mensagem para o service worker esperando para ativar
+      // Enviar mensagem para o service worker esperando ativar (sw.ts escuta SKIP_WAITING e chama skipWaiting())
       registration.waiting.postMessage({ type: 'SKIP_WAITING' });
       // A página será recarregada automaticamente pelo evento 'controllerchange'
+      close();
     } else if (registration) {
-      // Forçar atualização e recarregar
+      // Fallback: sem worker em waiting (ex.: já ativou), forçar update e recarregar
       registration.update();
+      close();
       setTimeout(() => {
         window.location.reload();
-      }, 500);
+      }, 800);
+    } else {
+      showToast({
+        type: 'warning',
+        title: 'Atualização',
+        message: 'Service worker ainda não está pronto. Tente novamente em instantes.',
+      });
     }
-    close();
   };
 
   if (!needRefresh && !offlineReady) {
