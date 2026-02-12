@@ -87,6 +87,14 @@ export default function App() {
     return () => window.removeEventListener('sidebarToggle', handleSidebarToggle);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'sidebar-collapsed',
+      sidebarCollapsed
+    );
+  }, [sidebarCollapsed]);
+  
+
   return (
     <FazendaContextProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-slate-950">

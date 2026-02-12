@@ -777,18 +777,18 @@ export async function processSyncQueue(): Promise<{
 
   for (const wave of waves) {
     if (wave.length === 0) continue;
-    let index = 0;
-    const worker = async (): Promise<void> => {
-      let i: number;
+  let index = 0;
+  const worker = async (): Promise<void> => {
+    let i: number;
       while ((i = index++) < wave.length) {
         const batch = wave[i];
-        const r = await processBatch(batch, now);
-        resultados.processados += batch.length;
-        resultados.sucesso += r.sucesso;
-        resultados.falhas += r.falhas;
-        resultados.erros.push(...r.erros);
-      }
-    };
+      const r = await processBatch(batch, now);
+      resultados.processados += batch.length;
+      resultados.sucesso += r.sucesso;
+      resultados.falhas += r.falhas;
+      resultados.erros.push(...r.erros);
+    }
+  };
     await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENCY, wave.length) }, worker));
   }
 

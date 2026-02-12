@@ -130,6 +130,8 @@ export default function Sidebar() {
     ...(hasPermission('gerar_relatorios') ? [{ path: '/relatorios', label: 'Relatórios', icon: Icons.BarChart3 }] : []),
     ...((hasPermission('ver_usuarios') || hasPermission('gerenciar_usuarios')) ? [{ path: '/usuarios', label: 'Usuários', icon: Icons.Users }] : []),
     ...(isAdmin() ? [{ path: '/permissoes', label: 'Permissões', icon: Icons.Shield }] : []),
+    { path: '/perfil', label: 'Meu Perfil', icon: Icons.User },
+    { path: '/configuracoes', label: 'Configurações', icon: Icons.Settings },
   ];
 
       const isActive = (path: string) => {

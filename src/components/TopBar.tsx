@@ -60,6 +60,16 @@ const routeMetadata: Record<string, { title: string; subtitle: string; icon?: ke
     title: 'Sincronização',
     subtitle: 'Status e fila de sincronização',
     icon: 'RefreshCw'
+  },
+  '/perfil': {
+    title: 'Meu Perfil',
+    subtitle: 'Dados e preferências da sua conta',
+    icon: 'User'
+  },
+  '/configuracoes': {
+    title: 'Configurações',
+    subtitle: 'Preferências do aplicativo',
+    icon: 'Settings'
   }
 };
 

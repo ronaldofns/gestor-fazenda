@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Icons } from '../utils/iconMapping';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses, getTitleTextClass, getPrimaryBgClass } from '../utils/themeHelpers';
 import { showToast } from '../utils/toast';
 
 export default function PWAUpdatePrompt() {
-  const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [needRefresh, setNeedRefresh] = useState(false);
   const [offlineReady, setOfflineReady] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
@@ -92,7 +87,7 @@ export default function PWAUpdatePrompt() {
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-sm">
       {offlineReady && !needRefresh && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-500/40 rounded-lg shadow-lg p-4 mb-2">
+        <div className="bg-green-600 dark:bg-green-900/20 border border-green-700 dark:border-green-500/40 rounded-lg shadow-lg p-4 mb-2">
           <div className="flex items-start">
             <Icons.CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
             <div className="ml-3 flex-1">
@@ -111,26 +106,26 @@ export default function PWAUpdatePrompt() {
       )}
 
       {needRefresh && (
-        <div className={`${getThemeClasses(primaryColor, 'bg-light')} border ${getThemeClasses(primaryColor, 'border-light')} rounded-lg shadow-lg p-4`}>
+        <div className="rounded-xl shadow-2xl ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 bg-blue-600 dark:bg-blue-700 p-4 border-0">
           <div className="flex items-start">
-            <Icons.Download className={`w-5 h-5 ${getThemeClasses(primaryColor, 'text')} mt-0.5 flex-shrink-0`} />
+            <Icons.Download className="w-5 h-5 text-white mt-0.5 flex-shrink-0" />
             <div className="ml-3 flex-1">
-              <p className={`text-sm font-medium ${getTitleTextClass(primaryColor)} mb-2`}>
+              <p className="text-sm font-bold text-white mb-1">
                 Nova versão disponível!
               </p>
-              <p className={`text-xs ${getThemeClasses(primaryColor, 'text')} mb-3`}>
-                Uma nova versão do aplicativo está disponível. Clique em "Atualizar" para aplicar as mudanças.
+              <p className="text-xs text-blue-100 mb-3">
+                Clique em &quot;Atualizar&quot; para aplicar as mudanças.
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={update}
-                  className={`px-3 py-1.5 text-xs font-medium text-white ${getPrimaryButtonClass(primaryColor)} rounded-md transition-colors`}
+                  className="px-4 py-2 text-sm font-semibold text-blue-600 bg-white rounded-lg shadow-md hover:bg-blue-50 transition-colors"
                 >
                   Atualizar
                 </button>
                 <button
                   onClick={close}
-                  className={`px-3 py-1.5 text-xs font-medium ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'bg-light')} hover:${getThemeClasses(primaryColor, 'hover-bg')} dark:hover:${getPrimaryBgClass(primaryColor)}/60 rounded-md transition-colors`}
+                  className="px-4 py-2 text-sm font-medium text-white/90 hover:text-white border border-white/40 rounded-lg transition-colors"
                 >
                   Depois
                 </button>
@@ -138,7 +133,7 @@ export default function PWAUpdatePrompt() {
             </div>
             <button
               onClick={close}
-              className={`ml-4 ${getThemeClasses(primaryColor, 'text')} ${getThemeClasses(primaryColor, 'hover-text')}`}
+              className="ml-4 p-1 rounded-md text-white/80 hover:text-white hover:bg-white/20 transition-colors"
             >
               <Icons.X className="w-4 h-4" />
             </button>
