@@ -1274,56 +1274,86 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     endSyncStep("Pull Animais", 0);
   }
 
-  // Pull genealogias (paginação + incremental)
+  // PULL GENEALOGIAS (robusto, idempotente, definitivo)
+
   try {
-    const { getLastPulledAt: getCheckpoint, setLastPulledAt: setCheckpoint } =
+    const { getLastPulledAt, setLastPulledAt } =
       await import("../utils/syncCheckpoints");
 
-    const lastPulledGenealogias = getCheckpoint("genealogias_online");
+    const lastPulled = getLastPulledAt("genealogias_online");
 
     const servGenealogias = await fetchAllPaginated<any>(
       "genealogias_online",
       {
         orderBy: "id",
-        updatedAtField: lastPulledGenealogias ? "updated_at" : undefined,
-        lastPulledAt: lastPulledGenealogias || undefined,
+        updatedAtField: lastPulled ? "updated_at" : undefined,
+        lastPulledAt: lastPulled || undefined,
       },
       syncClient,
     );
 
+    // ==============================
+    // MAPAS LOCAIS (dependências)
+    // ==============================
+    const animaisLocais = await db.animais.toArray();
+    const animaisMap = new Map(animaisLocais.map((a) => [a.remoteId, a]));
+
     const tiposLocais = await db.tiposAnimal.toArray();
     const tiposLocaisMap = new Map(tiposLocais.map((t) => [t.remoteId, t]));
 
-    const todasGenealogiasLocais = await db.genealogias.toArray();
-    const genealogiasLocaisMap = new Map(
-      todasGenealogiasLocais.map((g) => [g.id, g]),
-    );
+    const genealogiasLocais = await db.genealogias.toArray();
+    const genealogiasMap = new Map(genealogiasLocais.map((g) => [g.id, g]));
 
     const genealogiasParaInserir: any[] = [];
 
-    if (servGenealogias && servGenealogias.length > 0) {
+    // ==============================
+    // PULL PRINCIPAL
+    // ==============================
+    if (servGenealogias?.length) {
       for (const s of servGenealogias) {
-        const local = genealogiasLocaisMap.get(s.uuid);
+        const local = genealogiasMap.get(s.uuid);
 
+        // 🔒 Resolver dependências locais
+        const animalLocal = animaisMap.get(s.animal_id);
+        const matrizLocal = animaisMap.get(s.matriz_id);
+        const reprodutorLocal = s.reprodutor_id
+          ? animaisMap.get(s.reprodutor_id)
+          : null;
+
+        // ⛔ NÃO cria genealogia sem dependências
+        if (!animalLocal || !matrizLocal) {
+          console.warn(
+            `⏸️ Genealogia ${s.uuid} ignorada (animal/matriz ausente localmente)`,
+          );
+          continue;
+        }
+
+        // =====================================
+        // PROTEÇÃO: alteração local mais recente
+        // =====================================
         if (local && !local.synced) {
           const servUpdated = s.updated_at
             ? new Date(s.updated_at).getTime()
             : 0;
+
           const localUpdated = local.updatedAt
             ? new Date(local.updatedAt).getTime()
             : 0;
 
-          const margemTimestamp = 1000;
-
-          if (localUpdated >= servUpdated - margemTimestamp) {
+          if (localUpdated >= servUpdated - 1000) {
             await db.genealogias.update(local.id, {
               synced: true,
               remoteId: s.id,
             });
+
+            console.log(`✅ Genealogia ${s.uuid} reconciliada`);
             continue;
           }
         }
 
+        // =====================================
+        // INSERÇÃO / ATUALIZAÇÃO
+        // =====================================
         if (
           !local ||
           !local.remoteId ||
@@ -1336,10 +1366,10 @@ export async function pullUpdates(syncClient: SupabaseClient) {
 
           genealogiasParaInserir.push({
             id: s.uuid,
-            animalId: s.animal_id,
-            matrizId: s.matriz_id,
-            tipoMatrizId: tipoMatrizLocal?.id,
-            reprodutorId: s.reprodutor_id,
+            animalId: animalLocal.id,
+            matrizId: matrizLocal.id,
+            reprodutorId: reprodutorLocal?.id ?? null,
+            tipoMatrizId: tipoMatrizLocal?.id ?? null,
             avoMaterna: s.avo_materna,
             avoPaterna: s.avo_paterna,
             avoPaternoMaterno: s.avo_materno,
@@ -1356,22 +1386,31 @@ export async function pullUpdates(syncClient: SupabaseClient) {
       }
     }
 
-    // 🧱 Persistir alterações do servidor
+    // ==============================
+    // PERSISTIR DADOS DO SERVIDOR
+    // ==============================
     if (genealogiasParaInserir.length > 0) {
       await db.genealogias.bulkPut(genealogiasParaInserir);
     }
 
-    // 🔧 RECONCILIAÇÃO FINAL — SEMPRE EXECUTA
-    const genealogiasPendentes = await db.genealogias
+    // ==============================
+    // 🔧 RECONCILIAÇÃO FINAL (UUID)
+    // ==============================
+    const pendentes = await db.genealogias
       .filter((g) => g.synced === false && !g.deletedAt)
       .toArray();
 
-    for (const g of genealogiasPendentes) {
-      const { data } = await syncClient
+    for (const g of pendentes) {
+      const { data, error } = await syncClient
         .from("genealogias_online")
         .select("id, updated_at")
         .eq("uuid", g.id)
         .maybeSingle();
+
+      if (error) {
+        console.error("Erro ao reconciliar genealogia:", g.id, error);
+        continue;
+      }
 
       if (data) {
         await db.genealogias.update(g.id, {
@@ -1384,7 +1423,10 @@ export async function pullUpdates(syncClient: SupabaseClient) {
       }
     }
 
-    const maxUpdatedGenealogias = servGenealogias?.length
+    // ==============================
+    // CHECKPOINT
+    // ==============================
+    const maxUpdated = servGenealogias?.length
       ? servGenealogias.reduce(
           (max, g) =>
             g.updated_at && (!max || g.updated_at > max) ? g.updated_at : max,
@@ -1392,10 +1434,11 @@ export async function pullUpdates(syncClient: SupabaseClient) {
         )
       : null;
 
-    if (maxUpdatedGenealogias)
-      setCheckpoint("genealogias_online", maxUpdatedGenealogias);
+    if (maxUpdated) {
+      setLastPulledAt("genealogias_online", maxUpdated);
+    }
   } catch (err) {
-    console.error("Erro ao fazer pull de genealogias:", err);
+    console.error("❌ Erro no pull de genealogias:", err);
   }
 
   // ========================================
