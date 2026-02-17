@@ -468,6 +468,12 @@ export default function Sincronizacao() {
 
     try {
       // Genealogias
+      const pendentes = await db.genealogias
+        .filter((g) => g.synced === false)
+        .toArray();
+
+      console.log("🧬 Genealogias pendentes:", pendentes);
+
       if (db.genealogias) {
         const genealogias = await db.genealogias.toArray();
         const pendGenealogias = genealogias.filter(
