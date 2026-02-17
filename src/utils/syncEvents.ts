@@ -52,10 +52,10 @@ const tableMap: Record<SyncEntity, string> = {
   vacina: "vacinacoes_online",
   confinamento: "confinamentos_online",
   confinamentoAnimal: "confinamento_animais_online",
-  // confinamentoPesagem removed - usar 'pesagem'
   confinamentoAlimentacao: "confinamento_alimentacao_online",
   ocorrenciaAnimal: "ocorrencia_animais_online",
   animal: "animais_online",
+  genealogia: "genealogias_online",
 };
 
 // Campo de conflito para upsert (uuid ou id)
@@ -79,6 +79,7 @@ const uuidFieldMap: Record<SyncEntity, string> = {
   confinamentoAlimentacao: "uuid",
   ocorrenciaAnimal: "uuid",
   animal: "uuid",
+  genealogia: "uuid",
 };
 
 const toSnake = (s: string) =>
@@ -831,15 +832,14 @@ function getLocalTableForEntity(entidade: SyncEntity): any {
       return db.confinamentos;
     case "confinamentoAnimal":
       return db.confinamentoAnimais;
-    case "confinamentoPesagem":
-      // Entidade removida: mapear para tabela de pesagens
-      return db.pesagens;
     case "confinamentoAlimentacao":
       return db.confinamentoAlimentacao;
     case "ocorrenciaAnimal":
       return db.ocorrenciaAnimais;
     case "animal":
       return db.animais;
+    case "genealogia":
+      return db.genealogias;
     default:
       return null;
   }
@@ -1093,11 +1093,17 @@ export async function createSyncEventsForPendingRecords(): Promise<{
   errors: string[];
 }> {
   const result = { created: 0, errors: [] as string[] };
+
+  // ===============================
+  // MAPA DE EVENTOS JÁ PENDENTES
+  // ===============================
   const todosEventos = await db.syncEvents.toArray();
   const pendentesPorEntidade = new Map<SyncEntity, Set<string>>();
+
   for (const e of todosEventos.filter((ev) => !ev.synced)) {
-    if (!pendentesPorEntidade.has(e.entidade))
+    if (!pendentesPorEntidade.has(e.entidade)) {
       pendentesPorEntidade.set(e.entidade, new Set());
+    }
     pendentesPorEntidade.get(e.entidade)!.add(e.entityId);
   }
 
@@ -1110,16 +1116,23 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     payload: any,
   ) => {
     if (hasPending(entidade, entityId)) return;
+
     try {
       await createSyncEvent("UPDATE", entidade, entityId, payload);
       result.created++;
-      pendentesPorEntidade.get(entidade)?.add(entityId) ??
-        pendentesPorEntidade.set(entidade, new Set([entityId]));
+
+      if (!pendentesPorEntidade.has(entidade)) {
+        pendentesPorEntidade.set(entidade, new Set());
+      }
+      pendentesPorEntidade.get(entidade)!.add(entityId);
     } catch (err: any) {
       result.errors.push(`${entidade} ${entityId}: ${err?.message || err}`);
     }
   };
 
+  // ===============================
+  // TABELAS PADRÃO
+  // ===============================
   const tables: {
     table: any;
     entity: SyncEntity;
@@ -1134,22 +1147,26 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     { table: db.vacinacoes, entity: "vacina" },
     { table: db.audits, entity: "audit" },
   ];
+
   for (const { table, entity, filter } of tables) {
     try {
       if (!table) continue;
       const rows = await table.toArray();
-      const pend = filter
+      const pendentes = filter
         ? rows.filter(filter)
         : rows.filter((r: any) => r.synced === false);
-      for (const r of pend) {
-        const id = (r as any).id;
-        if (id) await addEvent(entity, id, r);
+
+      for (const r of pendentes) {
+        if (r.id) await addEvent(entity, r.id, r);
       }
     } catch (err: any) {
       result.errors.push(`${entity}: ${err?.message || err}`);
     }
   }
 
+  // ===============================
+  // USUÁRIOS
+  // ===============================
   try {
     if (db.usuarios) {
       const usuarios = await db.usuarios.toArray();
@@ -1161,6 +1178,9 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`usuarios: ${err?.message || err}`);
   }
 
+  // ===============================
+  // NOTIFICAÇÕES
+  // ===============================
   try {
     if (db.notificacoesLidas) {
       const nl = await db.notificacoesLidas.toArray();
@@ -1172,10 +1192,13 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`notificacoesLidas: ${err?.message || err}`);
   }
 
+  // ===============================
+  // ALERT SETTINGS
+  // ===============================
   try {
     if (db.alertSettings) {
-      const as = await db.alertSettings.toArray();
-      for (const a of as.filter((r: any) => r.synced === false)) {
+      const settings = await db.alertSettings.toArray();
+      for (const a of settings.filter((r: any) => r.synced === false)) {
         await addEvent("alertSettings", a.id, a);
       }
     }
@@ -1183,10 +1206,13 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`alertSettings: ${err?.message || err}`);
   }
 
+  // ===============================
+  // APP SETTINGS
+  // ===============================
   try {
     if (db.appSettings) {
-      const app = await db.appSettings.toArray();
-      for (const a of app.filter((r: any) => r.synced === false)) {
+      const apps = await db.appSettings.toArray();
+      for (const a of apps.filter((r: any) => r.synced === false)) {
         await addEvent("appSettings", a.id, a);
       }
     }
@@ -1194,10 +1220,13 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`appSettings: ${err?.message || err}`);
   }
 
+  // ===============================
+  // ROLE PERMISSIONS
+  // ===============================
   try {
     if (db.rolePermissions) {
-      const rp = await db.rolePermissions.toArray();
-      for (const r of rp.filter((x: any) => x.synced === false)) {
+      const roles = await db.rolePermissions.toArray();
+      for (const r of roles.filter((x: any) => x.synced === false)) {
         await addEvent("rolePermission", r.id, r);
       }
     }
@@ -1205,6 +1234,9 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`rolePermissions: ${err?.message || err}`);
   }
 
+  // ===============================
+  // ANIMAIS
+  // ===============================
   try {
     const animais = await db.animais.toArray();
     for (const a of animais.filter(
@@ -1216,19 +1248,41 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`animais: ${err?.message || err}`);
   }
 
+  // ===============================
+  // GENEALOGIAS ✅ (NOVO)
+  // ===============================
+  try {
+    if (db.genealogias) {
+      const genealogias = await db.genealogias.toArray();
+      for (const g of genealogias.filter(
+        (r: any) => r.deletedAt == null && r.synced === false,
+      )) {
+        await addEvent("genealogia", g.id, g);
+      }
+    }
+  } catch (err: any) {
+    result.errors.push(`genealogias: ${err?.message || err}`);
+  }
+
+  // ===============================
+  // CONFINAMENTOS
+  // ===============================
   try {
     const confinamentos = await db.confinamentos.toArray();
-    for (const c of confinamentos.filter((r) => r.synced === false)) {
+    for (const c of confinamentos.filter((r: any) => r.synced === false)) {
       await addEvent("confinamento", c.id, c);
     }
   } catch (err: any) {
     result.errors.push(`confinamentos: ${err?.message || err}`);
   }
 
+  // ===============================
+  // CONFINAMENTO x ANIMAIS
+  // ===============================
   try {
     const vinculos = await db.confinamentoAnimais.toArray();
     for (const v of vinculos.filter(
-      (r) => r.deletedAt == null && r.synced === false,
+      (r: any) => r.deletedAt == null && r.synced === false,
     )) {
       await addEvent("confinamentoAnimal", v.id, v);
     }
@@ -1236,6 +1290,9 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`confinamentoAnimais: ${err?.message || err}`);
   }
 
+  // ===============================
+  // OCORRÊNCIAS
+  // ===============================
   try {
     if (db.ocorrenciaAnimais) {
       const ocorrencias = await db.ocorrenciaAnimais.toArray();
@@ -1249,19 +1306,13 @@ export async function createSyncEventsForPendingRecords(): Promise<{
     result.errors.push(`ocorrenciaAnimais: ${err?.message || err}`);
   }
 
-  try {
-    const pesagens = await db.pesagens.toArray();
-    for (const p of pesagens.filter((r) => r.synced === false)) {
-      await addEvent("pesagem", p.id, p);
-    }
-  } catch (err: any) {
-    result.errors.push(`pesagens: ${err?.message || err}`);
-  }
-
+  // ===============================
+  // ALIMENTAÇÃO
+  // ===============================
   try {
     const alimentacao = await db.confinamentoAlimentacao.toArray();
     for (const a of alimentacao.filter(
-      (r) => r.deletedAt == null && r.synced === false,
+      (r: any) => r.deletedAt == null && r.synced === false,
     )) {
       await addEvent("confinamentoAlimentacao", a.id, a);
     }

@@ -580,7 +580,7 @@ export default function Sincronizacao() {
             icone: Icons.Scale,
             detalhes: pendPesagens.map((p) => ({
               id: p.id,
-              data: p.dataPesagem || p.data,
+              data: p.dataPesagem,
               peso: p.peso,
             })),
           });
