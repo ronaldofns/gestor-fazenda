@@ -8,30 +8,38 @@
  * - cancelado: só vem do status gravado (decisão manual)
  */
 
-import type { Confinamento, ConfinamentoAnimal } from '../db/models';
+import type { Confinamento, ConfinamentoAnimal } from "../db/models";
 
-export type EstadoAnimalConfinamento = 'ativo' | 'finalizado';
-export type EstadoConfinamentoDerivado = 'ativo' | 'finalizado' | 'cancelado';
+export type EstadoAnimalConfinamento = "ativo" | "finalizado";
+export type EstadoConfinamentoDerivado = "ativo" | "finalizado" | "cancelado";
 
 /**
  * Estado do animal no confinamento (derivado só de dataSaida).
  */
-export function estadoAnimalConfinamento(v: ConfinamentoAnimal): EstadoAnimalConfinamento {
-  return v.dataSaida == null ? 'ativo' : 'finalizado';
+export function estadoAnimalConfinamento(
+  v: ConfinamentoAnimal,
+): EstadoAnimalConfinamento {
+  return v.dataSaida == null ? "ativo" : "finalizado";
 }
 
 /**
  * Estado do confinamento derivado dos vínculos.
  * cancelado: usa o status gravado no registro.
- * ativo/finalizado: derivado — pelo menos um animal sem dataSaida = ativo; todos com dataSaida = finalizado.
+ * ativo/finalizado: derivado — considera o status gravado:
+ *   - Se status='finalizado', retorna 'finalizado' mesmo sem animais
+ *   - Se status='ativo', retorna 'ativo' mesmo sem animais (permite adicionar)
  */
 export function estadoConfinamentoDerivado(
   confinamento: Confinamento,
-  vínculos: ConfinamentoAnimal[]
+  vínculos: ConfinamentoAnimal[],
 ): EstadoConfinamentoDerivado {
-  if (confinamento.status === 'cancelado') return 'cancelado';
-  const temAlgumAtivo = vínculos.some(v => v.dataSaida == null);
-  return temAlgumAtivo ? 'ativo' : 'finalizado';
+  if (confinamento.status === "cancelado") return "cancelado";
+
+  // Se confinamento foi marcado como finalizado manualmente, retorna finalizado
+  if (confinamento.status === "finalizado") return "finalizado";
+
+  // Caso contrário (status='ativo'), retorna ativo permitindo adicionar animais
+  return "ativo";
 }
 
 /**
@@ -39,9 +47,9 @@ export function estadoConfinamentoDerivado(
  */
 export function isConfinamentoAtivo(
   confinamento: Confinamento,
-  vínculos: ConfinamentoAnimal[]
+  vínculos: ConfinamentoAnimal[],
 ): boolean {
-  return estadoConfinamentoDerivado(confinamento, vínculos) === 'ativo';
+  return estadoConfinamentoDerivado(confinamento, vínculos) === "ativo";
 }
 
 /**
@@ -49,9 +57,9 @@ export function isConfinamentoAtivo(
  */
 export function isConfinamentoFinalizado(
   confinamento: Confinamento,
-  vínculos: ConfinamentoAnimal[]
+  vínculos: ConfinamentoAnimal[],
 ): boolean {
-  return estadoConfinamentoDerivado(confinamento, vínculos) === 'finalizado';
+  return estadoConfinamentoDerivado(confinamento, vínculos) === "finalizado";
 }
 
 /**
@@ -61,8 +69,8 @@ export function isConfinamentoFinalizado(
 export function estadoConfinamentoPorTotais(
   confinamento: Confinamento,
   totalAnimais: number,
-  ativos: number
+  ativos: number,
 ): EstadoConfinamentoDerivado {
-  if (confinamento.status === 'cancelado') return 'cancelado';
-  return ativos > 0 ? 'ativo' : 'finalizado';
+  if (confinamento.status === "cancelado") return "cancelado";
+  return ativos > 0 ? "ativo" : "finalizado";
 }

@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
 
 export interface ExportarPlanilhaParams {
   dados: Record<string, unknown>[];
@@ -11,42 +11,56 @@ export interface ExportarPlanilhaParams {
  */
 export function exportarParaExcel(params: ExportarPlanilhaParams) {
   try {
-    const { dados, nomeArquivo: baseNome, nomePlanilha = 'Dados' } = params;
+    const { dados, nomeArquivo: baseNome, nomePlanilha = "Dados" } = params;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(dados);
     XLSX.utils.book_append_sheet(wb, ws, nomePlanilha);
-    const nomeArquivo = baseNome.includes('.xlsx') ? baseNome : `${baseNome}.xlsx`;
+    const nomeArquivo = baseNome.includes(".xlsx")
+      ? baseNome
+      : `${baseNome}.xlsx`;
     XLSX.writeFile(wb, nomeArquivo);
   } catch (error) {
-    console.error('Erro ao exportar para Excel:', error);
-    throw new Error('Erro ao exportar para Excel. Tente novamente.');
+    console.error("Erro ao exportar para Excel:", error);
+    throw new Error("Erro ao exportar para Excel. Tente novamente.");
   }
 }
 
 /**
  * Exporta dados para CSV
  */
-export function exportarParaCSV(params: { dados: Record<string, unknown>[]; nomeArquivo: string }) {
+export function exportarParaCSV(params: {
+  dados: Record<string, unknown>[];
+  nomeArquivo: string;
+}) {
   try {
     const { dados, nomeArquivo: baseNome } = params;
     const headers = dados.length > 0 ? Object.keys(dados[0]) : [];
-    const linhas = dados.map(row => headers.map(h => String(row[h] ?? '').replace(/"/g, '""')));
-    const csvContent = [headers.join(','), ...linhas.map(linha => linha.map(c => `"${c}"`).join(','))].join('\n');
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const linhas = dados.map((row) =>
+      headers.map((h) => String(row[h] ?? "").replace(/"/g, '""')),
+    );
+    const csvContent = [
+      headers.join(","),
+      ...linhas.map((linha) => linha.map((c) => `"${c}"`).join(",")),
+    ].join("\n");
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    const nomeArquivo = baseNome.includes('.csv') ? baseNome : `${baseNome}.csv`;
-    link.setAttribute('href', url);
-    link.setAttribute('download', nomeArquivo);
-    link.style.visibility = 'hidden';
+    const nomeArquivo = baseNome.includes(".csv")
+      ? baseNome
+      : `${baseNome}.csv`;
+    link.setAttribute("href", url);
+    link.setAttribute("download", nomeArquivo);
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('Erro ao exportar para CSV:', error);
-    throw new Error('Erro ao exportar para CSV. Tente novamente.');
+    console.error("Erro ao exportar para CSV:", error);
+    throw new Error("Erro ao exportar para CSV. Tente novamente.");
   }
 }
 
@@ -55,8 +69,8 @@ export function exportarParaCSV(params: { dados: Record<string, unknown>[]; nome
  */
 export async function exportarBackupCompleto() {
   try {
-    const { db } = await import('../db/dexieDB');
-    
+    const { db } = await import("../db/dexieDB");
+
     const [
       fazendas,
       racas,
@@ -76,8 +90,7 @@ export async function exportarBackupCompleto() {
       genealogias,
       confinamentos,
       confinamentoAnimais,
-      confinamentoPesagens,
-      confinamentoAlimentacao
+      confinamentoAlimentacao,
     ] = await Promise.all([
       db.fazendas.toArray(),
       db.racas.toArray(),
@@ -97,12 +110,12 @@ export async function exportarBackupCompleto() {
       db.genealogias.toArray(),
       db.confinamentos.toArray(),
       db.confinamentoAnimais.toArray(),
-      db.confinamentoPesagens.toArray(),
-      db.confinamentoAlimentacao.toArray()
+      // confinamentoPesagens removed: pesagens já incluídas acima
+      db.confinamentoAlimentacao.toArray(),
     ]);
-    
+
     const backup = {
-      versao: '3.0',
+      versao: "3.0",
       dataBackup: new Date().toISOString(),
       dados: {
         fazendas,
@@ -123,8 +136,8 @@ export async function exportarBackupCompleto() {
         genealogias,
         confinamentos,
         confinamentoAnimais,
-        confinamentoPesagens,
-        confinamentoAlimentacao
+        // confinamentoPesagens removed
+        confinamentoAlimentacao,
       },
       metadados: {
         totalFazendas: fazendas.length,
@@ -145,62 +158,67 @@ export async function exportarBackupCompleto() {
         totalGenealogias: genealogias.length,
         totalConfinamentos: confinamentos.length,
         totalConfinamentoAnimais: confinamentoAnimais.length,
-        totalConfinamentoPesagens: confinamentoPesagens.length,
-        totalConfinamentoAlimentacao: confinamentoAlimentacao.length
-      }
+        // totalConfinamentoPesagens removed
+        totalConfinamentoAlimentacao: confinamentoAlimentacao.length,
+      },
     };
-    
+
     // Converter para JSON
     const jsonContent = JSON.stringify(backup, null, 2);
-    
+
     // Criar blob
-    const blob = new Blob([jsonContent], { type: 'application/json' });
-    
+    const blob = new Blob([jsonContent], { type: "application/json" });
+
     // Criar link de download
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    const dataBackup = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const dataBackup = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, 19);
     const nomeArquivo = `backup_gestor_fazenda_${dataBackup}.json`;
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', nomeArquivo);
-    link.style.visibility = 'hidden';
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", nomeArquivo);
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
+
     return {
       sucesso: true,
       nomeArquivo,
-      totalRegistros: backup.metadados
+      totalRegistros: backup.metadados,
     };
   } catch (error) {
-    console.error('Erro ao exportar backup:', error);
-    throw new Error('Erro ao exportar backup completo. Tente novamente.');
+    console.error("Erro ao exportar backup:", error);
+    throw new Error("Erro ao exportar backup completo. Tente novamente.");
   }
 }
 
 /**
  * Importa backup completo e restaura dados locais
  */
-export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean; mensagem: string; totais?: any }> {
+export async function importarBackup(
+  arquivo: File,
+): Promise<{ sucesso: boolean; mensagem: string; totais?: any }> {
   try {
     // Ler conteúdo do arquivo
     const conteudo = await arquivo.text();
     const backup = JSON.parse(conteudo);
 
     if (!backup.versao || !backup.dados) {
-      throw new Error('Arquivo de backup inválido ou corrompido');
+      throw new Error("Arquivo de backup inválido ou corrompido");
     }
 
-    const { db } = await import('../db/dexieDB');
+    const { db } = await import("../db/dexieDB");
     const { dados } = backup;
     const existentesAntes = {
       fazendas: await db.fazendas.count(),
       racas: await db.racas.count(),
       animais: await db.animais.count(),
-      confinamentos: await db.confinamentos.count()
+      confinamentos: await db.confinamentos.count(),
     };
     let importados = {
       fazendas: 0,
@@ -222,7 +240,7 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       confinamentos: 0,
       confinamentoAnimais: 0,
       confinamentoPesagens: 0,
-      confinamentoAlimentacao: 0
+      confinamentoAlimentacao: 0,
     };
 
     // Importar fazendas
@@ -276,7 +294,10 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       for (const desmama of dados.desmamas) {
         const existe = await db.desmamas.get(desmama.id);
         if (!existe) {
-          const normalizado = { ...desmama, animalId: desmama.animalId ?? (desmama as any).nascimentoId };
+          const normalizado = {
+            ...desmama,
+            animalId: desmama.animalId ?? (desmama as any).nascimentoId,
+          };
           if (normalizado.animalId) {
             await db.desmamas.put(normalizado);
             importados.desmamas++;
@@ -290,7 +311,10 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       for (const pesagem of dados.pesagens) {
         const existe = await db.pesagens.get(pesagem.id);
         if (!existe) {
-          const normalizado = { ...pesagem, animalId: pesagem.animalId ?? (pesagem as any).nascimentoId };
+          const normalizado = {
+            ...pesagem,
+            animalId: pesagem.animalId ?? (pesagem as any).nascimentoId,
+          };
           if (normalizado.animalId) {
             await db.pesagens.put(normalizado);
             importados.pesagens++;
@@ -304,7 +328,10 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       for (const vacinacao of dados.vacinacoes) {
         const existe = await db.vacinacoes.get(vacinacao.id);
         if (!existe) {
-          const normalizado = { ...vacinacao, animalId: vacinacao.animalId ?? (vacinacao as any).nascimentoId };
+          const normalizado = {
+            ...vacinacao,
+            animalId: vacinacao.animalId ?? (vacinacao as any).nascimentoId,
+          };
           if (normalizado.animalId) {
             await db.vacinacoes.put(normalizado);
             importados.vacinacoes++;
@@ -417,15 +444,7 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
         }
       }
     }
-    if (Array.isArray(dados.confinamentoPesagens)) {
-      for (const item of dados.confinamentoPesagens) {
-        const existe = await db.confinamentoPesagens.get(item.id);
-        if (!existe) {
-          await db.confinamentoPesagens.put(item);
-          importados.confinamentoPesagens++;
-        }
-      }
-    }
+    // Ignorar dados.confinamentoPesagens: agora usamos apenas `pesagens` gerais
     if (Array.isArray(dados.confinamentoAlimentacao)) {
       for (const item of dados.confinamentoAlimentacao) {
         const existe = await db.confinamentoAlimentacao.get(item.id);
@@ -436,33 +455,38 @@ export async function importarBackup(arquivo: File): Promise<{ sucesso: boolean;
       }
     }
 
-    const totalImportado = Object.values(importados).reduce((acc, val) => acc + val, 0);
-    
+    const totalImportado = Object.values(importados).reduce(
+      (acc, val) => acc + val,
+      0,
+    );
+
     if (totalImportado === 0) {
       return {
         sucesso: true,
-        mensagem: 'Backup válido, mas todos os dados já existem no sistema',
-        totais: { existentesAntes, importados }
+        mensagem: "Backup válido, mas todos os dados já existem no sistema",
+        totais: { existentesAntes, importados },
       };
     }
 
     return {
       sucesso: true,
       mensagem: `Backup importado com sucesso! ${totalImportado} registros adicionados`,
-      totais: { existentesAntes, importados }
+      totais: { existentesAntes, importados },
     };
   } catch (error) {
-    console.error('Erro ao importar backup:', error);
+    console.error("Erro ao importar backup:", error);
     if (error instanceof SyntaxError) {
       return {
         sucesso: false,
-        mensagem: 'Erro: Arquivo JSON inválido'
+        mensagem: "Erro: Arquivo JSON inválido",
       };
     }
     return {
       sucesso: false,
-      mensagem: error instanceof Error ? error.message : 'Erro desconhecido ao importar backup'
+      mensagem:
+        error instanceof Error
+          ? error.message
+          : "Erro desconhecido ao importar backup",
     };
   }
 }
-

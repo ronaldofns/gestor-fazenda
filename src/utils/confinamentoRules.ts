@@ -1,15 +1,15 @@
 /**
  * Regras de Negócio do Módulo de Confinamento
- * 
+ *
  * Regras importantes:
  * 1. Animal só pode ter 1 confinamento ativo
  * 2. Encerrar confinamento fecha todos os vínculos ativos
  * 3. Animal vendido/morto encerra vínculo automaticamente
  */
 
-import { db } from '../db/dexieDB';
-import { Confinamento, ConfinamentoAnimal } from '../db/models';
-import { createSyncEvent } from './syncEvents';
+import { db } from "../db/dexieDB";
+import { Confinamento, ConfinamentoAnimal } from "../db/models";
+import { createSyncEvent } from "./syncEvents";
 
 /**
  * Valida se um animal pode entrar em um confinamento
@@ -17,25 +17,27 @@ import { createSyncEvent } from './syncEvents';
  */
 export async function validarEntradaAnimal(
   animalId: string,
-  confinamentoId: string
+  confinamentoId: string,
 ): Promise<{ valido: boolean; erro?: string }> {
   // Verificar se animal já está em outro confinamento ativo
   const vínculosAtivos = await db.confinamentoAnimais
-    .where('animalId')
+    .where("animalId")
     .equals(animalId)
-    .and(v => v.dataSaida == null && v.deletedAt == null)
+    .and((v) => v.dataSaida == null && v.deletedAt == null)
     .toArray();
 
   // Filtrar vínculos do mesmo confinamento (permitir reentrada após saída)
   const outrosConfinamentos = vínculosAtivos.filter(
-    v => v.confinamentoId !== confinamentoId
+    (v) => v.confinamentoId !== confinamentoId,
   );
 
   if (outrosConfinamentos.length > 0) {
-    const confinamento = await db.confinamentos.get(outrosConfinamentos[0].confinamentoId);
+    const confinamento = await db.confinamentos.get(
+      outrosConfinamentos[0].confinamentoId,
+    );
     return {
       valido: false,
-      erro: `Animal já está confinado em: ${confinamento?.nome || 'Confinamento desconhecido'}`
+      erro: `Animal já está confinado em: ${confinamento?.nome || "Confinamento desconhecido"}`,
     };
   }
 
@@ -49,19 +51,23 @@ export async function validarEntradaAnimal(
 export async function encerrarConfinamento(
   confinamentoId: string,
   dataFimReal: string,
-  pesoPadraoSaida?: number
+  pesoPadraoSaida?: number,
 ): Promise<{ sucesso: boolean; erro?: string; animaisEncerrados: number }> {
   try {
     const confinamento = await db.confinamentos.get(confinamentoId);
     if (!confinamento) {
-      return { sucesso: false, erro: 'Confinamento não encontrado', animaisEncerrados: 0 };
+      return {
+        sucesso: false,
+        erro: "Confinamento não encontrado",
+        animaisEncerrados: 0,
+      };
     }
 
     // Buscar todos os vínculos ativos
     const vínculosAtivos = await db.confinamentoAnimais
-      .where('confinamentoId')
+      .where("confinamentoId")
       .equals(confinamentoId)
-      .and(v => v.dataSaida == null && v.deletedAt == null)
+      .and((v) => v.dataSaida == null && v.deletedAt == null)
       .toArray();
 
     let animaisEncerrados = 0;
@@ -72,20 +78,26 @@ export async function encerrarConfinamento(
         dataSaida: dataFimReal,
         observacoes: vínculo.observacoes
           ? `${vínculo.observacoes}\n[Encerramento automático do confinamento]`
-          : '[Encerramento automático do confinamento]',
-        updatedAt: new Date().toISOString()
+          : "[Encerramento automático do confinamento]",
+        updatedAt: new Date().toISOString(),
       };
 
       if (!vínculo.pesoSaida) {
         // 1) Última pesagem do confinamento deste animal (mais fiel à saída)
-        const pesagens = await db.confinamentoPesagens
-          .where('confinamentoAnimalId')
-          .equals(vínculo.id)
-          .and(p => p.deletedAt == null)
+        // Buscar última pesagem do animal (tabela geral `pesagens`) ao invés de `confinamentoPesagens`
+        const pesagens = await db.pesagens
+          .where("animalId")
+          .equals(vínculo.animalId)
+          .and((p) => p.deletedAt == null)
           .toArray();
-        const ultimaPesagem = pesagens.length > 0
-          ? pesagens.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())[0]
-          : null;
+        const ultimaPesagem =
+          pesagens.length > 0
+            ? pesagens.sort(
+                (a, b) =>
+                  new Date(b.dataPesagem).getTime() -
+                  new Date(a.dataPesagem).getTime(),
+              )[0]
+            : null;
         if (ultimaPesagem?.peso) {
           updates.pesoSaida = ultimaPesagem.peso;
         } else {
@@ -106,26 +118,40 @@ export async function encerrarConfinamento(
       // Criar evento de sincronização
       const vínculoAtualizado = await db.confinamentoAnimais.get(vínculo.id);
       if (vínculoAtualizado) {
-        await createSyncEvent('UPDATE', 'confinamentoAnimal', vínculo.id, vínculoAtualizado);
+        await createSyncEvent(
+          "UPDATE",
+          "confinamentoAnimal",
+          vínculo.id,
+          vínculoAtualizado,
+        );
       }
     }
 
     // Atualizar confinamento
     await db.confinamentos.update(confinamentoId, {
-      status: 'finalizado',
+      status: "finalizado",
       dataFimReal: dataFimReal,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
 
     const confinamentoAtualizado = await db.confinamentos.get(confinamentoId);
     if (confinamentoAtualizado) {
-      await createSyncEvent('UPDATE', 'confinamento', confinamentoId, confinamentoAtualizado);
+      await createSyncEvent(
+        "UPDATE",
+        "confinamento",
+        confinamentoId,
+        confinamentoAtualizado,
+      );
     }
 
     return { sucesso: true, animaisEncerrados };
   } catch (error: any) {
-    console.error('Erro ao encerrar confinamento:', error);
-    return { sucesso: false, erro: error.message || 'Erro desconhecido', animaisEncerrados: 0 };
+    console.error("Erro ao encerrar confinamento:", error);
+    return {
+      sucesso: false,
+      erro: error.message || "Erro desconhecido",
+      animaisEncerrados: 0,
+    };
   }
 }
 
@@ -135,31 +161,34 @@ export async function encerrarConfinamento(
  */
 export async function encerrarVinculoPorStatusAnimal(
   animalId: string,
-  motivoSaida: 'abate' | 'venda' | 'morte' | 'outro'
+  motivoSaida: "abate" | "venda" | "morte" | "outro",
 ): Promise<{ sucesso: boolean; erro?: string }> {
   try {
     // Buscar vínculo ativo
     const vínculosAtivos = await db.confinamentoAnimais
-      .where('animalId')
+      .where("animalId")
       .equals(animalId)
-      .and(v => v.dataSaida == null && v.deletedAt == null)
+      .and((v) => v.dataSaida == null && v.deletedAt == null)
       .toArray();
 
     if (vínculosAtivos.length === 0) {
       return { sucesso: true }; // Nenhum vínculo ativo, nada a fazer
     }
 
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = new Date().toISOString().split("T")[0];
 
     for (const vínculo of vínculosAtivos) {
       // Buscar último peso do animal (se disponível)
       const pesagens = await db.pesagens
-        .where('animalId')
+        .where("animalId")
         .equals(animalId)
-        .and(p => p.deletedAt == null)
-        .sortBy('dataPesagem');
+        .and((p) => p.deletedAt == null)
+        .sortBy("dataPesagem");
 
-      const ultimoPeso = pesagens.length > 0 ? pesagens[pesagens.length - 1].peso : vínculo.pesoEntrada;
+      const ultimoPeso =
+        pesagens.length > 0
+          ? pesagens[pesagens.length - 1].peso
+          : vínculo.pesoEntrada;
 
       await db.confinamentoAnimais.update(vínculo.id, {
         dataSaida: hoje,
@@ -168,20 +197,25 @@ export async function encerrarVinculoPorStatusAnimal(
         observacoes: vínculo.observacoes
           ? `${vínculo.observacoes}\n[Encerramento automático: ${motivoSaida}]`
           : `[Encerramento automático: ${motivoSaida}]`,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
 
       // Criar evento de sincronização
       const vínculoAtualizado = await db.confinamentoAnimais.get(vínculo.id);
       if (vínculoAtualizado) {
-        await createSyncEvent('UPDATE', 'confinamentoAnimal', vínculo.id, vínculoAtualizado);
+        await createSyncEvent(
+          "UPDATE",
+          "confinamentoAnimal",
+          vínculo.id,
+          vínculoAtualizado,
+        );
       }
     }
 
     return { sucesso: true };
   } catch (error: any) {
-    console.error('Erro ao encerrar vínculo por status do animal:', error);
-    return { sucesso: false, erro: error.message || 'Erro desconhecido' };
+    console.error("Erro ao encerrar vínculo por status do animal:", error);
+    return { sucesso: false, erro: error.message || "Erro desconhecido" };
   }
 }
 
@@ -192,7 +226,7 @@ export function calcularGMD(
   pesoEntrada: number,
   pesoSaida: number | undefined,
   dataEntrada: string,
-  dataSaida: string | undefined
+  dataSaida: string | undefined,
 ): { gmd: number | null; dias: number } {
   if (!pesoSaida || !dataSaida) {
     return { gmd: null, dias: 0 };
@@ -200,7 +234,10 @@ export function calcularGMD(
 
   const entrada = new Date(dataEntrada);
   const saida = new Date(dataSaida);
-  const dias = Math.max(1, Math.floor((saida.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24)));
+  const dias = Math.max(
+    1,
+    Math.floor((saida.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24)),
+  );
 
   const ganhoTotal = pesoSaida - pesoEntrada;
   const gmd = ganhoTotal / dias;
@@ -214,7 +251,7 @@ export function calcularGMD(
 export function calcularGMDParcial(
   pesoEntrada: number,
   pesoAtual: number | undefined,
-  dataEntrada: string
+  dataEntrada: string,
 ): { gmd: number | null; dias: number } {
   if (!pesoAtual) {
     return { gmd: null, dias: 0 };
@@ -222,7 +259,10 @@ export function calcularGMDParcial(
 
   const entrada = new Date(dataEntrada);
   const hoje = new Date();
-  const dias = Math.max(1, Math.floor((hoje.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24)));
+  const dias = Math.max(
+    1,
+    Math.floor((hoje.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24)),
+  );
 
   const ganhoTotal = pesoAtual - pesoEntrada;
   const gmd = ganhoTotal / dias;
@@ -233,25 +273,34 @@ export function calcularGMDParcial(
 /**
  * Valida dados antes de criar/atualizar confinamento
  */
-export function validarConfinamento(confinamento: Partial<Confinamento>): { valido: boolean; erro?: string } {
+export function validarConfinamento(confinamento: Partial<Confinamento>): {
+  valido: boolean;
+  erro?: string;
+} {
   if (!confinamento.nome || confinamento.nome.trim().length === 0) {
-    return { valido: false, erro: 'Nome do confinamento é obrigatório' };
+    return { valido: false, erro: "Nome do confinamento é obrigatório" };
   }
 
   if (!confinamento.dataInicio) {
-    return { valido: false, erro: 'Data de início é obrigatória' };
+    return { valido: false, erro: "Data de início é obrigatória" };
   }
 
   if (confinamento.dataFimPrevista && confinamento.dataFimReal) {
     const inicio = new Date(confinamento.dataInicio);
     const fimReal = new Date(confinamento.dataFimReal);
     if (fimReal < inicio) {
-      return { valido: false, erro: 'Data de fim real não pode ser anterior à data de início' };
+      return {
+        valido: false,
+        erro: "Data de fim real não pode ser anterior à data de início",
+      };
     }
   }
 
-  if (confinamento.status && !['ativo', 'finalizado', 'cancelado'].includes(confinamento.status)) {
-    return { valido: false, erro: 'Status inválido' };
+  if (
+    confinamento.status &&
+    !["ativo", "finalizado", "cancelado"].includes(confinamento.status)
+  ) {
+    return { valido: false, erro: "Status inválido" };
   }
 
   return { valido: true };
@@ -261,38 +310,44 @@ export function validarConfinamento(confinamento: Partial<Confinamento>): { vali
  * Valida dados antes de criar/atualizar vínculo animal-confinamento
  */
 export function validarConfinamentoAnimal(
-  vínculo: Partial<ConfinamentoAnimal>
+  vínculo: Partial<ConfinamentoAnimal>,
 ): { valido: boolean; erro?: string } {
   if (!vínculo.confinamentoId) {
-    return { valido: false, erro: 'Confinamento é obrigatório' };
+    return { valido: false, erro: "Confinamento é obrigatório" };
   }
 
   if (!vínculo.animalId) {
-    return { valido: false, erro: 'Animal é obrigatório' };
+    return { valido: false, erro: "Animal é obrigatório" };
   }
 
   if (!vínculo.dataEntrada) {
-    return { valido: false, erro: 'Data de entrada é obrigatória' };
+    return { valido: false, erro: "Data de entrada é obrigatória" };
   }
 
   if (vínculo.pesoEntrada && vínculo.pesoEntrada <= 0) {
-    return { valido: false, erro: 'Peso de entrada deve ser maior que zero' };
+    return { valido: false, erro: "Peso de entrada deve ser maior que zero" };
   }
 
   if (vínculo.pesoSaida && vínculo.pesoSaida <= 0) {
-    return { valido: false, erro: 'Peso de saída deve ser maior que zero' };
+    return { valido: false, erro: "Peso de saída deve ser maior que zero" };
   }
 
   if (vínculo.dataSaida && vínculo.dataEntrada) {
     const entrada = new Date(vínculo.dataEntrada);
     const saida = new Date(vínculo.dataSaida);
     if (saida < entrada) {
-      return { valido: false, erro: 'Data de saída não pode ser anterior à data de entrada' };
+      return {
+        valido: false,
+        erro: "Data de saída não pode ser anterior à data de entrada",
+      };
     }
   }
 
-  if (vínculo.motivoSaida && !['abate', 'venda', 'morte', 'outro'].includes(vínculo.motivoSaida)) {
-    return { valido: false, erro: 'Motivo de saída inválido' };
+  if (
+    vínculo.motivoSaida &&
+    !["abate", "venda", "morte", "outro"].includes(vínculo.motivoSaida)
+  ) {
+    return { valido: false, erro: "Motivo de saída inválido" };
   }
 
   return { valido: true };

@@ -1,29 +1,32 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { db } from '../db/dexieDB';
-import { uuid } from '../utils/uuid';
-import { ConfinamentoPesagem, ConfinamentoAnimal, Animal } from '../db/models';
-import Modal from './Modal';
-import Input from './Input';
-import Textarea from './Textarea';
-import { showToast } from '../utils/toast';
-import { Icons } from '../utils/iconMapping';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
-import { useAuth } from '../hooks/useAuth';
-import { converterDataParaFormatoInput, converterDataParaFormatoBanco } from '../utils/dateInput';
-import { createSyncEvent } from '../utils/syncEvents';
-import { registrarAudit } from '../utils/audit';
-import { msg } from '../utils/validationMessages';
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { db } from "../db/dexieDB";
+import { uuid } from "../utils/uuid";
+import { ConfinamentoAnimal, Animal, Pesagem } from "../db/models";
+import Modal from "./Modal";
+import Input from "./Input";
+import Textarea from "./Textarea";
+import { showToast } from "../utils/toast";
+import { Icons } from "../utils/iconMapping";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass } from "../utils/themeHelpers";
+import { useAuth } from "../hooks/useAuth";
+import {
+  converterDataParaFormatoInput,
+  converterDataParaFormatoBanco,
+} from "../utils/dateInput";
+import { createSyncEvent } from "../utils/syncEvents";
+import { registrarAudit } from "../utils/audit";
+import { msg } from "../utils/validationMessages";
 
 const schema = z.object({
   confinamentoAnimalId: z.string().min(1, msg.obrigatorio),
   data: z.string().min(1, msg.obrigatorio),
-  peso: z.number().min(0.01, 'Peso deve ser maior que zero'),
-  observacoes: z.string().optional()
+  peso: z.number().min(0.01, "Peso deve ser maior que zero"),
+  observacoes: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -40,26 +43,27 @@ interface ConfinamentoPesagemModalProps {
 
 export default function ConfinamentoPesagemModal({
   open,
-  confinamentoId,
   vinculosAtivos,
   animaisMap,
   dataInicioConfinamento,
   onClose,
-  onSaved
+  onSaved,
 }: ConfinamentoPesagemModalProps) {
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [buscaOuExibe, setBuscaOuExibe] = useState('');
+  const [buscaOuExibe, setBuscaOuExibe] = useState("");
   const [dropdownAberto, setDropdownAberto] = useState(false);
 
   const opcoesAnimais = useMemo(() => {
-    return vinculosAtivos.map(v => {
+    return vinculosAtivos.map((v) => {
       const animal = animaisMap.get(v.animalId);
-      const brinco = animal?.brinco != null ? String(animal.brinco) : '';
-      const nome = animal?.nome ?? '';
-      const label = nome ? `${brinco} - ${nome}` : brinco || v.animalId.slice(0, 8);
+      const brinco = animal?.brinco != null ? String(animal.brinco) : "";
+      const nome = animal?.nome ?? "";
+      const label = nome
+        ? `${brinco} - ${nome}`
+        : brinco || v.animalId.slice(0, 8);
       return { label, value: v.id, brinco, nome };
     });
   }, [vinculosAtivos, animaisMap]);
@@ -68,7 +72,9 @@ export default function ConfinamentoPesagemModal({
     const term = buscaOuExibe.trim().toLowerCase();
     if (!term) return opcoesAnimais;
     return opcoesAnimais.filter(
-      o => o.brinco.toLowerCase().includes(term) || o.nome.toLowerCase().includes(term)
+      (o) =>
+        o.brinco.toLowerCase().includes(term) ||
+        o.nome.toLowerCase().includes(term),
     );
   }, [opcoesAnimais, buscaOuExibe]);
 
@@ -78,45 +84,47 @@ export default function ConfinamentoPesagemModal({
     formState: { errors },
     reset,
     setValue,
-    watch
+    watch,
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      confinamentoAnimalId: '',
-      data: '',
-      peso: 0,
-      observacoes: ''
-    }
+      confinamentoAnimalId: "",
+      data: "",
+      peso: undefined,
+      observacoes: "",
+    },
   });
 
-  const confinamentoAnimalId = watch('confinamentoAnimalId');
+  const confinamentoAnimalId = watch("confinamentoAnimalId");
 
   useEffect(() => {
-    if (open && vinculosAtivos.length > 0 && dataInicioConfinamento) {
+    if (open && vinculosAtivos.length > 0) {
       reset({
-        confinamentoAnimalId: '',
-        data: converterDataParaFormatoInput(dataInicioConfinamento),
-        peso: 0,
-        observacoes: ''
+        confinamentoAnimalId: "",
+        data: converterDataParaFormatoInput(
+          new Date().toISOString().slice(0, 10),
+        ),
+        peso: undefined,
+        observacoes: "",
       });
-      setBuscaOuExibe('');
+      setBuscaOuExibe("");
     }
-  }, [open, dataInicioConfinamento, reset, vinculosAtivos.length]);
+  }, [open, reset, vinculosAtivos.length]);
 
   useEffect(() => {
     if (confinamentoAnimalId) {
-      const op = opcoesAnimais.find(o => o.value === confinamentoAnimalId);
-      setBuscaOuExibe(op ? op.label : '');
+      const op = opcoesAnimais.find((o) => o.value === confinamentoAnimalId);
+      setBuscaOuExibe(op ? op.label : "");
     } else {
-      setBuscaOuExibe('');
+      setBuscaOuExibe("");
     }
   }, [confinamentoAnimalId, opcoesAnimais]);
 
   useEffect(() => {
-    const v = vinculosAtivos.find(x => x.id === confinamentoAnimalId);
+    const v = vinculosAtivos.find((x) => x.id === confinamentoAnimalId);
     if (v && animaisMap.get(v.animalId)?.pesoAtual != null) {
       const pesoAtual = animaisMap.get(v.animalId)!.pesoAtual!;
-      if (watch('peso') === 0) setValue('peso', pesoAtual);
+      if (watch("peso") === 0) setValue("peso", pesoAtual);
     }
   }, [confinamentoAnimalId, vinculosAtivos, animaisMap, setValue, watch]);
 
@@ -125,43 +133,63 @@ export default function ConfinamentoPesagemModal({
     setIsSubmitting(true);
     try {
       const dataBanco = converterDataParaFormatoBanco(values.data);
-      const { validarConfinamentoPesagemUnica } = await import('../utils/unicidadeValidation');
-      const unico = await validarConfinamentoPesagemUnica(values.confinamentoAnimalId, dataBanco);
-      if (!unico.valido) {
-        showToast({ type: 'error', title: 'Pesagem duplicada', message: unico.erro });
+      // Encontrar vínculo para obter animalId
+      const vinculo = vinculosAtivos.find(
+        (v) => v.id === values.confinamentoAnimalId,
+      );
+      if (!vinculo) {
+        showToast({
+          type: "error",
+          message: "Vínculo do animal não encontrado.",
+        });
         setIsSubmitting(false);
         return;
       }
+      const animalId = vinculo.animalId;
+
+      const { validarPesagemUnica } =
+        await import("../utils/unicidadeValidation");
+      const unico = await validarPesagemUnica(animalId, dataBanco);
+      if (!unico.valido) {
+        showToast({
+          type: "error",
+          message: unico.erro || "Já existe uma pesagem para essa data.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const now = new Date().toISOString();
       const novoId = uuid();
-      const novo: ConfinamentoPesagem = {
+      const novo: Pesagem = {
         id: novoId,
-        confinamentoAnimalId: values.confinamentoAnimalId,
-        data: dataBanco,
+        animalId,
+        dataPesagem: dataBanco,
         peso: values.peso,
-        observacoes: values.observacoes || undefined,
+        observacao: values.observacoes || undefined,
         createdAt: now,
         updatedAt: now,
-        synced: false
+        synced: false,
       };
-      await db.confinamentoPesagens.add(novo);
+
+      await db.pesagens.add(novo);
       if (user) {
         await registrarAudit({
-          entity: 'confinamentoPesagem',
+          entity: "pesagem",
           entityId: novoId,
-          action: 'create',
+          action: "create",
           userId: user.id,
           userNome: user.nome,
-          after: JSON.stringify(novo)
+          after: JSON.stringify(novo),
         });
       }
-      await createSyncEvent('INSERT', 'confinamentoPesagem', novoId, novo);
-      showToast({ type: 'success', message: 'Pesagem registrada.' });
+      await createSyncEvent("INSERT", "pesagem", novoId, novo);
+      showToast({ type: "success", message: "Pesagem registrada." });
       onSaved?.();
       onClose();
     } catch (error: any) {
-      console.error('Erro ao registrar pesagem:', error);
-      showToast({ type: 'error', message: error.message || 'Erro ao salvar' });
+      console.error("Erro ao registrar pesagem:", error);
+      showToast({ type: "error", message: error.message || "Erro ao salvar" });
     } finally {
       setIsSubmitting(false);
     }
@@ -171,7 +199,9 @@ export default function ConfinamentoPesagemModal({
     <Modal open={open} onClose={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 pt-6 pb-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Registrar pesagem</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+            Registrar pesagem
+          </h2>
           <button
             onClick={onClose}
             className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700"
@@ -188,10 +218,11 @@ export default function ConfinamentoPesagemModal({
               type="text"
               placeholder="Digite o brinco ou nome e escolha na lista"
               value={buscaOuExibe}
-              onChange={e => {
+              onChange={(e) => {
                 setBuscaOuExibe(e.target.value);
                 setDropdownAberto(true);
-                if (!e.target.value.trim()) setValue('confinamentoAnimalId', '');
+                if (!e.target.value.trim())
+                  setValue("confinamentoAnimalId", "");
               }}
               onFocus={() => setDropdownAberto(true)}
               onBlur={() => setTimeout(() => setDropdownAberto(false), 200)}
@@ -202,15 +233,17 @@ export default function ConfinamentoPesagemModal({
               <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md shadow-lg max-h-48 overflow-auto">
                 {opcoesFiltradas.length === 0 ? (
                   <p className="px-3 py-3 text-sm text-gray-500 dark:text-slate-400">
-                    {opcoesAnimais.length === 0 ? 'Nenhum animal no confinamento' : `Nenhum animal com "${buscaOuExibe.trim()}"`}
+                    {opcoesAnimais.length === 0
+                      ? "Nenhum animal no confinamento"
+                      : `Nenhum animal com "${buscaOuExibe.trim()}"`}
                   </p>
                 ) : (
-                  opcoesFiltradas.map(o => (
+                  opcoesFiltradas.map((o) => (
                     <button
                       key={o.value}
                       type="button"
                       onClick={() => {
-                        setValue('confinamentoAnimalId', o.value);
+                        setValue("confinamentoAnimalId", o.value);
                         setBuscaOuExibe(o.label);
                         setDropdownAberto(false);
                       }}
@@ -222,16 +255,18 @@ export default function ConfinamentoPesagemModal({
                 )}
               </div>
             )}
-            <input type="hidden" {...register('confinamentoAnimalId')} />
+            <input type="hidden" {...register("confinamentoAnimalId")} />
             {errors.confinamentoAnimalId && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.confinamentoAnimalId.message}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                {errors.confinamentoAnimalId.message}
+              </p>
             )}
           </div>
           <Input
             label="Data da pesagem"
             type="text"
             placeholder="DD/MM/YYYY"
-            {...register('data')}
+            {...register("data")}
             error={errors.data?.message}
             required
           />
@@ -240,13 +275,13 @@ export default function ConfinamentoPesagemModal({
             type="number"
             step="0.01"
             min="0.01"
-            {...register('peso', { valueAsNumber: true })}
+            {...register("peso", { valueAsNumber: true })}
             error={errors.peso?.message}
             required
           />
           <Textarea
             label="Observações"
-            {...register('observacoes')}
+            {...register("observacoes")}
             error={errors.observacoes?.message}
             rows={2}
           />
@@ -264,7 +299,7 @@ export default function ConfinamentoPesagemModal({
               disabled={isSubmitting}
               className={`px-4 py-2 text-sm text-white font-medium rounded-md ${getPrimaryButtonClass(primaryColor)} disabled:opacity-50`}
             >
-              {isSubmitting ? 'Salvando...' : 'Registrar pesagem'}
+              {isSubmitting ? "Salvando..." : "Registrar pesagem"}
             </button>
           </div>
         </form>

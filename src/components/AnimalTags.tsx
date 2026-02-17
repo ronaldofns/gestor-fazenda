@@ -1,5 +1,5 @@
-import { Tag } from '../db/models';
-import TagsDisplay from './TagsDisplay';
+import { Tag } from "../db/models";
+import TagsDisplay from "./TagsDisplay";
 
 interface AnimalTagsProps {
   tags?: Tag[];

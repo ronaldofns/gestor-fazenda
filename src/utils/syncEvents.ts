@@ -1,6 +1,6 @@
-import { db } from '../db/dexieDB';
-import { SyncEvent, SyncEventType, SyncEntity } from '../db/models';
-import { uuid } from './uuid';
+import { db } from "../db/dexieDB";
+import { SyncEvent, SyncEventType, SyncEntity } from "../db/models";
+import { uuid } from "./uuid";
 
 /**
  * Verifica se há usuário logado (sessionStorage + Dexie). O sync usa getSupabaseForSync()
@@ -8,20 +8,25 @@ import { uuid } from './uuid';
  */
 async function hasLoggedInUser(): Promise<boolean> {
   try {
-    if (typeof sessionStorage === 'undefined') return false;
-    const userId = sessionStorage.getItem('gestor-fazenda-user-id');
+    if (typeof sessionStorage === "undefined") return false;
+    const userId = sessionStorage.getItem("gestor-fazenda-user-id");
     if (!userId) {
-      console.warn('[Sync] sessionStorage sem gestor-fazenda-user-id. Faça login.');
+      console.warn(
+        "[Sync] sessionStorage sem gestor-fazenda-user-id. Faça login.",
+      );
       return false;
     }
     const user = await db.usuarios.get(userId);
     if (!user || !user.ativo) {
-      console.warn('[Sync] Usuário não encontrado ou inativo no Dexie:', userId);
+      console.warn(
+        "[Sync] Usuário não encontrado ou inativo no Dexie:",
+        userId,
+      );
       return false;
     }
     return true;
   } catch (e) {
-    console.warn('[Sync] hasLoggedInUser falhou:', e);
+    console.warn("[Sync] hasLoggedInUser falhou:", e);
     return false;
   }
 }
@@ -32,67 +37,73 @@ const BATCH_SIZE = 50; // Tamanho do lote para INSERT/UPDATE/DELETE
 
 // Mapeamento entidade -> tabela Supabase
 const tableMap: Record<SyncEntity, string> = {
-  fazenda: 'fazendas_online',
-  raca: 'racas_online',
-  categoria: 'categorias_online',
-  desmama: 'desmamas_online',
-  matriz: 'matrizes_online',
-  usuario: 'usuarios_online',
-  audit: 'audits_online',
-  notificacaoLida: 'notificacoes_lidas_online',
-  alertSettings: 'alert_settings_online',
-  appSettings: 'app_settings_online',
-  rolePermission: 'role_permissions_online',
-  pesagem: 'pesagens_online',
-  vacina: 'vacinacoes_online',
-  confinamento: 'confinamentos_online',
-  confinamentoAnimal: 'confinamento_animais_online',
-  confinamentoPesagem: 'confinamento_pesagens_online',
-  confinamentoAlimentacao: 'confinamento_alimentacao_online',
-  ocorrenciaAnimal: 'ocorrencia_animais_online',
-  animal: 'animais_online'
+  fazenda: "fazendas_online",
+  raca: "racas_online",
+  categoria: "categorias_online",
+  desmama: "desmamas_online",
+  matriz: "matrizes_online",
+  usuario: "usuarios_online",
+  audit: "audits_online",
+  notificacaoLida: "notificacoes_lidas_online",
+  alertSettings: "alert_settings_online",
+  appSettings: "app_settings_online",
+  rolePermission: "role_permissions_online",
+  pesagem: "pesagens_online",
+  vacina: "vacinacoes_online",
+  confinamento: "confinamentos_online",
+  confinamentoAnimal: "confinamento_animais_online",
+  // confinamentoPesagem removed - usar 'pesagem'
+  confinamentoAlimentacao: "confinamento_alimentacao_online",
+  ocorrenciaAnimal: "ocorrencia_animais_online",
+  animal: "animais_online",
 };
 
 // Campo de conflito para upsert (uuid ou id)
 const uuidFieldMap: Record<SyncEntity, string> = {
-  fazenda: 'uuid',
-  raca: 'uuid',
-  categoria: 'uuid',
-  desmama: 'uuid',
-  matriz: 'uuid',
-  usuario: 'uuid',
-  audit: 'uuid',
-  notificacaoLida: 'id',
-  alertSettings: 'id',
-  appSettings: 'id',
-  rolePermission: 'uuid',
-  pesagem: 'uuid',
-  vacina: 'uuid',
-  confinamento: 'uuid',
-  confinamentoAnimal: 'uuid',
-  confinamentoPesagem: 'uuid',
-  confinamentoAlimentacao: 'uuid',
-  ocorrenciaAnimal: 'uuid',
-  animal: 'uuid'
+  fazenda: "uuid",
+  raca: "uuid",
+  categoria: "uuid",
+  desmama: "uuid",
+  matriz: "uuid",
+  usuario: "uuid",
+  audit: "uuid",
+  notificacaoLida: "id",
+  alertSettings: "id",
+  appSettings: "id",
+  rolePermission: "uuid",
+  pesagem: "uuid",
+  vacina: "uuid",
+  confinamento: "uuid",
+  confinamentoAnimal: "uuid",
+  // confinamentoPesagem removed - usar 'pesagem'
+  confinamentoAlimentacao: "uuid",
+  ocorrenciaAnimal: "uuid",
+  animal: "uuid",
 };
 
-const toSnake = (s: string) => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+const toSnake = (s: string) =>
+  s.replace(/[A-Z]/g, (c) => "_" + c.toLowerCase());
 
 /** Converte keys do payload de camelCase para snake_case (Supabase). Remove synced/remoteId. id vira uuid quando for chave. */
-function payloadToServerSnake(payload: Record<string, unknown>, conflictField: string): Record<string, unknown> {
+function payloadToServerSnake(
+  payload: Record<string, unknown>,
+  conflictField: string,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(payload)) {
-    if (k === 'synced' || k === 'remoteId') continue;
-    const key = k === 'id' && conflictField === 'uuid' ? 'uuid' : toSnake(k);
+    if (k === "synced" || k === "remoteId") continue;
+    const key = k === "id" && conflictField === "uuid" ? "uuid" : toSnake(k);
     out[key] = v;
   }
   return out;
 }
 
 /** Converte payload local de auditoria para audits_online: before/after → before_json/after_json, userId → user_uuid. */
-function payloadToServerAudit(payload: Record<string, unknown>): Record<string, unknown> {
+function payloadToServerAudit(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
   const parseIfString = (v: unknown): unknown => {
-    if (typeof v === 'string') {
+    if (typeof v === "string") {
       try {
         return JSON.parse(v);
       } catch {
@@ -111,15 +122,18 @@ function payloadToServerAudit(payload: Record<string, unknown>): Record<string, 
     user_nome: payload.userNome ?? null,
     before_json: payload.before != null ? parseIfString(payload.before) : null,
     after_json: payload.after != null ? parseIfString(payload.after) : null,
-    description: payload.description ?? null
+    description: payload.description ?? null,
   };
 }
 
-function mapKeysConfinamento(obj: Record<string, unknown>, exclude?: Set<string>): Record<string, unknown> {
+function mapKeysConfinamento(
+  obj: Record<string, unknown>,
+  exclude?: Set<string>,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (k === 'synced' || k === 'remoteId' || exclude?.has(k)) continue;
-    const key = k === 'id' ? 'uuid' : toSnake(k);
+    if (k === "synced" || k === "remoteId" || exclude?.has(k)) continue;
+    const key = k === "id" ? "uuid" : toSnake(k);
     out[key] = v;
   }
   return out;
@@ -136,12 +150,16 @@ async function loadConfinamentoFkMaps(): Promise<ConfinamentoFkMaps> {
   const [fazendasArr, confinamentosArr, vinculosArr] = await Promise.all([
     db.fazendas.toArray(),
     db.confinamentos.toArray(),
-    db.confinamentoAnimais.toArray()
+    db.confinamentoAnimais.toArray(),
   ]);
   return {
-    fazendas: new Map(fazendasArr.map(f => [f.id, f.remoteId ?? null])),
-    confinamentos: new Map(confinamentosArr.map(c => [c.id, c.remoteId ?? null])),
-    confinamentoAnimais: new Map(vinculosArr.map(v => [v.id, v.remoteId ?? null]))
+    fazendas: new Map(fazendasArr.map((f) => [f.id, f.remoteId ?? null])),
+    confinamentos: new Map(
+      confinamentosArr.map((c) => [c.id, c.remoteId ?? null]),
+    ),
+    confinamentoAnimais: new Map(
+      vinculosArr.map((v) => [v.id, v.remoteId ?? null]),
+    ),
   };
 }
 
@@ -149,37 +167,59 @@ async function loadConfinamentoFkMaps(): Promise<ConfinamentoFkMaps> {
 function payloadToServerConfinamentoWithMaps(
   entidade: SyncEntity,
   payload: Record<string, unknown>,
-  maps: ConfinamentoFkMaps
+  maps: ConfinamentoFkMaps,
 ): Record<string, unknown> | null {
-  if (entidade === 'confinamento') {
-    const fazendaIdRemote = maps.fazendas.get((payload.fazendaId as string) || '');
+  if (entidade === "confinamento") {
+    const fazendaIdRemote = maps.fazendas.get(
+      (payload.fazendaId as string) || "",
+    );
     if (fazendaIdRemote == null && payload.fazendaId) return null;
-    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['fazendaId', 'precoVendaKg']));
+    const base = mapKeysConfinamento(
+      payload as Record<string, unknown>,
+      new Set(["fazendaId"]),
+    );
     return { ...base, fazenda_id: fazendaIdRemote };
   }
-  if (entidade === 'confinamentoAnimal') {
-    const confinamentoIdRemote = maps.confinamentos.get((payload.confinamentoId as string) || '');
+  if (entidade === "confinamentoAnimal") {
+    const confinamentoIdRemote = maps.confinamentos.get(
+      (payload.confinamentoId as string) || "",
+    );
     if (confinamentoIdRemote == null && payload.confinamentoId) return null;
-    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoId']));
-    return { ...base, confinamento_id: confinamentoIdRemote, animal_id: payload.animalId };
+    const base = mapKeysConfinamento(
+      payload as Record<string, unknown>,
+      new Set(["confinamentoId"]),
+    );
+    return {
+      ...base,
+      confinamento_id: confinamentoIdRemote,
+      animal_id: payload.animalId,
+    };
   }
-  if (entidade === 'confinamentoPesagem') {
-    const confinamentoAnimalIdRemote = maps.confinamentoAnimais.get((payload.confinamentoAnimalId as string) || '');
-    if (confinamentoAnimalIdRemote == null && payload.confinamentoAnimalId) return null;
-    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoAnimalId']));
-    return { ...base, confinamento_animal_id: confinamentoAnimalIdRemote };
-  }
-  if (entidade === 'confinamentoAlimentacao') {
-    const confinamentoIdRemote = maps.confinamentos.get((payload.confinamentoId as string) || '');
+  // bloco de conversão de `confinamentoPesagem` removido - usamos mapeamento para `pesagem` geral
+  if (entidade === "confinamentoAlimentacao") {
+    const confinamentoIdRemote = maps.confinamentos.get(
+      (payload.confinamentoId as string) || "",
+    );
     if (confinamentoIdRemote == null && payload.confinamentoId) return null;
-    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoId']));
+    const base = mapKeysConfinamento(
+      payload as Record<string, unknown>,
+      new Set(["confinamentoId"]),
+    );
     return { ...base, confinamento_id: confinamentoIdRemote };
   }
-  if (entidade === 'ocorrenciaAnimal') {
-    const base = mapKeysConfinamento(payload as Record<string, unknown>, new Set(['confinamentoAnimalId']));
-    const out: Record<string, unknown> = { ...base, animal_id: payload.animalId };
+  if (entidade === "ocorrenciaAnimal") {
+    const base = mapKeysConfinamento(
+      payload as Record<string, unknown>,
+      new Set(["confinamentoAnimalId"]),
+    );
+    const out: Record<string, unknown> = {
+      ...base,
+      animal_id: payload.animalId,
+    };
     if (payload.confinamentoAnimalId) {
-      const confinamentoAnimalIdRemote = maps.confinamentoAnimais.get(payload.confinamentoAnimalId as string);
+      const confinamentoAnimalIdRemote = maps.confinamentoAnimais.get(
+        payload.confinamentoAnimalId as string,
+      );
       if (confinamentoAnimalIdRemote == null) return null;
       out.confinamento_animal_id = confinamentoAnimalIdRemote;
     }
@@ -199,46 +239,53 @@ interface AnimalFkMaps {
 
 /** Carrega todas as tabelas de FK de animais de uma vez (motor batch). */
 async function loadAnimalFkMaps(): Promise<AnimalFkMaps> {
-  const [tiposArr, statusArr, origensArr, fazendasArr, racasArr] = await Promise.all([
-    db.tiposAnimal.toArray(),
-    db.statusAnimal.toArray(),
-    db.origens.toArray(),
-    db.fazendas.toArray(),
-    db.racas.toArray()
-  ]);
+  const [tiposArr, statusArr, origensArr, fazendasArr, racasArr] =
+    await Promise.all([
+      db.tiposAnimal.toArray(),
+      db.statusAnimal.toArray(),
+      db.origens.toArray(),
+      db.fazendas.toArray(),
+      db.racas.toArray(),
+    ]);
   return {
-    tipos: new Map(tiposArr.map(t => [t.id, t.remoteId ?? null])),
-    status: new Map(statusArr.map(s => [s.id, s.remoteId ?? null])),
-    origens: new Map(origensArr.map(o => [o.id, o.remoteId ?? null])),
-    fazendas: new Map(fazendasArr.map(f => [f.id, f.remoteId ?? null])),
-    racas: new Map(racasArr.map(r => [r.id, r.remoteId ?? null]))
+    tipos: new Map(tiposArr.map((t) => [t.id, t.remoteId ?? null])),
+    status: new Map(statusArr.map((s) => [s.id, s.remoteId ?? null])),
+    origens: new Map(origensArr.map((o) => [o.id, o.remoteId ?? null])),
+    fazendas: new Map(fazendasArr.map((f) => [f.id, f.remoteId ?? null])),
+    racas: new Map(racasArr.map((r) => [r.id, r.remoteId ?? null])),
   };
 }
 
 /** Converte um payload local de animal para animais_online usando maps pré-carregados (síncrono, zero await). */
 function payloadToServerAnimalWithMaps(
   payload: Record<string, unknown>,
-  maps: AnimalFkMaps
+  maps: AnimalFkMaps,
 ): Record<string, unknown> | null {
-  const fazendaId = maps.fazendas.get((payload.fazendaId as string) || '');
-  if (payload.fazendaId != null && (fazendaId === undefined || fazendaId === null)) return null;
-  const racaId = (payload.racaId as string) ? maps.racas.get(payload.racaId as string) ?? null : null;
+  const fazendaId = maps.fazendas.get((payload.fazendaId as string) || "");
+  if (
+    payload.fazendaId != null &&
+    (fazendaId === undefined || fazendaId === null)
+  )
+    return null;
+  const racaId = (payload.racaId as string)
+    ? (maps.racas.get(payload.racaId as string) ?? null)
+    : null;
   const fazendaOrigemId = (payload.fazendaOrigemId as string)
-    ? maps.fazendas.get(payload.fazendaOrigemId as string) ?? null
+    ? (maps.fazendas.get(payload.fazendaOrigemId as string) ?? null)
     : null;
   return {
     uuid: payload.id,
     brinco: payload.brinco,
     nome: payload.nome ?? null,
-    tipo_id: maps.tipos.get((payload.tipoId as string) || '') ?? null,
+    tipo_id: maps.tipos.get((payload.tipoId as string) || "") ?? null,
     raca_id: racaId,
     sexo: payload.sexo ?? null,
-    status_id: maps.status.get((payload.statusId as string) || '') ?? null,
+    status_id: maps.status.get((payload.statusId as string) || "") ?? null,
     data_nascimento: payload.dataNascimento ?? null,
     data_cadastro: payload.dataCadastro ?? null,
     data_entrada: payload.dataEntrada ?? null,
     data_saida: payload.dataSaida ?? null,
-    origem_id: maps.origens.get((payload.origemId as string) || '') ?? null,
+    origem_id: maps.origens.get((payload.origemId as string) || "") ?? null,
     fazenda_id: fazendaId ?? null,
     fazenda_origem_id: fazendaOrigemId,
     proprietario_anterior: payload.proprietarioAnterior ?? null,
@@ -253,7 +300,7 @@ function payloadToServerAnimalWithMaps(
     obs: payload.obs ?? null,
     created_at: payload.createdAt ?? null,
     updated_at: payload.updatedAt ?? null,
-    deleted_at: payload.deletedAt ?? null
+    deleted_at: payload.deletedAt ?? null,
   };
 }
 
@@ -264,7 +311,7 @@ export async function createSyncEvent(
   tipo: SyncEventType,
   entidade: SyncEntity,
   entityId: string,
-  payload?: any
+  payload?: any,
 ): Promise<string> {
   const now = new Date().toISOString();
   const eventId = uuid();
@@ -274,20 +321,20 @@ export async function createSyncEvent(
     tipo,
     entidade,
     entityId,
-    payload: payload ? JSON.stringify(payload) : '',
+    payload: payload ? JSON.stringify(payload) : "",
     tentativas: 0,
     erro: null,
     synced: false,
     createdAt: now,
     updatedAt: now,
-    remoteId: null
+    remoteId: null,
   };
 
   try {
     await db.syncEvents.add(event);
     return eventId;
   } catch (error) {
-    console.error('Erro ao criar evento de sincronização:', error);
+    console.error("Erro ao criar evento de sincronização:", error);
     throw error;
   }
 }
@@ -298,33 +345,38 @@ export async function createSyncEvent(
 async function markBatchError(
   events: SyncEvent[],
   message: string,
-  now: string
+  now: string,
 ): Promise<void> {
   if (events.length === 0) return;
   await db.syncEvents.bulkUpdate(
-    events.map(e => ({
+    events.map((e) => ({
       key: e.id,
       changes: {
         tentativas: e.tentativas + 1,
         erro: message,
-        updatedAt: now
-      }
-    }))
+        updatedAt: now,
+      },
+    })),
   );
 }
 
 /**
  * Enriquece eventos DELETE com remoteId da entidade local (quando o evento foi criado com remoteId null).
  */
-async function enrichDeleteEventsWithRemoteId(events: SyncEvent[]): Promise<void> {
+async function enrichDeleteEventsWithRemoteId(
+  events: SyncEvent[],
+): Promise<void> {
   if (events.length === 0) return;
   const entidade = events[0].entidade;
   const table = getLocalTableForEntity(entidade);
   if (!table) return;
   for (const e of events) {
     if (e.remoteId != null) continue;
-    const rec = await table.get(e.entityId) as { remoteId?: number | null } | undefined;
-    if (rec?.remoteId != null) (e as SyncEvent & { remoteId?: number | null }).remoteId = rec.remoteId;
+    const rec = (await table.get(e.entityId)) as
+      | { remoteId?: number | null }
+      | undefined;
+    if (rec?.remoteId != null)
+      (e as SyncEvent & { remoteId?: number | null }).remoteId = rec.remoteId;
   }
 }
 
@@ -333,22 +385,33 @@ async function enrichDeleteEventsWithRemoteId(events: SyncEvent[]): Promise<void
  */
 async function processDeleteBatch(
   events: SyncEvent[],
-  now: string
-): Promise<{ sucesso: number; falhas: number; erros: Array<{ event: SyncEvent; error: string }> }> {
-  const resultados = { sucesso: 0, falhas: 0, erros: [] as Array<{ event: SyncEvent; error: string }> };
+  now: string,
+): Promise<{
+  sucesso: number;
+  falhas: number;
+  erros: Array<{ event: SyncEvent; error: string }>;
+}> {
+  const resultados = {
+    sucesso: 0,
+    falhas: 0,
+    erros: [] as Array<{ event: SyncEvent; error: string }>,
+  };
 
   await enrichDeleteEventsWithRemoteId(events);
 
-  const ids = events.map(e => e.remoteId).filter(id => id != null) as (number | string)[];
+  const ids = events.map((e) => e.remoteId).filter((id) => id != null) as (
+    | number
+    | string
+  )[];
 
   // Eventos sem remoteId: nunca foram ao servidor, marcar como sincronizados
-  const semRemoteId = events.filter(e => e.remoteId == null);
+  const semRemoteId = events.filter((e) => e.remoteId == null);
   if (semRemoteId.length > 0) {
     await db.syncEvents.bulkUpdate(
-      semRemoteId.map(e => ({
+      semRemoteId.map((e) => ({
         key: e.id,
-        changes: { synced: true, tentativas: e.tentativas + 1, updatedAt: now }
-      }))
+        changes: { synced: true, tentativas: e.tentativas + 1, updatedAt: now },
+      })),
     );
     resultados.sucesso += semRemoteId.length;
   }
@@ -359,62 +422,84 @@ async function processDeleteBatch(
 
   const sessionOk = await hasLoggedInUser();
   if (!sessionOk) {
-    const msg = 'Sessão JWT não disponível. Faça login novamente e tente sincronizar.';
-    const comRemoteId = events.filter(e => e.remoteId != null);
+    const msg =
+      "Sessão JWT não disponível. Faça login novamente e tente sincronizar.";
+    const comRemoteId = events.filter((e) => e.remoteId != null);
     await markBatchError(comRemoteId, msg, now);
     resultados.falhas = ids.length;
-    comRemoteId.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    comRemoteId.forEach((e) => resultados.erros.push({ event: e, error: msg }));
     return resultados;
   }
 
-  const { getSupabaseForSync } = await import('../api/supabaseSyncClient');
+  const { getSupabaseForSync } = await import("../api/supabaseSyncClient");
   const supabase = await getSupabaseForSync();
   if (!supabase) {
-    const msg = 'Sessão não disponível para sync. Faça login com Supabase Auth e tente novamente.';
-    const comRemoteId = events.filter(e => e.remoteId != null);
+    const msg =
+      "Sessão não disponível para sync. Faça login com Supabase Auth e tente novamente.";
+    const comRemoteId = events.filter((e) => e.remoteId != null);
     await markBatchError(comRemoteId, msg, now);
     resultados.falhas = ids.length;
-    comRemoteId.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    comRemoteId.forEach((e) => resultados.erros.push({ event: e, error: msg }));
     return resultados;
   }
 
   try {
     const table = tableMap[events[0].entidade];
     if (!table) {
-      await markBatchError(events.filter(e => e.remoteId != null), `Tabela não encontrada: ${events[0].entidade}`, now);
+      await markBatchError(
+        events.filter((e) => e.remoteId != null),
+        `Tabela não encontrada: ${events[0].entidade}`,
+        now,
+      );
       resultados.falhas += ids.length;
-      events.filter(e => e.remoteId != null).forEach(e => resultados.erros.push({ event: e, error: 'Tabela não encontrada' }));
+      events
+        .filter((e) => e.remoteId != null)
+        .forEach((e) =>
+          resultados.erros.push({ event: e, error: "Tabela não encontrada" }),
+        );
       return resultados;
     }
 
-    const { error } = await supabase.from(table).delete().in('id', ids);
+    const { error } = await supabase.from(table).delete().in("id", ids);
 
     if (error) {
-      const comRemoteId = events.filter(e => e.remoteId != null);
-      await markBatchError(comRemoteId, error.message || 'Erro ao deletar em lote', now);
+      const comRemoteId = events.filter((e) => e.remoteId != null);
+      await markBatchError(
+        comRemoteId,
+        error.message || "Erro ao deletar em lote",
+        now,
+      );
       resultados.falhas += ids.length;
-      comRemoteId.forEach(e => resultados.erros.push({ event: e, error: error.message || 'Erro' }));
+      comRemoteId.forEach((e) =>
+        resultados.erros.push({ event: e, error: error.message || "Erro" }),
+      );
       return resultados;
     }
 
-    const comRemoteId = events.filter(e => e.remoteId != null);
+    const comRemoteId = events.filter((e) => e.remoteId != null);
     await db.syncEvents.bulkUpdate(
-      comRemoteId.map(e => ({
+      comRemoteId.map((e) => ({
         key: e.id,
         changes: {
           synced: true,
           erro: null,
           tentativas: e.tentativas + 1,
-          updatedAt: now
-        }
-      }))
+          updatedAt: now,
+        },
+      })),
     );
     resultados.sucesso += ids.length;
   } catch (err: any) {
-    const comRemoteId = events.filter(e => e.remoteId != null);
-    await markBatchError(comRemoteId, err?.message || 'Erro ao processar DELETE', now);
+    const comRemoteId = events.filter((e) => e.remoteId != null);
+    await markBatchError(
+      comRemoteId,
+      err?.message || "Erro ao processar DELETE",
+      now,
+    );
     resultados.falhas += ids.length;
-    comRemoteId.forEach(e => resultados.erros.push({ event: e, error: err?.message || 'Erro' }));
+    comRemoteId.forEach((e) =>
+      resultados.erros.push({ event: e, error: err?.message || "Erro" }),
+    );
   }
 
   return resultados;
@@ -425,21 +510,36 @@ async function processDeleteBatch(
  */
 async function processUpsertBatch(
   events: SyncEvent[],
-  now: string
-): Promise<{ sucesso: number; falhas: number; erros: Array<{ event: SyncEvent; error: string }> }> {
-  const resultados = { sucesso: 0, falhas: 0, erros: [] as Array<{ event: SyncEvent; error: string }> };
+  now: string,
+): Promise<{
+  sucesso: number;
+  falhas: number;
+  erros: Array<{ event: SyncEvent; error: string }>;
+}> {
+  const resultados = {
+    sucesso: 0,
+    falhas: 0,
+    erros: [] as Array<{ event: SyncEvent; error: string }>,
+  };
 
   if (events.length === 0) return resultados;
 
   const sample = events[0];
   const table = tableMap[sample.entidade];
-  const conflictField = uuidFieldMap[sample.entidade] === 'uuid' ? 'uuid' : 'id';
-  const isRolePermission = sample.entidade === 'rolePermission';
+  const conflictField =
+    uuidFieldMap[sample.entidade] === "uuid" ? "uuid" : "id";
+  const isRolePermission = sample.entidade === "rolePermission";
 
   if (!table) {
-    await markBatchError(events, `Tabela não encontrada: ${sample.entidade}`, now);
+    await markBatchError(
+      events,
+      `Tabela não encontrada: ${sample.entidade}`,
+      now,
+    );
     resultados.falhas = events.length;
-    events.forEach(e => resultados.erros.push({ event: e, error: 'Tabela não encontrada' }));
+    events.forEach((e) =>
+      resultados.erros.push({ event: e, error: "Tabela não encontrada" }),
+    );
     return resultados;
   }
 
@@ -459,9 +559,11 @@ async function processUpsertBatch(
   }
 
   if (invalidos.length > 0) {
-    await markBatchError(invalidos, 'Payload inválido ou vazio', now);
+    await markBatchError(invalidos, "Payload inválido ou vazio", now);
     resultados.falhas = invalidos.length;
-    invalidos.forEach(e => resultados.erros.push({ event: e, error: 'Payload inválido' }));
+    invalidos.forEach((e) =>
+      resultados.erros.push({ event: e, error: "Payload inválido" }),
+    );
   }
 
   if (parsed.length === 0) {
@@ -471,42 +573,24 @@ async function processUpsertBatch(
   const firstParsed = parsed[0];
   const entidade = firstParsed.event.entidade;
   const isConfinamentoEntity =
-    entidade === 'confinamento' ||
-    entidade === 'confinamentoAnimal' ||
-    entidade === 'confinamentoPesagem' ||
-    entidade === 'confinamentoAlimentacao' ||
-    entidade === 'ocorrenciaAnimal';
+    entidade === "confinamento" ||
+    entidade === "confinamentoAnimal" ||
+    entidade === "confinamentoAlimentacao" ||
+    entidade === "ocorrenciaAnimal";
 
   let payloads: Record<string, unknown>[];
   let eventosValidos: SyncEvent[];
 
-  if (entidade === 'animal') {
+  if (entidade === "animal") {
     const maps = await loadAnimalFkMaps();
-    const converted: { event: SyncEvent; payload: Record<string, unknown> }[] = [];
+    const converted: { event: SyncEvent; payload: Record<string, unknown> }[] =
+      [];
     const falhas: SyncEvent[] = [];
     for (const { event, payload } of parsed) {
-      const serverPayload = payloadToServerAnimalWithMaps(payload as Record<string, unknown>, maps);
-      if (serverPayload != null) {
-        converted.push({ event, payload: serverPayload });
-      } else {
-        falhas.push(event);
-      }
-    }
-    if (falhas.length > 0) {
-      const msg = 'FK não resolvida (fazenda/tipo/status/origem ainda não sincronizada?). Sincronize fazendas e cadastros primeiro.';
-      await markBatchError(falhas, msg, now);
-      resultados.falhas = falhas.length;
-      falhas.forEach(e => resultados.erros.push({ event: e, error: msg }));
-    }
-    payloads = converted.map(c => c.payload);
-    eventosValidos = converted.map(c => c.event);
-    if (payloads.length === 0) return resultados;
-  } else if (isConfinamentoEntity) {
-    const confMaps = await loadConfinamentoFkMaps();
-    const converted: { event: SyncEvent; payload: Record<string, unknown> }[] = [];
-    const falhas: SyncEvent[] = [];
-    for (const { event, payload } of parsed) {
-      const serverPayload = payloadToServerConfinamentoWithMaps(entidade, payload as Record<string, unknown>, confMaps);
+      const serverPayload = payloadToServerAnimalWithMaps(
+        payload as Record<string, unknown>,
+        maps,
+      );
       if (serverPayload != null) {
         converted.push({ event, payload: serverPayload });
       } else {
@@ -515,28 +599,59 @@ async function processUpsertBatch(
     }
     if (falhas.length > 0) {
       const msg =
-        'FK não resolvida (confinamento/fazenda/confinamento_animal ainda não sincronizado?). Sincronize na ordem: Confinamentos → Confinamento Animais → Pesagens/Alimentação.';
+        "FK não resolvida (fazenda/tipo/status/origem ainda não sincronizada?). Sincronize fazendas e cadastros primeiro.";
       await markBatchError(falhas, msg, now);
       resultados.falhas = falhas.length;
-      falhas.forEach(e => resultados.erros.push({ event: e, error: msg }));
+      falhas.forEach((e) => resultados.erros.push({ event: e, error: msg }));
     }
-    payloads = converted.map(c => c.payload);
-    eventosValidos = converted.map(c => c.event);
+    payloads = converted.map((c) => c.payload);
+    eventosValidos = converted.map((c) => c.event);
     if (payloads.length === 0) return resultados;
-  } else if (entidade === 'audit') {
-    payloads = parsed.map(p => payloadToServerAudit(p.payload as Record<string, unknown>));
-    eventosValidos = parsed.map(p => p.event);
+  } else if (isConfinamentoEntity) {
+    const confMaps = await loadConfinamentoFkMaps();
+    const converted: { event: SyncEvent; payload: Record<string, unknown> }[] =
+      [];
+    const falhas: SyncEvent[] = [];
+    for (const { event, payload } of parsed) {
+      const serverPayload = payloadToServerConfinamentoWithMaps(
+        entidade,
+        payload as Record<string, unknown>,
+        confMaps,
+      );
+      if (serverPayload != null) {
+        converted.push({ event, payload: serverPayload });
+      } else {
+        falhas.push(event);
+      }
+    }
+    if (falhas.length > 0) {
+      const msg =
+        "FK não resolvida (confinamento/fazenda/confinamento_animal ainda não sincronizado?). Sincronize na ordem: Confinamentos → Confinamento Animais → Pesagens/Alimentação.";
+      await markBatchError(falhas, msg, now);
+      resultados.falhas = falhas.length;
+      falhas.forEach((e) => resultados.erros.push({ event: e, error: msg }));
+    }
+    payloads = converted.map((c) => c.payload);
+    eventosValidos = converted.map((c) => c.event);
+    if (payloads.length === 0) return resultados;
+  } else if (entidade === "audit") {
+    payloads = parsed.map((p) =>
+      payloadToServerAudit(p.payload as Record<string, unknown>),
+    );
+    eventosValidos = parsed.map((p) => p.event);
   } else {
-    payloads = parsed.map(p => payloadToServerSnake(p.payload as Record<string, unknown>, conflictField));
-    eventosValidos = parsed.map(p => p.event);
+    payloads = parsed.map((p) =>
+      payloadToServerSnake(p.payload as Record<string, unknown>, conflictField),
+    );
+    eventosValidos = parsed.map((p) => p.event);
   }
 
   // Deduplicar por chave de conflito: Postgres "ON CONFLICT DO UPDATE" não pode afetar a mesma linha duas vezes no mesmo comando
   const byConflictKey = new Map<string, Record<string, unknown>>();
   for (const p of payloads) {
     const key = isRolePermission
-      ? `${String((p as any).role ?? '')}\0${String((p as any).permission ?? '')}`
-      : String(p[conflictField] ?? (p as any).id ?? (p as any).uuid ?? '');
+      ? `${String((p as any).role ?? "")}\0${String((p as any).permission ?? "")}`
+      : String(p[conflictField] ?? (p as any).id ?? (p as any).uuid ?? "");
     if (key) byConflictKey.set(key, p);
   }
   const payloadsToSend = Array.from(byConflictKey.values());
@@ -545,49 +660,69 @@ async function processUpsertBatch(
   // Usuário logado? Sync usa client com JWT explícito (getSupabaseForSync), não o client global.
   const sessionOk = await hasLoggedInUser();
   if (!sessionOk) {
-    const msg = 'Sessão JWT não disponível. Faça login novamente e tente sincronizar.';
+    const msg =
+      "Sessão JWT não disponível. Faça login novamente e tente sincronizar.";
     await markBatchError(eventosValidos, msg, now);
     resultados.falhas = eventosValidos.length;
-    eventosValidos.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    eventosValidos.forEach((e) =>
+      resultados.erros.push({ event: e, error: msg }),
+    );
     return resultados;
   }
 
-  const { getSupabaseForSync } = await import('../api/supabaseSyncClient');
+  const { getSupabaseForSync } = await import("../api/supabaseSyncClient");
   const supabase = await getSupabaseForSync();
   if (!supabase) {
-    const msg = 'Sessão não disponível para sync. Faça login com Supabase Auth e tente novamente.';
+    const msg =
+      "Sessão não disponível para sync. Faça login com Supabase Auth e tente novamente.";
     await markBatchError(eventosValidos, msg, now);
     resultados.falhas = eventosValidos.length;
-    eventosValidos.forEach(e => resultados.erros.push({ event: e, error: msg }));
+    eventosValidos.forEach((e) =>
+      resultados.erros.push({ event: e, error: msg }),
+    );
     return resultados;
   }
 
-  if (entidade === 'audit') {
-    console.info('[Sync] Enviando upsert para audits_online (client com JWT)');
+  if (entidade === "audit") {
+    console.info("[Sync] Enviando upsert para audits_online (client com JWT)");
   }
 
   try {
-    const upsertConflict = isRolePermission ? 'role,permission' : conflictField;
-    const selectCols = isRolePermission ? 'id, uuid, role, permission' : 'id, uuid';
+    const upsertConflict = isRolePermission ? "role,permission" : conflictField;
+    const selectCols = isRolePermission
+      ? "id, uuid, role, permission"
+      : "id, uuid";
     const { data: upserted, error } = await supabase
       .from(table)
       .upsert(payloadsToSend, { onConflict: upsertConflict })
       .select(selectCols);
 
     if (error) {
-      const is401 = error.message?.includes('401') || (error as any).status === 401;
-      const isRls = (error as any).code === '42501' || error.message?.includes('row-level security');
-      if (is401 || entidade === 'audit') {
-        console.warn('[Sync] Erro no upsert', table, ':', error.code, error.message, error);
+      const is401 =
+        error.message?.includes("401") || (error as any).status === 401;
+      const isRls =
+        (error as any).code === "42501" ||
+        error.message?.includes("row-level security");
+      if (is401 || entidade === "audit") {
+        console.warn(
+          "[Sync] Erro no upsert",
+          table,
+          ":",
+          error.code,
+          error.message,
+          error,
+        );
       }
       const msg = is401
-        ? 'Não autorizado (401). Faça login novamente com Supabase Auth.'
+        ? "Não autorizado (401). Faça login novamente com Supabase Auth."
         : isRls
-          ? 'RLS bloqueou a escrita (auth.uid() nulo). Faça login com Supabase Auth e sincronize de novo.'
-          : (error.message || 'Erro no upsert');
+          ? "RLS bloqueou a escrita (auth.uid() nulo). Faça login com Supabase Auth e sincronize de novo."
+          : error.message || "Erro no upsert";
       await markBatchError(eventosValidos, msg, now);
       resultados.falhas = eventosValidos.length;
-      eventosValidos.forEach(e => resultados.erros.push({ event: e, error: msg }));
+      eventosValidos.forEach((e) =>
+        resultados.erros.push({ event: e, error: msg }),
+      );
       return resultados;
     }
 
@@ -598,16 +733,25 @@ async function processUpsertBatch(
         if (isRolePermission) {
           for (const r of upserted as any[]) {
             if (r.role != null && r.permission != null) {
-              const locais = await db.rolePermissions.where({ role: r.role, permission: r.permission }).toArray();
-              await Promise.all(locais.map(rec => db.rolePermissions.update(rec.id, { remoteId: r.id, synced: true })));
+              const locais = await db.rolePermissions
+                .where({ role: r.role, permission: r.permission })
+                .toArray();
+              await Promise.all(
+                locais.map((rec) =>
+                  db.rolePermissions.update(rec.id, {
+                    remoteId: r.id,
+                    synced: true,
+                  }),
+                ),
+              );
             }
           }
         } else {
           const updates = upserted
-            .filter((r: any) => (r.uuid != null || r.id != null))
+            .filter((r: any) => r.uuid != null || r.id != null)
             .map((r: any) => ({
-              key: conflictField === 'uuid' ? r.uuid : String(r.id),
-              changes: { remoteId: r.id, synced: true }
+              key: conflictField === "uuid" ? r.uuid : String(r.id),
+              changes: { remoteId: r.id, synced: true },
             }));
           if (updates.length > 0) await localTable.bulkUpdate(updates);
         }
@@ -615,35 +759,41 @@ async function processUpsertBatch(
     }
 
     await db.syncEvents.bulkUpdate(
-      eventosValidos.map(e => ({
+      eventosValidos.map((e) => ({
         key: e.id,
         changes: {
           synced: true,
           erro: null,
           tentativas: e.tentativas + 1,
-          updatedAt: now
-        }
-      }))
+          updatedAt: now,
+        },
+      })),
     );
     resultados.sucesso = eventosValidos.length;
     // Log explícito para confirmar que confinamento foi enviado
     if (isConfinamentoEntity && resultados.sucesso > 0) {
       const label =
-        entidade === 'confinamento'
-          ? 'Confinamentos'
-          : entidade === 'confinamentoAnimal'
-            ? 'Confinamento Animais'
-            : entidade === 'confinamentoPesagem'
-              ? 'Confinamento Pesagens'
-              : entidade === 'confinamentoAlimentacao'
-                ? 'Confinamento Alimentação'
-                : 'Ocorrências Animal';
-      console.log(`✅ Envio ${label}: ${resultados.sucesso} registro(s) enviado(s) ao servidor`);
+        entidade === "confinamento"
+          ? "Confinamentos"
+          : entidade === "confinamentoAnimal"
+            ? "Confinamento Animais"
+            : entidade === "confinamentoAlimentacao"
+              ? "Confinamento Alimentação"
+              : "Ocorrências Animal";
+      console.log(
+        `✅ Envio ${label}: ${resultados.sucesso} registro(s) enviado(s) ao servidor`,
+      );
     }
   } catch (err: any) {
-    await markBatchError(eventosValidos, err?.message || 'Erro ao processar upsert', now);
+    await markBatchError(
+      eventosValidos,
+      err?.message || "Erro ao processar upsert",
+      now,
+    );
     resultados.falhas = eventosValidos.length;
-    eventosValidos.forEach(e => resultados.erros.push({ event: e, error: err?.message || 'Erro' }));
+    eventosValidos.forEach((e) =>
+      resultados.erros.push({ event: e, error: err?.message || "Erro" }),
+    );
   }
 
   return resultados;
@@ -651,26 +801,47 @@ async function processUpsertBatch(
 
 function getLocalTableForEntity(entidade: SyncEntity): any {
   switch (entidade) {
-    case 'fazenda': return db.fazendas;
-    case 'raca': return db.racas;
-    case 'categoria': return db.categorias;
-    case 'desmama': return db.desmamas;
-    case 'matriz': return db.matrizes;
-    case 'usuario': return db.usuarios;
-    case 'audit': return db.audits;
-    case 'notificacaoLida': return db.notificacoesLidas;
-    case 'alertSettings': return db.alertSettings;
-    case 'appSettings': return db.appSettings;
-    case 'rolePermission': return db.rolePermissions;
-    case 'pesagem': return db.pesagens;
-    case 'vacina': return db.vacinacoes;
-    case 'confinamento': return db.confinamentos;
-    case 'confinamentoAnimal': return db.confinamentoAnimais;
-    case 'confinamentoPesagem': return db.confinamentoPesagens;
-    case 'confinamentoAlimentacao': return db.confinamentoAlimentacao;
-    case 'ocorrenciaAnimal': return db.ocorrenciaAnimais;
-    case 'animal': return db.animais;
-    default: return null;
+    case "fazenda":
+      return db.fazendas;
+    case "raca":
+      return db.racas;
+    case "categoria":
+      return db.categorias;
+    case "desmama":
+      return db.desmamas;
+    case "matriz":
+      return db.matrizes;
+    case "usuario":
+      return db.usuarios;
+    case "audit":
+      return db.audits;
+    case "notificacaoLida":
+      return db.notificacoesLidas;
+    case "alertSettings":
+      return db.alertSettings;
+    case "appSettings":
+      return db.appSettings;
+    case "rolePermission":
+      return db.rolePermissions;
+    case "pesagem":
+      return db.pesagens;
+    case "vacina":
+      return db.vacinacoes;
+    case "confinamento":
+      return db.confinamentos;
+    case "confinamentoAnimal":
+      return db.confinamentoAnimais;
+    case "confinamentoPesagem":
+      // Entidade removida: mapear para tabela de pesagens
+      return db.pesagens;
+    case "confinamentoAlimentacao":
+      return db.confinamentoAlimentacao;
+    case "ocorrenciaAnimal":
+      return db.ocorrenciaAnimais;
+    case "animal":
+      return db.animais;
+    default:
+      return null;
   }
 }
 
@@ -679,11 +850,15 @@ function getLocalTableForEntity(entidade: SyncEntity): any {
  */
 async function processBatch(
   events: SyncEvent[],
-  now: string
-): Promise<{ sucesso: number; falhas: number; erros: Array<{ event: SyncEvent; error: string }> }> {
+  now: string,
+): Promise<{
+  sucesso: number;
+  falhas: number;
+  erros: Array<{ event: SyncEvent; error: string }>;
+}> {
   if (events.length === 0) return { sucesso: 0, falhas: 0, erros: [] };
 
-  if (events[0].tipo === 'DELETE') {
+  if (events[0].tipo === "DELETE") {
     return processDeleteBatch(events, now);
   }
   return processUpsertBatch(events, now);
@@ -705,8 +880,8 @@ export async function processSyncQueue(): Promise<{
   // Buscar TODOS e filtrar em memória - evita índice [synced+createdAt] que falha se createdAt for inválido
   const todos = await db.syncEvents.toArray();
   const pendentes = todos
-    .filter(e => !e.synced)
-    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    .filter((e) => !e.synced)
+    .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
 
   if (pendentes.length === 0) {
     return { processados: 0, sucesso: 0, falhas: 0, erros: [] };
@@ -715,7 +890,7 @@ export async function processSyncQueue(): Promise<{
   await hasLoggedInUser();
 
   // Filtrar eventos que excederam tentativas
-  const elegiveis = pendentes.filter(e => e.tentativas < MAX_TENTATIVAS);
+  const elegiveis = pendentes.filter((e) => e.tentativas < MAX_TENTATIVAS);
   const descartados = pendentes.length - elegiveis.length;
 
   // Agrupar por entidade + tipo
@@ -728,21 +903,22 @@ export async function processSyncQueue(): Promise<{
 
   // Ordem de processamento: confinamento antes de confinamento_animais, que antes de pesagens/alimentação (FKs)
   const entityOrder: SyncEntity[] = [
-    'confinamento',
-    'confinamentoAnimal',
-    'ocorrenciaAnimal',
-    'confinamentoPesagem',
-    'confinamentoAlimentacao'
+    "confinamento",
+    "confinamentoAnimal",
+    "ocorrenciaAnimal",
+    "confinamentoAlimentacao",
   ];
   const orderKey = (key: string) => {
-    const ent = key.split(':')[0] as SyncEntity;
+    const ent = key.split(":")[0] as SyncEntity;
     const i = entityOrder.indexOf(ent);
     return i >= 0 ? i : 999;
   };
 
   // Criar batches de BATCH_SIZE, respeitando ordem de dependência
   const batches: SyncEvent[][] = [];
-  const sortedKeys = Array.from(grupos.keys()).sort((a, b) => orderKey(a) - orderKey(b));
+  const sortedKeys = Array.from(grupos.keys()).sort(
+    (a, b) => orderKey(a) - orderKey(b),
+  );
   for (const key of sortedKeys) {
     const group = grupos.get(key)!;
     for (let i = 0; i < group.length; i += BATCH_SIZE) {
@@ -750,22 +926,31 @@ export async function processSyncQueue(): Promise<{
     }
   }
 
-  const resultados = { processados: 0, sucesso: 0, falhas: 0, erros: [] as Array<{ event: SyncEvent; error: string }> };
+  const resultados = {
+    processados: 0,
+    sucesso: 0,
+    falhas: 0,
+    erros: [] as Array<{ event: SyncEvent; error: string }>,
+  };
   const now = new Date().toISOString();
 
   // Ondas sequenciais: confinamento → confinamento_animais → pesagens/alimentação → resto
   // Assim o remoteId do confinamento (e dos vínculos) já está no IndexedDB antes de resolver FKs
-  const confinamentoEntities: SyncEntity[] = ['confinamento', 'confinamentoAnimal', 'confinamentoPesagem', 'confinamentoAlimentacao'];
+  const confinamentoEntities: SyncEntity[] = [
+    "confinamento",
+    "confinamentoAnimal",
+    "confinamentoAlimentacao",
+  ];
   const waveForEntity = (ent: SyncEntity): number => {
     const i = confinamentoEntities.indexOf(ent);
     return i >= 0 ? i : confinamentoEntities.length;
   };
   const waves: SyncEvent[][][] = [];
-  let currentWave = waveForEntity(batches[0]?.[0]?.entidade ?? '');
+  let currentWave = waveForEntity(batches[0]?.[0]?.entidade ?? "");
   let waveBatches: SyncEvent[][] = [];
   for (const batch of batches) {
     const ent = batch[0]?.entidade;
-    const w = waveForEntity(ent ?? '');
+    const w = waveForEntity(ent ?? "");
     if (w !== currentWave) {
       if (waveBatches.length > 0) waves.push(waveBatches);
       waveBatches = [];
@@ -777,19 +962,21 @@ export async function processSyncQueue(): Promise<{
 
   for (const wave of waves) {
     if (wave.length === 0) continue;
-  let index = 0;
-  const worker = async (): Promise<void> => {
-    let i: number;
+    let index = 0;
+    const worker = async (): Promise<void> => {
+      let i: number;
       while ((i = index++) < wave.length) {
         const batch = wave[i];
-      const r = await processBatch(batch, now);
-      resultados.processados += batch.length;
-      resultados.sucesso += r.sucesso;
-      resultados.falhas += r.falhas;
-      resultados.erros.push(...r.erros);
-    }
-  };
-    await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENCY, wave.length) }, worker));
+        const r = await processBatch(batch, now);
+        resultados.processados += batch.length;
+        resultados.sucesso += r.sucesso;
+        resultados.falhas += r.falhas;
+        resultados.erros.push(...r.erros);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(MAX_CONCURRENCY, wave.length) }, worker),
+    );
   }
 
   resultados.processados += descartados;
@@ -814,14 +1001,16 @@ export async function processSyncEvent(event: SyncEvent): Promise<boolean> {
  */
 export async function resetFailedSyncEvents(): Promise<number> {
   const todos = await db.syncEvents.toArray();
-  const comErro = todos.filter(e => !e.synced && e.tentativas >= MAX_TENTATIVAS);
+  const comErro = todos.filter(
+    (e) => !e.synced && e.tentativas >= MAX_TENTATIVAS,
+  );
   if (comErro.length === 0) return 0;
   const now = new Date().toISOString();
   await db.syncEvents.bulkUpdate(
-    comErro.map(e => ({
+    comErro.map((e) => ({
       key: e.id,
-      changes: { tentativas: 0, erro: null, updatedAt: now }
-    }))
+      changes: { tentativas: 0, erro: null, updatedAt: now },
+    })),
   );
   return comErro.length;
 }
@@ -841,16 +1030,21 @@ export async function getSyncQueueStats(): Promise<{
 
   const stats = {
     total: todos.length,
-    pendentes: todos.filter(e => !e.synced).length,
-    sincronizados: todos.filter(e => e.synced).length,
-    comErro: todos.filter(e => !e.synced && e.tentativas >= MAX_TENTATIVAS).length,
-    porTipo: { INSERT: 0, UPDATE: 0, DELETE: 0 } as Record<SyncEventType, number>,
-    porEntidade: {} as Record<SyncEntity, number>
+    pendentes: todos.filter((e) => !e.synced).length,
+    sincronizados: todos.filter((e) => e.synced).length,
+    comErro: todos.filter((e) => !e.synced && e.tentativas >= MAX_TENTATIVAS)
+      .length,
+    porTipo: { INSERT: 0, UPDATE: 0, DELETE: 0 } as Record<
+      SyncEventType,
+      number
+    >,
+    porEntidade: {} as Record<SyncEntity, number>,
   };
 
   for (const event of todos) {
     stats.porTipo[event.tipo]++;
-    stats.porEntidade[event.entidade] = (stats.porEntidade[event.entidade] || 0) + 1;
+    stats.porEntidade[event.entidade] =
+      (stats.porEntidade[event.entidade] || 0) + 1;
   }
 
   return stats;
@@ -864,23 +1058,28 @@ export async function diagnoseSyncEventsInvalidCreatedAt(): Promise<{
   total: number;
   comCreatedAtInvalido: number;
   ids: string[];
-  exemplos: Array<{ id: string; createdAt: unknown; tipo: string; entidade: string }>;
+  exemplos: Array<{
+    id: string;
+    createdAt: unknown;
+    tipo: string;
+    entidade: string;
+  }>;
 }> {
   const todos = await db.syncEvents.toArray();
-  const invalidos = todos.filter(e => {
+  const invalidos = todos.filter((e) => {
     const v = e.createdAt;
-    return v === undefined || v === null || typeof v !== 'string' || v === '';
+    return v === undefined || v === null || typeof v !== "string" || v === "";
   });
   return {
     total: todos.length,
     comCreatedAtInvalido: invalidos.length,
-    ids: invalidos.map(e => e.id),
-    exemplos: invalidos.slice(0, 10).map(e => ({
+    ids: invalidos.map((e) => e.id),
+    exemplos: invalidos.slice(0, 10).map((e) => ({
       id: e.id,
       createdAt: e.createdAt,
       tipo: e.tipo,
-      entidade: e.entidade
-    }))
+      entidade: e.entidade,
+    })),
   };
 }
 
@@ -889,44 +1088,59 @@ export async function diagnoseSyncEventsInvalidCreatedAt(): Promise<{
  * mas não possuem evento pendente na fila (ex.: desmama/confinamento salvos antes do createSyncEvent).
  * Retorna quantos eventos foram criados.
  */
-export async function createSyncEventsForPendingRecords(): Promise<{ created: number; errors: string[] }> {
+export async function createSyncEventsForPendingRecords(): Promise<{
+  created: number;
+  errors: string[];
+}> {
   const result = { created: 0, errors: [] as string[] };
   const todosEventos = await db.syncEvents.toArray();
   const pendentesPorEntidade = new Map<SyncEntity, Set<string>>();
-  for (const e of todosEventos.filter(ev => !ev.synced)) {
-    if (!pendentesPorEntidade.has(e.entidade)) pendentesPorEntidade.set(e.entidade, new Set());
+  for (const e of todosEventos.filter((ev) => !ev.synced)) {
+    if (!pendentesPorEntidade.has(e.entidade))
+      pendentesPorEntidade.set(e.entidade, new Set());
     pendentesPorEntidade.get(e.entidade)!.add(e.entityId);
   }
 
   const hasPending = (entidade: SyncEntity, entityId: string) =>
     pendentesPorEntidade.get(entidade)?.has(entityId) ?? false;
 
-  const addEvent = async (entidade: SyncEntity, entityId: string, payload: any) => {
+  const addEvent = async (
+    entidade: SyncEntity,
+    entityId: string,
+    payload: any,
+  ) => {
     if (hasPending(entidade, entityId)) return;
     try {
-      await createSyncEvent('UPDATE', entidade, entityId, payload);
+      await createSyncEvent("UPDATE", entidade, entityId, payload);
       result.created++;
-      pendentesPorEntidade.get(entidade)?.add(entityId) ?? pendentesPorEntidade.set(entidade, new Set([entityId]));
+      pendentesPorEntidade.get(entidade)?.add(entityId) ??
+        pendentesPorEntidade.set(entidade, new Set([entityId]));
     } catch (err: any) {
       result.errors.push(`${entidade} ${entityId}: ${err?.message || err}`);
     }
   };
 
-  const tables: { table: any; entity: SyncEntity; filter?: (r: any) => boolean }[] = [
-    { table: db.fazendas, entity: 'fazenda' },
-    { table: db.racas, entity: 'raca' },
-    { table: db.categorias, entity: 'categoria' },
-    { table: db.desmamas, entity: 'desmama' },
-    { table: db.matrizes, entity: 'matriz' },
-    { table: db.pesagens, entity: 'pesagem' },
-    { table: db.vacinacoes, entity: 'vacina' },
-    { table: db.audits, entity: 'audit' }
+  const tables: {
+    table: any;
+    entity: SyncEntity;
+    filter?: (r: any) => boolean;
+  }[] = [
+    { table: db.fazendas, entity: "fazenda" },
+    { table: db.racas, entity: "raca" },
+    { table: db.categorias, entity: "categoria" },
+    { table: db.desmamas, entity: "desmama" },
+    { table: db.matrizes, entity: "matriz" },
+    { table: db.pesagens, entity: "pesagem" },
+    { table: db.vacinacoes, entity: "vacina" },
+    { table: db.audits, entity: "audit" },
   ];
   for (const { table, entity, filter } of tables) {
     try {
       if (!table) continue;
       const rows = await table.toArray();
-      const pend = filter ? rows.filter(filter) : rows.filter((r: any) => r.synced === false);
+      const pend = filter
+        ? rows.filter(filter)
+        : rows.filter((r: any) => r.synced === false);
       for (const r of pend) {
         const id = (r as any).id;
         if (id) await addEvent(entity, id, r);
@@ -940,7 +1154,7 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
     if (db.usuarios) {
       const usuarios = await db.usuarios.toArray();
       for (const u of usuarios.filter((r: any) => r.synced === false)) {
-        await addEvent('usuario', u.id, u);
+        await addEvent("usuario", u.id, u);
       }
     }
   } catch (err: any) {
@@ -951,7 +1165,7 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
     if (db.notificacoesLidas) {
       const nl = await db.notificacoesLidas.toArray();
       for (const n of nl.filter((r: any) => r.synced === false)) {
-        await addEvent('notificacaoLida', n.id, n);
+        await addEvent("notificacaoLida", n.id, n);
       }
     }
   } catch (err: any) {
@@ -962,7 +1176,7 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
     if (db.alertSettings) {
       const as = await db.alertSettings.toArray();
       for (const a of as.filter((r: any) => r.synced === false)) {
-        await addEvent('alertSettings', a.id, a);
+        await addEvent("alertSettings", a.id, a);
       }
     }
   } catch (err: any) {
@@ -973,7 +1187,7 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
     if (db.appSettings) {
       const app = await db.appSettings.toArray();
       for (const a of app.filter((r: any) => r.synced === false)) {
-        await addEvent('appSettings', a.id, a);
+        await addEvent("appSettings", a.id, a);
       }
     }
   } catch (err: any) {
@@ -984,7 +1198,7 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
     if (db.rolePermissions) {
       const rp = await db.rolePermissions.toArray();
       for (const r of rp.filter((x: any) => x.synced === false)) {
-        await addEvent('rolePermission', r.id, r);
+        await addEvent("rolePermission", r.id, r);
       }
     }
   } catch (err: any) {
@@ -993,8 +1207,10 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
 
   try {
     const animais = await db.animais.toArray();
-    for (const a of animais.filter((r: any) => !r.deletedAt && r.synced === false)) {
-      await addEvent('animal', a.id, a);
+    for (const a of animais.filter(
+      (r: any) => !r.deletedAt && r.synced === false,
+    )) {
+      await addEvent("animal", a.id, a);
     }
   } catch (err: any) {
     result.errors.push(`animais: ${err?.message || err}`);
@@ -1002,8 +1218,8 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
 
   try {
     const confinamentos = await db.confinamentos.toArray();
-    for (const c of confinamentos.filter(r => r.synced === false)) {
-      await addEvent('confinamento', c.id, c);
+    for (const c of confinamentos.filter((r) => r.synced === false)) {
+      await addEvent("confinamento", c.id, c);
     }
   } catch (err: any) {
     result.errors.push(`confinamentos: ${err?.message || err}`);
@@ -1011,8 +1227,10 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
 
   try {
     const vinculos = await db.confinamentoAnimais.toArray();
-    for (const v of vinculos.filter(r => r.deletedAt == null && r.synced === false)) {
-      await addEvent('confinamentoAnimal', v.id, v);
+    for (const v of vinculos.filter(
+      (r) => r.deletedAt == null && r.synced === false,
+    )) {
+      await addEvent("confinamentoAnimal", v.id, v);
     }
   } catch (err: any) {
     result.errors.push(`confinamentoAnimais: ${err?.message || err}`);
@@ -1021,8 +1239,10 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
   try {
     if (db.ocorrenciaAnimais) {
       const ocorrencias = await db.ocorrenciaAnimais.toArray();
-      for (const o of ocorrencias.filter((r: any) => r.deletedAt == null && r.synced === false)) {
-        await addEvent('ocorrenciaAnimal', o.id, o);
+      for (const o of ocorrencias.filter(
+        (r: any) => r.deletedAt == null && r.synced === false,
+      )) {
+        await addEvent("ocorrenciaAnimal", o.id, o);
       }
     }
   } catch (err: any) {
@@ -1030,18 +1250,20 @@ export async function createSyncEventsForPendingRecords(): Promise<{ created: nu
   }
 
   try {
-    const pesagens = await db.confinamentoPesagens.toArray();
-    for (const p of pesagens.filter(r => r.synced === false)) {
-      await addEvent('confinamentoPesagem', p.id, p);
+    const pesagens = await db.pesagens.toArray();
+    for (const p of pesagens.filter((r) => r.synced === false)) {
+      await addEvent("pesagem", p.id, p);
     }
   } catch (err: any) {
-    result.errors.push(`confinamentoPesagens: ${err?.message || err}`);
+    result.errors.push(`pesagens: ${err?.message || err}`);
   }
 
   try {
     const alimentacao = await db.confinamentoAlimentacao.toArray();
-    for (const a of alimentacao.filter(r => r.deletedAt == null && r.synced === false)) {
-      await addEvent('confinamentoAlimentacao', a.id, a);
+    for (const a of alimentacao.filter(
+      (r) => r.deletedAt == null && r.synced === false,
+    )) {
+      await addEvent("confinamentoAlimentacao", a.id, a);
     }
   } catch (err: any) {
     result.errors.push(`confinamentoAlimentacao: ${err?.message || err}`);
@@ -1058,12 +1280,12 @@ export async function cleanupOldSyncEvents(): Promise<number> {
   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
 
   const eventosAntigos = await db.syncEvents
-    .where('synced')
+    .where("synced")
     .equals(true as never)
-    .and(e => new Date(e.updatedAt) < seteDiasAtras)
+    .and((e) => new Date(e.updatedAt) < seteDiasAtras)
     .toArray();
 
-  const ids = eventosAntigos.map(e => e.id);
+  const ids = eventosAntigos.map((e) => e.id);
   await db.syncEvents.bulkDelete(ids);
 
   return ids.length;

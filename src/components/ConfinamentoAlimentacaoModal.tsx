@@ -1,37 +1,40 @@
-import React, { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/dexieDB';
-import { uuid } from '../utils/uuid';
-import { ConfinamentoAlimentacao, Confinamento } from '../db/models';
-import Modal from './Modal';
-import Input from './Input';
-import Textarea from './Textarea';
-import { showToast } from '../utils/toast';
-import { Icons } from '../utils/iconMapping';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
-import { useAuth } from '../hooks/useAuth';
-import { converterDataParaFormatoInput, converterDataParaFormatoBanco } from '../utils/dateInput';
-import { createSyncEvent } from '../utils/syncEvents';
-import { registrarAudit } from '../utils/audit';
-import { msg } from '../utils/validationMessages';
+import React, { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "../db/dexieDB";
+import { uuid } from "../utils/uuid";
+import { ConfinamentoAlimentacao } from "../db/models";
+import Modal from "./Modal";
+import Input from "./Input";
+import Textarea from "./Textarea";
+import { showToast } from "../utils/toast";
+import { Icons } from "../utils/iconMapping";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass } from "../utils/themeHelpers";
+import { useAuth } from "../hooks/useAuth";
+import {
+  converterDataParaFormatoInput,
+  converterDataParaFormatoBanco,
+} from "../utils/dateInput";
+import { createSyncEvent } from "../utils/syncEvents";
+import { registrarAudit } from "../utils/audit";
+import { msg } from "../utils/validationMessages";
 
 const schema = z.object({
   data: z.string().min(1, msg.obrigatorio),
   tipoDieta: z.string().optional(),
   custoTotal: z.number().min(0).optional(),
-  observacoes: z.string().optional()
+  observacoes: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
 
 interface ConfinamentoAlimentacaoModalProps {
   open: boolean;
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   confinamentoId: string;
   initialData?: ConfinamentoAlimentacao | null;
   onClose: () => void;
@@ -44,45 +47,51 @@ export default function ConfinamentoAlimentacaoModal({
   confinamentoId,
   initialData,
   onClose,
-  onSaved
+  onSaved,
 }: ConfinamentoAlimentacaoModalProps) {
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const confinamento = useLiveQuery(() => db.confinamentos.get(confinamentoId), [confinamentoId]);
-  const titulo = mode === 'create' ? 'Adicionar Registro de Alimentação' : 'Editar Alimentação';
+  const confinamento = useLiveQuery(
+    () => db.confinamentos.get(confinamentoId),
+    [confinamentoId],
+  );
+  const titulo =
+    mode === "create"
+      ? "Adicionar Registro de Alimentação"
+      : "Editar Alimentação";
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset
+    reset,
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      data: '',
-      tipoDieta: '',
+      data: "",
+      tipoDieta: "",
       custoTotal: undefined,
-      observacoes: ''
-    }
+      observacoes: "",
+    },
   });
 
   useEffect(() => {
-    if (mode === 'edit' && initialData) {
+    if (mode === "edit" && initialData) {
       reset({
         data: converterDataParaFormatoInput(initialData.data),
-        tipoDieta: initialData.tipoDieta || '',
+        tipoDieta: initialData.tipoDieta || "",
         custoTotal: initialData.custoTotal ?? undefined,
-        observacoes: initialData.observacoes || ''
+        observacoes: initialData.observacoes || "",
       });
-    } else if (mode === 'create' && open && confinamento?.dataInicio) {
+    } else if (mode === "create" && open && confinamento?.dataInicio) {
       reset({
         data: converterDataParaFormatoInput(confinamento.dataInicio),
-        tipoDieta: '',
+        tipoDieta: "",
         custoTotal: undefined,
-        observacoes: ''
+        observacoes: "",
       });
     }
   }, [mode, initialData, reset, open, confinamento?.dataInicio]);
@@ -100,51 +109,68 @@ export default function ConfinamentoAlimentacaoModal({
         custoTotal: values.custoTotal ?? undefined,
         observacoes: values.observacoes || undefined,
         updatedAt: now,
-        synced: false
+        synced: false,
       };
 
-      if (mode === 'edit' && initialData) {
+      if (mode === "edit" && initialData) {
         await db.confinamentoAlimentacao.update(initialData.id, payload);
         if (user) {
           await registrarAudit({
-            entity: 'confinamentoAlimentacao',
+            entity: "confinamentoAlimentacao",
             entityId: initialData.id,
-            action: 'update',
+            action: "update",
             userId: user.id,
             userNome: user.nome,
             before: JSON.stringify(initialData),
-            after: JSON.stringify({ ...initialData, ...payload })
+            after: JSON.stringify({ ...initialData, ...payload }),
           });
         }
         const atualizado = await db.confinamentoAlimentacao.get(initialData.id);
-        if (atualizado) await createSyncEvent('UPDATE', 'confinamentoAlimentacao', initialData.id, atualizado);
-        showToast({ type: 'success', message: 'Registro de alimentação atualizado.' });
+        if (atualizado)
+          await createSyncEvent(
+            "UPDATE",
+            "confinamentoAlimentacao",
+            initialData.id,
+            atualizado,
+          );
+        showToast({
+          type: "success",
+          message: "Registro de alimentação atualizado.",
+        });
       } else {
         const novoId = uuid();
         const novo: ConfinamentoAlimentacao = {
           id: novoId,
           ...payload,
-          createdAt: now
+          createdAt: now,
         } as ConfinamentoAlimentacao;
         await db.confinamentoAlimentacao.add(novo);
         if (user) {
           await registrarAudit({
-            entity: 'confinamentoAlimentacao',
+            entity: "confinamentoAlimentacao",
             entityId: novoId,
-            action: 'create',
+            action: "create",
             userId: user.id,
             userNome: user.nome,
-            after: JSON.stringify(novo)
+            after: JSON.stringify(novo),
           });
         }
-        await createSyncEvent('INSERT', 'confinamentoAlimentacao', novoId, novo);
-        showToast({ type: 'success', message: 'Registro de alimentação adicionado.' });
+        await createSyncEvent(
+          "INSERT",
+          "confinamentoAlimentacao",
+          novoId,
+          novo,
+        );
+        showToast({
+          type: "success",
+          message: "Registro de alimentação adicionado.",
+        });
       }
       onSaved?.();
       onClose();
     } catch (error: any) {
-      console.error('Erro ao salvar alimentação:', error);
-      showToast({ type: 'error', message: error.message || 'Erro ao salvar' });
+      console.error("Erro ao salvar alimentação:", error);
+      showToast({ type: "error", message: error.message || "Erro ao salvar" });
     } finally {
       setIsSubmitting(false);
     }
@@ -154,7 +180,9 @@ export default function ConfinamentoAlimentacaoModal({
     <Modal open={open} onClose={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 pt-6 pb-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{titulo}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+            {titulo}
+          </h2>
           <button
             onClick={onClose}
             className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700"
@@ -164,7 +192,9 @@ export default function ConfinamentoAlimentacaoModal({
         </div>
         {confinamento && (
           <div className="px-6 pt-2">
-            <p className="text-sm text-gray-500 dark:text-slate-400">Confinamento: {confinamento.nome}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              Confinamento: {confinamento.nome}
+            </p>
           </div>
         )}
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
@@ -172,7 +202,7 @@ export default function ConfinamentoAlimentacaoModal({
             label="Data"
             type="text"
             placeholder="DD/MM/YYYY"
-            {...register('data')}
+            {...register("data")}
             error={errors.data?.message}
             required
           />
@@ -180,7 +210,7 @@ export default function ConfinamentoAlimentacaoModal({
             label="Tipo de dieta"
             type="text"
             placeholder="Ex.: Volumoso, Concentrado"
-            {...register('tipoDieta')}
+            {...register("tipoDieta")}
             error={errors.tipoDieta?.message}
           />
           <Input
@@ -189,12 +219,12 @@ export default function ConfinamentoAlimentacaoModal({
             step="0.01"
             min="0"
             placeholder="0,00"
-            {...register('custoTotal', { valueAsNumber: true })}
+            {...register("custoTotal", { valueAsNumber: true })}
             error={errors.custoTotal?.message}
           />
           <Textarea
             label="Observações"
-            {...register('observacoes')}
+            {...register("observacoes")}
             error={errors.observacoes?.message}
             rows={3}
           />
@@ -212,7 +242,11 @@ export default function ConfinamentoAlimentacaoModal({
               disabled={isSubmitting}
               className={`px-4 py-2 text-sm text-white font-medium rounded-md ${getPrimaryButtonClass(primaryColor)} disabled:opacity-50`}
             >
-              {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Adicionar' : 'Salvar'}
+              {isSubmitting
+                ? "Salvando..."
+                : mode === "create"
+                  ? "Adicionar"
+                  : "Salvar"}
             </button>
           </div>
         </form>

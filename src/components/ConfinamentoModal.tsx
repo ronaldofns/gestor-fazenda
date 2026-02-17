@@ -1,47 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/dexieDB';
-import { uuid } from '../utils/uuid';
-import { Confinamento, Fazenda } from '../db/models';
-import Modal from './Modal';
-import Input from './Input';
-import Textarea from './Textarea';
-import Combobox, { ComboboxOption } from './Combobox';
-import { showToast } from '../utils/toast';
-import { Icons } from '../utils/iconMapping';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
-import { useAuth } from '../hooks/useAuth';
-import { useFazendaContext } from '../hooks/useFazendaContext';
-import { converterDataParaFormatoInput, converterDataParaFormatoBanco } from '../utils/dateInput';
-import { validarConfinamento } from '../utils/confinamentoRules';
-import { createSyncEvent } from '../utils/syncEvents';
-import { registrarAudit } from '../utils/audit';
-import { msg } from '../utils/validationMessages';
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "../db/dexieDB";
+import { uuid } from "../utils/uuid";
+import { Confinamento } from "../db/models";
+import Modal from "./Modal";
+import Input from "./Input";
+import Textarea from "./Textarea";
+import Combobox, { ComboboxOption } from "./Combobox";
+import { showToast } from "../utils/toast";
+import { Icons } from "../utils/iconMapping";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass } from "../utils/themeHelpers";
+import { useAuth } from "../hooks/useAuth";
+import { useFazendaContext } from "../hooks/useFazendaContext";
+import {
+  converterDataParaFormatoInput,
+  converterDataParaFormatoBanco,
+} from "../utils/dateInput";
+import { validarConfinamento } from "../utils/confinamentoRules";
+import { createSyncEvent } from "../utils/syncEvents";
+import { registrarAudit } from "../utils/audit";
+import { msg } from "../utils/validationMessages";
 
 const schema = z.object({
   nome: z.string().min(1, msg.obrigatorio),
   fazendaId: z.string().min(1, msg.obrigatorio),
   dataInicio: z.string().min(1, msg.obrigatorio),
   dataFimPrevista: z.string().optional(),
-  status: z.enum(['ativo', 'finalizado', 'cancelado']),
-  precoVendaKg: z.string().optional().transform(s => {
-    if (!s || s.trim() === '') return undefined;
-    const n = parseFloat(s.replace(',', '.'));
-    return isNaN(n) ? undefined : n;
-  }),
-  observacoes: z.string().optional()
+  status: z.enum(["ativo", "finalizado", "cancelado"]),
+  precoVendaKg: z
+    .string()
+    .optional()
+    .transform((s) => {
+      if (!s || s.trim() === "") return undefined;
+      const n = parseFloat(s.replace(",", "."));
+      return isNaN(n) ? undefined : n;
+    }),
+  observacoes: z.string().optional(),
 });
 
 type FormDataConfinamento = z.infer<typeof schema>;
 
 interface ConfinamentoModalProps {
   open: boolean;
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   initialData?: Confinamento | null;
   onClose: () => void;
   onSaved?: () => void;
@@ -52,21 +58,23 @@ export default function ConfinamentoModal({
   mode,
   initialData,
   onClose,
-  onSaved
+  onSaved,
 }: ConfinamentoModalProps) {
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
   const { user } = useAuth();
   const { fazendaSelecionada } = useFazendaContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const titulo = mode === 'create' ? 'Novo Confinamento' : 'Editar Confinamento';
+  const titulo =
+    mode === "create" ? "Novo Confinamento" : "Editar Confinamento";
 
   // Buscar fazendas
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
-  const fazendas: ComboboxOption[] = fazendasRaw
-    .filter(f => !f.deletedAt)
-    .map(f => ({ label: f.nome, value: f.id }));
+  const fazendas: ComboboxOption[] = fazendasRaw.map((f) => ({
+    label: f.nome,
+    value: f.id,
+  }));
 
   const {
     register,
@@ -74,56 +82,64 @@ export default function ConfinamentoModal({
     formState: { errors },
     reset,
     watch,
-    setValue
+    setValue,
   } = useForm<FormDataConfinamento>({
     resolver: zodResolver(schema),
     defaultValues: {
-      nome: '',
-      fazendaId: fazendaSelecionada?.id || '',
-      dataInicio: '',
-      dataFimPrevista: '',
-      status: 'ativo',
-      precoVendaKg: '',
-      observacoes: ''
-    }
+      nome: "",
+      fazendaId: fazendaSelecionada?.id || "",
+      dataInicio: "",
+      dataFimPrevista: "",
+      status: "ativo",
+      precoVendaKg: initialData?.precoVendaKg
+        ? initialData.precoVendaKg
+        : undefined,
+      observacoes: "",
+    },
   });
 
-  const statusSelecionado = watch('status');
+  const statusSelecionado = watch("status");
 
   // Pré-carregar dados no modo edição
   useEffect(() => {
-    if (mode === 'edit' && initialData) {
+    if (mode === "edit" && initialData) {
       reset({
         nome: initialData.nome,
         fazendaId: initialData.fazendaId,
         dataInicio: converterDataParaFormatoInput(initialData.dataInicio),
-        dataFimPrevista: initialData.dataFimPrevista ? converterDataParaFormatoInput(initialData.dataFimPrevista) : '',
+        dataFimPrevista: initialData.dataFimPrevista
+          ? converterDataParaFormatoInput(initialData.dataFimPrevista)
+          : "",
         status: initialData.status,
-        precoVendaKg: initialData.precoVendaKg != null ? String(initialData.precoVendaKg) : '',
-        observacoes: initialData.observacoes || ''
+        precoVendaKg: initialData.precoVendaKg,
+        observacoes: initialData.observacoes || "",
       });
-    } else if (mode === 'create' && open) {
+    } else if (mode === "create" && open) {
       reset({
-        nome: '',
-        fazendaId: fazendaSelecionada?.id || '',
-        dataInicio: '',
-        dataFimPrevista: '',
-        status: 'ativo',
-        precoVendaKg: '',
-        observacoes: ''
+        nome: "",
+        fazendaId: fazendaSelecionada?.id || "",
+        dataInicio: "",
+        dataFimPrevista: "",
+        status: "ativo",
+        precoVendaKg: initialData?.precoVendaKg
+          ? initialData.precoVendaKg
+          : undefined,
+        observacoes: "",
       });
     }
   }, [mode, initialData, reset, open, fazendaSelecionada]);
 
   const handleLimpar = () => {
     reset({
-      nome: '',
-      fazendaId: fazendaSelecionada?.id || '',
-      dataInicio: '',
-      dataFimPrevista: '',
-      status: 'ativo',
-      precoVendaKg: '',
-      observacoes: ''
+      nome: "",
+      fazendaId: fazendaSelecionada?.id || "",
+      dataInicio: "",
+      dataFimPrevista: "",
+      status: "ativo",
+      precoVendaKg: initialData?.precoVendaKg
+        ? initialData.precoVendaKg
+        : undefined,
+      observacoes: "",
     });
   };
 
@@ -133,7 +149,9 @@ export default function ConfinamentoModal({
 
     try {
       const dataInicioBanco = converterDataParaFormatoBanco(values.dataInicio);
-      const dataFimPrevistaBanco = values.dataFimPrevista ? converterDataParaFormatoBanco(values.dataFimPrevista) : undefined;
+      const dataFimPrevistaBanco = values.dataFimPrevista
+        ? converterDataParaFormatoBanco(values.dataFimPrevista)
+        : undefined;
 
       const confinamentoData: Partial<Confinamento> = {
         nome: values.nome,
@@ -144,50 +162,63 @@ export default function ConfinamentoModal({
         precoVendaKg: values.precoVendaKg,
         observacoes: values.observacoes || undefined,
         updatedAt: new Date().toISOString(),
-        synced: false
+        synced: false,
       };
 
       // Validação de regras de negócio
       const validacao = validarConfinamento(confinamentoData);
       if (!validacao.valido) {
-        showToast({ type: 'error', message: validacao.erro || 'Dados inválidos' });
+        showToast({
+          type: "error",
+          message: validacao.erro || "Dados inválidos",
+        });
         setIsSubmitting(false);
         return;
       }
 
       const now = new Date().toISOString();
 
-      if (mode === 'edit' && initialData) {
+      if (mode === "edit" && initialData) {
         // Atualizar confinamento existente
         await db.confinamentos.update(initialData.id, confinamentoData);
 
         // Registrar auditoria
         if (user) {
           await registrarAudit({
-            entity: 'confinamento',
+            entity: "confinamento",
             entityId: initialData.id,
-            action: 'update',
+            action: "update",
             userId: user.id,
             userNome: user.nome,
             before: JSON.stringify(initialData),
-            after: JSON.stringify({ ...initialData, ...confinamentoData })
+            after: JSON.stringify({ ...initialData, ...confinamentoData }),
           });
         }
 
         // Criar evento de sincronização
-        const confinamentoAtualizado = await db.confinamentos.get(initialData.id);
+        const confinamentoAtualizado = await db.confinamentos.get(
+          initialData.id,
+        );
         if (confinamentoAtualizado) {
-          await createSyncEvent('UPDATE', 'confinamento', initialData.id, confinamentoAtualizado);
+          await createSyncEvent(
+            "UPDATE",
+            "confinamento",
+            initialData.id,
+            confinamentoAtualizado,
+          );
         }
 
-        showToast({ type: 'success', message: 'Confinamento atualizado com sucesso!' });
+        showToast({
+          type: "success",
+          message: "Confinamento atualizado com sucesso!",
+        });
       } else {
         // Criar novo confinamento
         const novoId = uuid();
         const novoConfinamento: Confinamento = {
+          ...(confinamentoData as Confinamento),
           id: novoId,
-          ...confinamentoData as Confinamento,
-          createdAt: now
+          createdAt: now,
         };
 
         await db.confinamentos.add(novoConfinamento);
@@ -195,26 +226,37 @@ export default function ConfinamentoModal({
         // Registrar auditoria
         if (user) {
           await registrarAudit({
-            entity: 'confinamento',
+            entity: "confinamento",
             entityId: novoId,
-            action: 'create',
+            action: "create",
             userId: user.id,
             userNome: user.nome,
-            after: JSON.stringify(novoConfinamento)
+            after: JSON.stringify(novoConfinamento),
           });
         }
 
         // Criar evento de sincronização
-        await createSyncEvent('INSERT', 'confinamento', novoId, novoConfinamento);
+        await createSyncEvent(
+          "INSERT",
+          "confinamento",
+          novoId,
+          novoConfinamento,
+        );
 
-        showToast({ type: 'success', message: 'Confinamento criado com sucesso!' });
+        showToast({
+          type: "success",
+          message: "Confinamento criado com sucesso!",
+        });
       }
 
       onSaved?.();
       onClose();
     } catch (error: any) {
-      console.error('Erro ao salvar confinamento:', error);
-      showToast({ type: 'error', message: error.message || 'Erro ao salvar confinamento' });
+      console.error("Erro ao salvar confinamento:", error);
+      showToast({
+        type: "error",
+        message: error.message || "Erro ao salvar confinamento",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -226,7 +268,7 @@ export default function ConfinamentoModal({
       <Input
         label="Nome do Confinamento"
         placeholder="Ex: Confinamento Maio/2026 – Terminação"
-        {...register('nome')}
+        {...register("nome")}
         error={errors.nome?.message}
         required
         autoFocus
@@ -235,8 +277,10 @@ export default function ConfinamentoModal({
       {/* Fazenda */}
       <Combobox
         label="Fazenda"
-        value={watch('fazendaId')}
-        onChange={(value) => setValue('fazendaId', value, { shouldValidate: true })}
+        value={watch("fazendaId")}
+        onChange={(value) =>
+          setValue("fazendaId", value, { shouldValidate: true })
+        }
         options={fazendas}
         placeholder="Selecione a fazenda"
         error={errors.fazendaId?.message}
@@ -248,7 +292,7 @@ export default function ConfinamentoModal({
         label="Data de Início"
         type="text"
         placeholder="DD/MM/YYYY"
-        {...register('dataInicio')}
+        {...register("dataInicio")}
         error={errors.dataInicio?.message}
         required
       />
@@ -258,7 +302,7 @@ export default function ConfinamentoModal({
         label="Data Fim Prevista (opcional)"
         type="text"
         placeholder="DD/MM/YYYY"
-        {...register('dataFimPrevista')}
+        {...register("dataFimPrevista")}
         error={errors.dataFimPrevista?.message}
       />
 
@@ -268,13 +312,17 @@ export default function ConfinamentoModal({
           Status <span className="text-red-500">*</span>
         </label>
         <div className="flex gap-4">
-          {(['ativo', 'finalizado', 'cancelado'] as const).map((status) => (
+          {(["ativo", "finalizado", "cancelado"] as const).map((status) => (
             <label key={status} className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 value={status}
                 checked={statusSelecionado === status}
-                onChange={(e) => setValue('status', e.target.value as any, { shouldValidate: true })}
+                onChange={(e) =>
+                  setValue("status", e.target.value as any, {
+                    shouldValidate: true,
+                  })
+                }
                 className="mr-2"
               />
               <span className="text-sm capitalize">{status}</span>
@@ -294,14 +342,14 @@ export default function ConfinamentoModal({
         type="text"
         inputMode="decimal"
         placeholder="Ex: 15,50 — para ver margem estimada nos indicadores"
-        {...register('precoVendaKg')}
+        {...register("precoVendaKg")}
         error={errors.precoVendaKg?.message}
       />
 
       {/* Observações */}
       <Textarea
         label="Observações"
-        {...register('observacoes')}
+        {...register("observacoes")}
         error={errors.observacoes?.message}
         rows={4}
       />
@@ -329,7 +377,11 @@ export default function ConfinamentoModal({
           disabled={isSubmitting}
           className={`px-4 py-2 text-sm ${getPrimaryButtonClass(primaryColor)} text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50`}
         >
-          {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Criar' : 'Salvar'}
+          {isSubmitting
+            ? "Salvando..."
+            : mode === "create"
+              ? "Criar"
+              : "Salvar"}
         </button>
       </div>
     </form>
@@ -339,7 +391,9 @@ export default function ConfinamentoModal({
     <Modal open={open} onClose={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 pt-6 pb-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{titulo}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+            {titulo}
+          </h2>
           <button
             onClick={onClose}
             className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"

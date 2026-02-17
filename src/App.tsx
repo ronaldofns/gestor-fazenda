@@ -87,14 +87,6 @@ export default function App() {
     return () => window.removeEventListener('sidebarToggle', handleSidebarToggle);
   }, []);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle(
-      'sidebar-collapsed',
-      sidebarCollapsed
-    );
-  }, [sidebarCollapsed]);
-  
-
   return (
     <FazendaContextProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
@@ -117,7 +109,7 @@ export default function App() {
                     <Sidebar />
                     <div className={`flex-1 min-h-screen transition-all duration-300 flex flex-col ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'} overflow-x-hidden`}>
                       <TopBar />
-                      <main className="flex-1 overflow-auto overflow-x-hidden bg-gray-50 dark:bg-slate-950">
+                      <main className="flex-1 overflow-auto overflow-x-hidden bg-gray-50 dark:bg-slate-950 pt-16">
                         <ErrorBoundary>
                           <Suspense fallback={<RouteLoader />}>
                             <Routes>

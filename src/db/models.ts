@@ -45,7 +45,7 @@ export interface Nascimento {
   vaca?: boolean; // Checkbox VACA
   brincoNumero?: string; // NÚMERO BRINCO
   dataNascimento?: string; // DATA NASCIMENTO
-  sexo?: 'M' | 'F'; // SEXO
+  sexo?: "M" | "F"; // SEXO
   raca?: string; // RAÇA
   obs?: string; // OBS
   morto?: boolean; // Status: Morto (true) ou Vivo (false/undefined)
@@ -83,6 +83,7 @@ export interface Pesagem {
   lockedAt?: string | null; // Timestamp do lock
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null; // Timestamp de exclusão (para soft delete)
   synced: boolean;
   remoteId?: number | null;
 }
@@ -124,7 +125,7 @@ export interface Matriz {
   remoteId?: number | null;
 }
 
-export type UserRole = 'admin' | 'gerente' | 'peao' | 'visitante';
+export type UserRole = "admin" | "gerente" | "peao" | "visitante";
 
 export interface Usuario {
   id: string;
@@ -143,9 +144,27 @@ export interface Usuario {
   remoteId?: number | null; // ID remoto no Supabase
 }
 
-export type AuditEntity = 'fazenda' | 'raca' | 'categoria' | 'nascimento' | 'desmama' | 'matriz' | 'usuario' | 'pesagem' | 'vacina' | 'animal' | 'tipoAnimal' | 'statusAnimal' | 'origem' | 'genealogia' | 'confinamento' | 'confinamentoAnimal' | 'confinamentoPesagem' | 'confinamentoAlimentacao' | 'ocorrenciaAnimal';
+export type AuditEntity =
+  | "fazenda"
+  | "raca"
+  | "categoria"
+  | "nascimento"
+  | "desmama"
+  | "matriz"
+  | "usuario"
+  | "pesagem"
+  | "vacina"
+  | "animal"
+  | "tipoAnimal"
+  | "statusAnimal"
+  | "origem"
+  | "genealogia"
+  | "confinamento"
+  | "confinamentoAnimal"
+  | "confinamentoAlimentacao"
+  | "ocorrenciaAnimal";
 
-export type AuditAction = 'create' | 'update' | 'delete';
+export type AuditAction = "create" | "update" | "delete";
 
 export interface AuditLog {
   id: string; // UUID interno
@@ -164,7 +183,18 @@ export interface AuditLog {
 
 export interface NotificacaoLida {
   id: string; // Chave única da notificação (ex: "desmama-{id}", "mortalidade-{fazendaId}")
-  tipo: 'desmama_atrasada' | 'matriz_improdutiva' | 'peso_critico' | 'vacinas_vencidas' | 'mortalidade_alta' | 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina';
+  tipo:
+    | "desmama_atrasada"
+    | "matriz_improdutiva"
+    | "peso_critico"
+    | "vacinas_vencidas"
+    | "mortalidade_alta"
+    | "desmama"
+    | "mortalidade"
+    | "dados"
+    | "matriz"
+    | "peso"
+    | "vacina";
   usuarioId: string; // ID do usuário que marcou como lido
   marcadaEm: string; // ISO string
   synced: boolean; // Se foi sincronizado com o servidor
@@ -196,32 +226,32 @@ export interface AppSettingsDB {
 }
 
 // Tipos de permissões disponíveis no sistema (alinhado às funcionalidades atuais)
-export type PermissionType = 
-  | 'gerenciar_usuarios'
-  | 'gerenciar_fazendas'
-  | 'gerenciar_racas'
-  | 'gerenciar_categorias'
-  | 'cadastrar_animal'
-  | 'editar_animal'
-  | 'excluir_animal'
-  | 'cadastrar_desmama'
-  | 'editar_desmama'
-  | 'excluir_desmama'
-  | 'cadastrar_pesagem'
-  | 'editar_pesagem'
-  | 'excluir_pesagem'
-  | 'cadastrar_vacina'
-  | 'editar_vacina'
-  | 'excluir_vacina'
-  | 'ver_dashboard'
-  | 'ver_notificacoes'
-  | 'ver_sincronizacao'
-  | 'ver_planilha'
-  | 'ver_confinamentos'
-  | 'ver_fazendas'
-  | 'ver_usuarios'
-  | 'exportar_dados'
-  | 'gerar_relatorios';
+export type PermissionType =
+  | "gerenciar_usuarios"
+  | "gerenciar_fazendas"
+  | "gerenciar_racas"
+  | "gerenciar_categorias"
+  | "cadastrar_animal"
+  | "editar_animal"
+  | "excluir_animal"
+  | "cadastrar_desmama"
+  | "editar_desmama"
+  | "excluir_desmama"
+  | "cadastrar_pesagem"
+  | "editar_pesagem"
+  | "excluir_pesagem"
+  | "cadastrar_vacina"
+  | "editar_vacina"
+  | "excluir_vacina"
+  | "ver_dashboard"
+  | "ver_notificacoes"
+  | "ver_sincronizacao"
+  | "ver_planilha"
+  | "ver_confinamentos"
+  | "ver_fazendas"
+  | "ver_usuarios"
+  | "exportar_dados"
+  | "gerar_relatorios";
 
 // Permissão por role
 export interface RolePermission {
@@ -236,12 +266,27 @@ export interface RolePermission {
 }
 
 // Tipos de entidades que podem ter eventos de sincronização
-export type SyncEntity = 'fazenda' | 'raca' | 'categoria' | 'desmama' | 'matriz' | 'usuario' | 'audit' | 'notificacaoLida' | 'alertSettings' | 'appSettings' | 'rolePermission' | 'pesagem' | 'vacina' | 'confinamento' | 'confinamentoAnimal' | 'confinamentoPesagem' | 'confinamentoAlimentacao' | 'ocorrenciaAnimal' | 'animal';
+export type SyncEntity =
+  | "fazenda"
+  | "raca"
+  | "categoria"
+  | "desmama"
+  | "matriz"
+  | "usuario"
+  | "audit"
+  | "notificacaoLida"
+  | "alertSettings"
+  | "appSettings"
+  | "rolePermission"
+  | "pesagem"
+  | "vacina"
+  | "confinamento"
+  | "confinamentoAnimal"
+  | "confinamentoAlimentacao"
+  | "ocorrenciaAnimal"
+  | "animal";
 
-// Tipos de operações de sincronização
-export type SyncEventType = 'INSERT' | 'UPDATE' | 'DELETE';
-
-// Evento de sincronização na fila
+export type SyncEventType = "INSERT" | "UPDATE" | "DELETE";
 export interface SyncEvent {
   id: string; // UUID interno
   tipo: SyncEventType; // INSERT, UPDATE, DELETE
@@ -313,44 +358,44 @@ export interface Animal {
   id: string; // UUID (chave primária)
   brinco: string; // Número do brinco (identificador visual)
   nome?: string; // Nome do animal (opcional)
-  
+
   // Classificação
   tipoId: string; // FK para tipos_animal (Bezerro, Novilha, Vaca, etc.)
   racaId?: string; // FK para racas
-  sexo: 'M' | 'F';
+  sexo: "M" | "F";
   statusId: string; // FK para status_animal (Ativo, Vendido, etc.)
-  
+
   // Datas
   dataNascimento: string;
   dataCadastro: string; // Quando foi cadastrado no sistema
   dataEntrada?: string; // Quando entrou na fazenda (se comprado/transferido)
   dataSaida?: string; // Quando saiu (venda/morte/transferência)
-  
+
   // Origem e Proprietário
   origemId: string; // FK para origens
   fazendaId: string; // Fazenda atual (proprietário)
   fazendaOrigemId?: string; // Fazenda de origem (se transferido)
   proprietarioAnterior?: string; // Nome do proprietário anterior
-  
+
   // Genealogia (IDs de outros animais)
   matrizId?: string; // ID da mãe (FK para animais)
   reprodutorId?: string; // ID do pai (FK para animais)
-  
+
   // Financeiro
   valorCompra?: number;
   valorVenda?: number;
-  
+
   // Físico
   pelagem?: string; // Cor/pelagem
   pesoAtual?: number; // Último peso registrado
-  
+
   // Agrupamento
   lote?: string;
   categoria?: string; // Categoria personalizada
-  
+
   // Observações
   obs?: string;
-  
+
   // Sistema
   lockedBy?: string | null;
   lockedByNome?: string | null;
@@ -399,7 +444,7 @@ export interface Confinamento {
   dataInicio: string; // Data de início do confinamento (YYYY-MM-DD)
   dataFimPrevista?: string; // Data prevista de término (YYYY-MM-DD)
   dataFimReal?: string; // Data real de término (YYYY-MM-DD)
-  status: 'ativo' | 'finalizado' | 'cancelado';
+  status: "ativo" | "finalizado" | "cancelado";
   /** Preço de venda por kg (R$) — opcional, para cálculo da margem estimada */
   precoVendaKg?: number;
   observacoes?: string;
@@ -425,27 +470,7 @@ export interface ConfinamentoAnimal {
   pesoEntrada: number; // Peso na entrada (kg)
   dataSaida?: string; // Data de saída (YYYY-MM-DD) - null se ainda confinado
   pesoSaida?: number; // Peso na saída (kg)
-  motivoSaida?: 'abate' | 'venda' | 'morte' | 'outro'; // Motivo da saída
-  observacoes?: string;
-  lockedBy?: string | null;
-  lockedByNome?: string | null;
-  lockedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  synced: boolean;
-  remoteId?: number | null;
-  deletedAt?: string | null;
-}
-
-/**
- * Pesagens específicas do confinamento
- * Alternativa: reutilizar pesagens gerais com contexto = 'confinamento'
- */
-export interface ConfinamentoPesagem {
-  id: string; // UUID (chave primária)
-  confinamentoAnimalId: string; // FK para confinamento_animais
-  data: string; // Data da pesagem (YYYY-MM-DD)
-  peso: number; // Peso em kg
+  motivoSaida?: "abate" | "venda" | "morte" | "outro"; // Motivo da saída
   observacoes?: string;
   lockedBy?: string | null;
   lockedByNome?: string | null;
@@ -482,7 +507,7 @@ export interface ConfinamentoAlimentacao {
  * Ocorrência por animal (sanidade: doença, tratamento, morte, outro).
  * Pode ser vinculada ao animal em geral ou a um vínculo de confinamento (confinamentoAnimalId).
  */
-export type OcorrenciaTipo = 'doenca' | 'tratamento' | 'morte' | 'outro';
+export type OcorrenciaTipo = "doenca" | "tratamento" | "morte" | "outro";
 
 export interface OcorrenciaAnimal {
   id: string;
