@@ -284,7 +284,8 @@ export type SyncEntity =
   | "confinamentoAnimal"
   | "confinamentoAlimentacao"
   | "ocorrenciaAnimal"
-  | "animal";
+  | "animal"
+  | "genealogia";
 
 export type SyncEventType = "INSERT" | "UPDATE" | "DELETE";
 export interface SyncEvent {

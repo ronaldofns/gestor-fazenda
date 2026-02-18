@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db/dexieDB";
+import { usePagination } from "../hooks/usePagination";
 import {
   ConfinamentoAnimal,
   ConfinamentoAlimentacao,
@@ -28,7 +29,6 @@ import { formatDateBR } from "../utils/date";
 import { calcularGMD, calcularGMDParcial } from "../utils/confinamentoRules";
 import { estadoConfinamentoDerivado } from "../utils/confinamentoEstado";
 import { createSyncEvent } from "../utils/syncEvents";
-import { useAuth } from "../hooks/useAuth";
 import {
   exportarConfinamentoPDF,
   exportarConfinamentoExcel,
@@ -44,6 +44,7 @@ type TabType =
   | "historico";
 
 const ARROBA_KG = 15;
+const PAGE_SIZE = 10;
 
 export default function DetalheConfinamento() {
   const { confinamentoId } = useParams<{ confinamentoId: string }>();
@@ -51,24 +52,26 @@ export default function DetalheConfinamento() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { appSettings } = useAppSettings();
   const { hasPermission } = usePermissions();
-  const { user } = useAuth();
   const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
   const podeGerenciarConfinamentos = hasPermission("gerenciar_fazendas");
 
   const [activeTab, setActiveTab] = useState<TabType>("animais");
 
   // Abrir aba Indicadores quando ?aba=indicadores (ex.: vindo do "Ver relatório" na lista)
+  const abaParam = searchParams.get("aba");
+
   useEffect(() => {
-    if (searchParams.get("aba") === "indicadores") {
+    if (abaParam === "indicadores") {
       setActiveTab("indicadores");
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [abaParam]);
+
   const [modalConfinamentoOpen, setModalConfinamentoOpen] = useState(false);
   const [modalAnimalOpen, setModalAnimalOpen] = useState(false);
-  const [vínculoEditando, setVínculoEditando] =
+  const [vinculoEditando, setVinculoEditando] =
     useState<ConfinamentoAnimal | null>(null);
-  const [vínculoAEncerrar, setVínculoAEncerrar] =
+  const [vinculoAEncerrar, setVinculoAEncerrar] =
     useState<ConfinamentoAnimal | null>(null);
   const [modalAlimentacaoOpen, setModalAlimentacaoOpen] = useState(false);
   const [alimentacaoEditando, setAlimentacaoEditando] =
@@ -76,6 +79,7 @@ export default function DetalheConfinamento() {
   const [alimentacaoAExcluir, setAlimentacaoAExcluir] =
     useState<ConfinamentoAlimentacao | null>(null);
   const [modalPesagemOpen, setModalPesagemOpen] = useState(false);
+
   const [buscaAnimaisPesagens, setBuscaAnimaisPesagens] = useState("");
   const [modalOcorrenciaOpen, setModalOcorrenciaOpen] = useState(false);
   const [ocorrenciaEditando, setOcorrenciaEditando] =
@@ -99,8 +103,8 @@ export default function DetalheConfinamento() {
     [confinamento?.fazendaId],
   );
 
-  // Buscar vínculos animal-confinamento
-  const vinculosRaw =
+  // Buscar vinculos animal-confinamento
+  const vinculoAnimalConfinamento =
     useLiveQuery(
       () =>
         confinamentoId
@@ -113,37 +117,71 @@ export default function DetalheConfinamento() {
       [confinamentoId],
     ) || [];
 
+  const animalIdsKey = useMemo(
+    () =>
+      vinculoAnimalConfinamento
+        .map((v) => v.animalId)
+        .filter(Boolean)
+        .sort()
+        .join("|"),
+    [vinculoAnimalConfinamento],
+  );
+
   // Buscar animais
   const animaisMap =
     useLiveQuery(async () => {
       const map = new Map<string, Animal>();
-      if (vinculosRaw.length > 0) {
-        const animaisIds = vinculosRaw.map((v) => v.animalId);
-        const animais = await db.animais.bulkGet(
-          animaisIds.filter(Boolean) as string[],
-        );
-        animais.forEach((a) => {
-          if (a) map.set(a.id, a);
-        });
-      }
+
+      if (!animalIdsKey) return map;
+
+      const animais = await db.animais.bulkGet(animalIdsKey.split("|"));
+
+      animais.forEach((a) => {
+        if (a) map.set(a.id, a);
+      });
+
       return map;
-    }, [vinculosRaw]) || new Map();
+    }, [animalIdsKey]) || new Map();
 
   // Buscar pesagens do conjunto de animais do confinamento (usar tabela geral `pesagens`)
+  const vinculoIdsKey = useMemo(
+    () =>
+      vinculoAnimalConfinamento
+        .map((v) => v.id)
+        .sort()
+        .join("|"),
+    [vinculoAnimalConfinamento],
+  );
+
   const pesagensRaw =
     useLiveQuery(async () => {
-      if (!confinamentoId || vinculosRaw.length === 0) return [];
-      const animalIds = vinculosRaw.map((v) => v.animalId);
+      if (!confinamentoId || vinculoAnimalConfinamento.length === 0) return [];
+
+      const animalIds = vinculoAnimalConfinamento.map((v) => v.animalId);
+
       const pesagens = await db.pesagens
         .where("animalId")
         .anyOf(animalIds)
         .and((p) => p.deletedAt == null)
         .toArray();
-      return pesagens.sort(
-        (a, b) =>
-          new Date(b.dataPesagem).getTime() - new Date(a.dataPesagem).getTime(),
-      );
-    }, [confinamentoId, vinculosRaw]) || [];
+
+      return pesagens.sort((a, b) => {
+        const animalA = animaisMap.get(a.animalId);
+        const animalB = animaisMap.get(b.animalId);
+
+        const brincoA = animalA?.brinco ?? "";
+        const brincoB = animalB?.brinco ?? "";
+
+        // 1️⃣ Ordena por brinco
+        if (brincoA < brincoB) return -1;
+        if (brincoA > brincoB) return 1;
+
+        // 2️⃣ Se brinco igual, ordena por data (mais recente primeiro)
+        return (
+          new Date(b.dataPesagem).getTime() - new Date(a.dataPesagem).getTime()
+        );
+      });
+    }, [confinamentoId, vinculoIdsKey, animaisMap]) || [];
 
   // Buscar registros de alimentação do confinamento
   const alimentacaoRaw =
@@ -167,62 +205,147 @@ export default function DetalheConfinamento() {
     [alimentacaoRaw],
   );
 
-  // Buscar histórico (auditoria) do confinamento e dos vínculos
+  // Buscar histórico (auditoria) do confinamento e dos vinculos
+  const vinculosKey = useMemo(
+    () =>
+      vinculoAnimalConfinamento
+        .map((v) => v.id)
+        .sort()
+        .join("|"),
+    [vinculoAnimalConfinamento],
+  );
+
   const historicoRaw =
     useLiveQuery(async () => {
       if (!confinamentoId) return [];
-      const vinculoIds = vinculosRaw.map((v) => v.id);
+
+      const vinculoIds = vinculoAnimalConfinamento.map((v) => v.id);
+
       const auditsConfinamento = await db.audits
         .where("[entity+entityId]")
         .equals(["confinamento", confinamentoId])
         .toArray();
+
       const auditsAnimais =
         vinculoIds.length > 0
           ? await db.audits
-              .where("entity")
-              .equals("confinamentoAnimal")
-              .and((a) => vinculoIds.includes(a.entityId))
+              .where("entityId") // Certifique-se que entityId é um índice no seu Dexie
+              .anyOf(vinculoIds)
+              .filter((a) => a.entity === "confinamentoAnimal")
               .toArray()
           : [];
-      const todos = [...auditsConfinamento, ...auditsAnimais];
-      return todos.sort(
+
+      return [...auditsConfinamento, ...auditsAnimais].sort(
         (a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
       );
-    }, [confinamentoId, vinculosRaw]) || [];
+    }, [confinamentoId, vinculosKey]) || [];
 
-  const { vínculosAtivos, vínculosEncerrados, statusConfinamentoDerivado } =
+  const { vinculosAtivos, vinculosEncerrados, statusConfinamentoDerivado } =
     useMemo(() => {
-      const ativos = vinculosRaw.filter((v) => v.dataSaida == null);
-      const encerrados = vinculosRaw.filter((v) => v.dataSaida != null);
+      const ativos = vinculoAnimalConfinamento.filter(
+        (v) => v.dataSaida == null,
+      );
+      const encerrados = vinculoAnimalConfinamento.filter(
+        (v) => v.dataSaida != null,
+      );
       const statusDerivado = confinamento
-        ? estadoConfinamentoDerivado(confinamento, vinculosRaw)
+        ? estadoConfinamentoDerivado(confinamento, vinculoAnimalConfinamento)
         : undefined;
       return {
-        vínculosAtivos: ativos,
-        vínculosEncerrados: encerrados,
+        vinculosAtivos: ativos,
+        vinculosEncerrados: encerrados,
         statusConfinamentoDerivado: statusDerivado,
       };
-    }, [vinculosRaw, confinamento]);
+    }, [vinculoAnimalConfinamento, confinamento]);
 
-  const vínculosAtivosFiltradosPesagens = useMemo(() => {
-    const term = buscaAnimaisPesagens.trim().toLowerCase();
-    if (!term) return vínculosAtivos;
-    return vínculosAtivos.filter((v) => {
-      const animal = animaisMap.get(v.animalId);
-      const brinco =
-        animal?.brinco != null ? String(animal.brinco).toLowerCase() : "";
-      const nome = (animal?.nome ?? "").toLowerCase();
-      return brinco.includes(term) || nome.includes(term);
-    });
-  }, [vínculosAtivos, animaisMap, buscaAnimaisPesagens]);
+  const ativosPagination = usePagination(
+    vinculosAtivos,
+    PAGE_SIZE,
+    activeTab === "animais",
+  );
+
+  const encerradosPagination = usePagination(
+    vinculosEncerrados,
+    PAGE_SIZE,
+    activeTab === "animais",
+  );
+
+  const termoBusca = buscaAnimaisPesagens.trim().toLowerCase();
+
+  const animalIdsFiltrados = useMemo(() => {
+    if (!termoBusca) return null;
+
+    return new Set(
+      vinculosAtivos
+        .map((v) => {
+          const animal = animaisMap.get(v.animalId);
+          if (!animal) return null;
+
+          const brinco = animal.brinco?.toLowerCase() ?? "";
+          const nome = animal.nome?.toLowerCase() ?? "";
+
+          if (brinco.includes(termoBusca) || nome.includes(termoBusca)) {
+            return v.animalId;
+          }
+          return null;
+        })
+        .filter(Boolean) as string[],
+    );
+  }, [termoBusca, vinculosAtivos, animaisMap]);
+
+  const pesagensFiltradas = useMemo(() => {
+    if (!animalIdsFiltrados) return pesagensRaw;
+
+    return pesagensRaw.filter((p) => animalIdsFiltrados.has(p.animalId));
+  }, [pesagensRaw, animalIdsFiltrados]);
+
+  const historicoPesagensPagination = usePagination(
+    pesagensFiltradas,
+    PAGE_SIZE,
+  );
+
+  type PaginationProps = {
+    page: number;
+    setPage: (p: number) => void;
+    total: number;
+    pageSize: number;
+  };
+
+  function Pagination({ page, setPage, total, pageSize }: PaginationProps) {
+    const totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) return null;
+
+    return (
+      <div className="flex items-center justify-between mt-3 gap-3 text-sm">
+        <span className="text-gray-500">
+          Página {page} de {totalPages}
+        </span>
+
+        <div className="flex gap-2">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage(page - 1)}
+            className="px-3 py-1 rounded border disabled:opacity-50"
+          >
+            Anterior
+          </button>
+
+          <button
+            disabled={page === totalPages}
+            onClick={() => setPage(page + 1)}
+            className="px-3 py-1 rounded border disabled:opacity-50"
+          >
+            Próxima
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Calcular indicadores do confinamento (incl. economia)
   const indicadores = useMemo(() => {
-    const custoTotal = alimentacaoRaw.reduce(
-      (s, a) => s + (a.custoTotal ?? 0),
-      0,
-    );
+    // 1. Definição do estado inicial (Base)
     const base = {
       totalAnimais: 0,
       animaisAtivos: 0,
@@ -232,175 +355,155 @@ export default function DetalheConfinamento() {
       diasMedio: 0,
       mortalidade: 0,
       custoTotal: 0,
-      custoPorDia: null as number | null,
-      custoPorAnimalDia: null as number | null,
-      custoPorKgGanho: null as number | null,
+      custoPorDia: null,
+      custoPorAnimalDia: null,
+      custoPorKgGanho: null,
       kgGanhoTotal: 0,
       totalAnimalDias: 0,
       diasConfinamento: 0,
-      margemEstimada: null as number | null,
+      margemEstimada: null,
     };
 
-    if (vinculosRaw.length === 0 || !confinamento) {
-      return { ...base, custoTotal };
+    // 2. Early Return: Se o confinamento ou os vínculos não existirem, para aqui.
+    // Isso resolve o erro "'confinamento' é possivelmente 'indefinido'"
+    if (!confinamento || !vinculoAnimalConfinamento) {
+      return base;
     }
 
-    const mortalidade = vinculosRaw.filter(
-      (v) => v.motivoSaida === "morte",
-    ).length;
+    const pesagensDoConfinamento = (pesagensRaw ?? []).filter(
+      (p) =>
+        p.dataPesagem &&
+        new Date(p.dataPesagem) >= new Date(confinamento.dataInicio),
+    );
 
-    const entradas = vinculosRaw.map((v) => v.pesoEntrada);
-    const saidas = vinculosRaw
-      .filter((v) => v.pesoSaida)
-      .map((v) => v.pesoSaida!);
+    const custoTotal = (alimentacaoRaw ?? []).reduce(
+      (s, a) => s + (a.custoTotal ?? 0),
+      0,
+    );
+
+    // --- Cálculos de Médias de Peso ---
+    const entradas = vinculoAnimalConfinamento
+      .map((v) => v.pesoEntrada)
+      .filter((p): p is number => p !== null && p > 0);
+
+    const saidas = vinculoAnimalConfinamento
+      .map((v) => v.pesoSaida)
+      .filter((p): p is number => p !== null && p > 0);
 
     const pesoMedioEntrada =
       entradas.length > 0
         ? entradas.reduce((a, b) => a + b, 0) / entradas.length
         : 0;
 
+    // A verificação 'saidas.length > 0' garante que o reduce não rode em array vazio
     const pesoMedioSaida =
       saidas.length > 0 ? saidas.reduce((a, b) => a + b, 0) / saidas.length : 0;
 
-    // Última pesagem por animal (usar `animalId`) para GMD parcial dos ativos
-    const ultimaPesagemPorAnimal = new Map<
-      string,
-      { peso: number; data: string }
-    >();
-    for (const p of pesagensRaw) {
-      const atual = ultimaPesagemPorAnimal.get(p.animalId);
+    // --- Lógica de GMD e Permanência ---
+    const ultimaPesagemNoConfinamento = new Map();
+    pesagensDoConfinamento.forEach((p) => {
+      const atual = ultimaPesagemNoConfinamento.get(p.animalId);
       if (!atual || new Date(p.dataPesagem) > new Date(atual.data)) {
-        ultimaPesagemPorAnimal.set(p.animalId, {
+        ultimaPesagemNoConfinamento.set(p.animalId, {
           peso: p.peso,
           data: p.dataPesagem,
         });
       }
-    }
+    });
 
-    const gmdCalculados: Array<{ gmd: number; dias: number }> = [];
     let totalAnimalDias = 0;
     let kgGanhoTotal = 0;
+    const gmdCalculados = [];
 
-    for (const v of vinculosRaw) {
-      if (v.pesoSaida && v.dataSaida) {
-        const r = calcularGMD(
-          v.pesoEntrada,
-          v.pesoSaida,
-          v.dataEntrada,
-          v.dataSaida,
-        );
+    for (const v of vinculoAnimalConfinamento) {
+      let pesoFim = v.pesoSaida;
+      let dataFim = v.dataSaida;
 
-        if (r.gmd != null) {
-          gmdCalculados.push({ gmd: r.gmd, dias: r.dias });
+      if (!pesoFim) {
+        const pesagemRecente = ultimaPesagemNoConfinamento.get(v.animalId);
+        const animal = animaisMap?.get(v.animalId);
+        pesoFim = pesagemRecente?.peso ?? animal?.pesoAtual;
+        dataFim = pesagemRecente?.data ?? new Date().toISOString();
+      }
+
+      if (pesoFim != null && v.pesoEntrada != null) {
+        const r = calcularGMD(v.pesoEntrada, pesoFim, v.dataEntrada, dataFim);
+
+        if (r.gmd != null && r.dias >= 0) {
+          gmdCalculados.push(r.gmd);
           totalAnimalDias += r.dias;
-          kgGanhoTotal += v.pesoSaida - v.pesoEntrada;
-        }
-      } else {
-        const pesagemAnimal = ultimaPesagemPorAnimal.get(v.animalId);
-        const animal = animaisMap.get(v.animalId);
-        const pesoParaGMD = pesagemAnimal?.peso ?? animal?.pesoAtual;
-
-        if (pesoParaGMD != null) {
-          const dataFim = pesagemAnimal?.data;
-          const r = dataFim
-            ? calcularGMD(v.pesoEntrada, pesoParaGMD, v.dataEntrada, dataFim)
-            : calcularGMDParcial(v.pesoEntrada, pesoParaGMD, v.dataEntrada);
-
-          if (r.gmd != null) {
-            gmdCalculados.push({ gmd: r.gmd, dias: r.dias });
-            totalAnimalDias += r.dias;
-          }
+          const ganho = pesoFim - v.pesoEntrada;
+          kgGanhoTotal += ganho > 0 ? ganho : 0;
         }
       }
     }
 
-    const gmdMedio =
-      gmdCalculados.length > 0
-        ? gmdCalculados.reduce((a, b) => a + b.gmd, 0) / gmdCalculados.length
-        : 0;
-
-    // Tempo médio = duração média no confinamento (apenas animais já encerrados)
-    const diasNoConfinamento = vínculosEncerrados
-      .filter((v) => v.dataSaida)
-      .map((v) =>
-        Math.max(
-          1,
-          Math.floor(
-            (new Date(v.dataSaida!).getTime() -
-              new Date(v.dataEntrada).getTime()) /
-              (1000 * 60 * 60 * 24),
-          ),
-        ),
-      );
-    const diasMedio =
-      diasNoConfinamento.length > 0
-        ? diasNoConfinamento.reduce((a, b) => a + b, 0) /
-          diasNoConfinamento.length
-        : 0;
-
-    // Economia: dias do confinamento (calendário)
-    const inicio = new Date(confinamento.dataInicio);
-    const fim = confinamento.dataFimReal
+    // --- Finalização dos Indicadores ---
+    const inicioConf = new Date(confinamento.dataInicio);
+    const fimConf = confinamento.dataFimReal
       ? new Date(confinamento.dataFimReal)
       : new Date();
-    const diasConfinamento = Math.max(
+    const diasDecorridos = Math.max(
       1,
-      Math.floor((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)),
+      Math.floor(
+        (fimConf.getTime() - inicioConf.getTime()) / (1000 * 60 * 60 * 24),
+      ),
     );
 
-    const custoPorDia =
-      diasConfinamento > 0 ? custoTotal / diasConfinamento : null;
-    const custoPorAnimalDia =
-      totalAnimalDias > 0 ? custoTotal / totalAnimalDias : null;
-    const custoPorKgGanho = kgGanhoTotal > 0 ? custoTotal / kgGanhoTotal : null;
+    const gmdMedio =
+      gmdCalculados.length > 0
+        ? gmdCalculados.reduce((a, b) => a + b, 0) / gmdCalculados.length
+        : 0;
 
-    const precoKg = confinamento.precoVendaKg ?? undefined;
     const margemEstimada =
-      precoKg != null && precoKg > 0 && kgGanhoTotal > 0
-        ? kgGanhoTotal * precoKg - custoTotal
+      confinamento.precoVendaKg && kgGanhoTotal > 0
+        ? kgGanhoTotal * confinamento.precoVendaKg - custoTotal
         : null;
 
     return {
-      totalAnimais: vinculosRaw.length,
-      animaisAtivos: vínculosAtivos.length,
+      ...base,
+      totalAnimais: vinculoAnimalConfinamento.length,
+      animaisAtivos: (vinculosAtivos ?? []).length,
       pesoMedioEntrada,
       pesoMedioSaida,
       gmdMedio,
-      diasMedio,
-      mortalidade,
       custoTotal,
-      custoPorDia,
-      custoPorAnimalDia,
-      custoPorKgGanho,
+      custoPorDia: custoTotal / diasDecorridos,
+      custoPorAnimalDia:
+        totalAnimalDias > 0 ? custoTotal / totalAnimalDias : null,
+      custoPorKgGanho: kgGanhoTotal > 0 ? custoTotal / kgGanhoTotal : null,
       kgGanhoTotal,
       totalAnimalDias,
-      diasConfinamento,
+      diasConfinamento: diasDecorridos,
       margemEstimada,
     };
   }, [
-    vinculosRaw,
-    vínculosAtivos,
-    vínculosEncerrados,
+    vinculoAnimalConfinamento,
+    vinculosAtivos,
     animaisMap,
     pesagensRaw,
     alimentacaoRaw,
     confinamento,
   ]);
 
-  // Ocorrências do confinamento (por vínculo) — hooks devem vir antes de qualquer return condicional
-  const vinculoIds = useMemo(() => vinculosRaw.map((v) => v.id), [vinculosRaw]);
+  // Ocorrências do confinamento (por vinculo) — hooks devem vir antes de qualquer return condicional
+
   const ocorrenciasRaw =
     useLiveQuery(async () => {
-      if (vinculoIds.length === 0) return [];
+      if (vinculoAnimalConfinamento.length === 0) return [];
+
+      const ids = vinculoAnimalConfinamento.map((v) => v.id);
+
       const todas = await db.ocorrenciaAnimais
         .where("confinamentoAnimalId")
-        .anyOf(vinculoIds)
+        .anyOf(ids)
         .and((o) => o.deletedAt == null)
         .toArray();
+
       return todas.sort(
         (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime(),
       );
-    }, [vinculoIds]) || [];
+    }, [vinculoIdsKey]) || [];
 
   if (!confinamentoId || !confinamento) {
     return (
@@ -440,17 +543,17 @@ export default function DetalheConfinamento() {
   ];
 
   const handleAdicionarAnimal = () => {
-    setVínculoEditando(null);
+    setVinculoEditando(null);
     setModalAnimalOpen(true);
   };
 
-  const handleEditarVínculo = (vínculo: ConfinamentoAnimal) => {
-    setVínculoEditando(vínculo);
+  const handleEditarVinculo = (vinculo: ConfinamentoAnimal) => {
+    setVinculoEditando(vinculo);
     setModalAnimalOpen(true);
   };
 
-  const handleEncerrarVínculo = (vínculo: ConfinamentoAnimal) => {
-    setVínculoAEncerrar(vínculo);
+  const handleEncerrarVinculo = (vinculo: ConfinamentoAnimal) => {
+    setVinculoAEncerrar(vinculo);
   };
 
   const handleAdicionarAlimentacao = () => {
@@ -495,30 +598,30 @@ export default function DetalheConfinamento() {
     }
   };
 
-  const confirmarEncerrarVínculo = async () => {
-    const vínculo = vínculoAEncerrar;
-    setVínculoAEncerrar(null);
-    if (!vínculo) return;
+  const confirmarEncerrarVinculo = async () => {
+    const vinculo = vinculoAEncerrar;
+    setVinculoAEncerrar(null);
+    if (!vinculo) return;
 
     const hoje = new Date().toISOString().split("T")[0];
-    const animal = animaisMap.get(vínculo.animalId);
-    const ultimoPeso = animal?.pesoAtual || vínculo.pesoEntrada;
+    const animal = animaisMap.get(vinculo.animalId);
+    const ultimoPeso = animal?.pesoAtual || vinculo.pesoEntrada;
 
     try {
-      await db.confinamentoAnimais.update(vínculo.id, {
+      await db.confinamentoAnimais.update(vinculo.id, {
         dataSaida: hoje,
         pesoSaida: ultimoPeso,
         updatedAt: new Date().toISOString(),
         synced: false,
       });
 
-      const vínculoAtualizado = await db.confinamentoAnimais.get(vínculo.id);
-      if (vínculoAtualizado) {
+      const vinculoAtualizado = await db.confinamentoAnimais.get(vinculo.id);
+      if (vinculoAtualizado) {
         await createSyncEvent(
           "UPDATE",
           "confinamentoAnimal",
-          vínculo.id,
-          vínculoAtualizado,
+          vinculo.id,
+          vinculoAtualizado,
         );
       }
 
@@ -527,10 +630,10 @@ export default function DetalheConfinamento() {
         message: "Animal encerrado do confinamento",
       });
     } catch (error: any) {
-      console.error("Erro ao encerrar vínculo:", error);
+      console.error("Erro ao encerrar vinculo:", error);
       showToast({
         type: "error",
-        message: error.message || "Erro ao encerrar vínculo",
+        message: error.message || "Erro ao encerrar vinculo",
       });
     }
   };
@@ -540,14 +643,14 @@ export default function DetalheConfinamento() {
       if (!confinamento) return null;
       const statusDerivado = estadoConfinamentoDerivado(
         confinamento,
-        vinculosRaw,
+        vinculoAnimalConfinamento,
       );
       const fazenda = await db.fazendas.get(confinamento.fazendaId);
       const custoTotal = alimentacaoRaw.reduce(
         (s, a) => s + (a.custoTotal ?? 0),
         0,
       );
-      const kgGanho = vinculosRaw
+      const kgGanho = vinculoAnimalConfinamento
         .filter((v) => v.dataSaida && v.pesoSaida != null)
         .reduce((s, v) => s + ((v.pesoSaida ?? 0) - (v.pesoEntrada ?? 0)), 0);
       const arrobas = kgGanho / ARROBA_KG;
@@ -583,7 +686,7 @@ export default function DetalheConfinamento() {
 
   return (
     <div className="p-2 sm:p-3 md:p-4 text-gray-900 dark:text-slate-100 max-w-full overflow-x-hidden min-w-[280px]">
-      {/* Header — empilha no mobile; largura mínima evita texto “em coluna” em viewports estreitos */}
+      {/* Header — empilha no mobile; largura minima evita texto “em coluna” em viewports estreitos */}
       <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
         <div className="min-w-0 flex-1 w-full">
           <button
@@ -599,7 +702,7 @@ export default function DetalheConfinamento() {
             {confinamento.nome}
           </h1>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 break-words hyphens-auto">
-            {fazenda?.nome} • Início: {formatDateBR(confinamento.dataInicio)}
+            {fazenda?.nome} • Inicio: {formatDateBR(confinamento.dataInicio)}
             {confinamento.dataFimReal &&
               ` • Fim: ${formatDateBR(confinamento.dataFimReal)}`}
           </p>
@@ -618,7 +721,7 @@ export default function DetalheConfinamento() {
         )}
       </div>
 
-      {/* Tabs — todas visíveis no mobile (wrap em 2 linhas); sem scroll horizontal */}
+      {/* Tabs — todas visiveis no mobile (wrap em 2 linhas); sem scroll horizontal */}
       <div className="bg-white dark:bg-slate-900 shadow-sm rounded-xl overflow-hidden mb-4 border border-gray-200 dark:border-slate-700">
         <div
           className={`flex flex-wrap gap-1.5 p-2 ${getThemeClasses(primaryColor, "bg-light")} border-b border-gray-200 dark:border-slate-700`}
@@ -660,31 +763,33 @@ export default function DetalheConfinamento() {
                   )}
               </div>
 
-              {vinculosRaw.length === 0 ? (
+              {vinculoAnimalConfinamento.length === 0 ? (
                 <p className="text-gray-500 dark:text-slate-400 text-center py-8">
                   Nenhum animal adicionado ao confinamento ainda.
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {vínculosAtivos.length > 0 && (
+                  {vinculosAtivos.length > 0 && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        Animais Ativos ({vínculosAtivos.length})
+                        Animais Ativos ({vinculosAtivos.length})
                       </h3>
                       {/* Mobile: cards */}
                       <div className="md:hidden space-y-3">
-                        {vínculosAtivos.map((vínculo) => {
-                          const animal = animaisMap.get(vínculo.animalId);
+                        {ativosPagination.paginated.map((vinculo) => {
+                          // render normal))}
+
+                          const animal = animaisMap.get(vinculo.animalId);
                           const gmdParcial = animal?.pesoAtual
                             ? calcularGMDParcial(
-                                vínculo.pesoEntrada,
+                                vinculo.pesoEntrada,
                                 animal.pesoAtual,
-                                vínculo.dataEntrada,
+                                vinculo.dataEntrada,
                               )
                             : null;
                           return (
                             <div
-                              key={vínculo.id}
+                              key={vinculo.id}
                               className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm"
                             >
                               <div className="flex justify-between items-start gap-2 mb-2">
@@ -696,7 +801,7 @@ export default function DetalheConfinamento() {
                                     <button
                                       type="button"
                                       onClick={() =>
-                                        handleEncerrarVínculo(vínculo)
+                                        handleEncerrarVinculo(vinculo)
                                       }
                                       className="text-orange-600 dark:text-orange-400"
                                       title="Encerrar"
@@ -706,7 +811,7 @@ export default function DetalheConfinamento() {
                                     <button
                                       type="button"
                                       onClick={() =>
-                                        handleEditarVínculo(vínculo)
+                                        handleEditarVinculo(vinculo)
                                       }
                                       className="text-blue-600 dark:text-blue-400"
                                       title="Editar"
@@ -728,7 +833,7 @@ export default function DetalheConfinamento() {
                                     Entrada
                                   </span>
                                   <span>
-                                    {formatDateBR(vínculo.dataEntrada)}
+                                    {formatDateBR(vinculo.dataEntrada)}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
@@ -736,7 +841,7 @@ export default function DetalheConfinamento() {
                                     Peso Entrada
                                   </span>
                                   <span>
-                                    {vínculo.pesoEntrada.toFixed(2)} kg
+                                    {vinculo.pesoEntrada.toFixed(2)} kg
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
@@ -793,17 +898,17 @@ export default function DetalheConfinamento() {
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-                            {vínculosAtivos.map((vínculo) => {
-                              const animal = animaisMap.get(vínculo.animalId);
+                            {ativosPagination.paginated.map((vinculo) => {
+                              const animal = animaisMap.get(vinculo.animalId);
                               const gmdParcial = animal?.pesoAtual
                                 ? calcularGMDParcial(
-                                    vínculo.pesoEntrada,
+                                    vinculo.pesoEntrada,
                                     animal.pesoAtual,
-                                    vínculo.dataEntrada,
+                                    vinculo.dataEntrada,
                                   )
                                 : null;
                               return (
-                                <tr key={vínculo.id}>
+                                <tr key={vinculo.id}>
                                   <td className="px-3 sm:px-4 py-2">
                                     {animal?.brinco || "N/A"}
                                   </td>
@@ -811,10 +916,10 @@ export default function DetalheConfinamento() {
                                     {animal?.nome || "-"}
                                   </td>
                                   <td className="px-3 sm:px-4 py-2">
-                                    {formatDateBR(vínculo.dataEntrada)}
+                                    {formatDateBR(vinculo.dataEntrada)}
                                   </td>
                                   <td className="px-3 sm:px-4 py-2">
-                                    {vínculo.pesoEntrada.toFixed(2)} kg
+                                    {vinculo.pesoEntrada.toFixed(2)} kg
                                   </td>
                                   <td className="px-3 sm:px-4 py-2">
                                     {animal?.pesoAtual
@@ -832,7 +937,7 @@ export default function DetalheConfinamento() {
                                         <>
                                           <button
                                             onClick={() =>
-                                              handleEncerrarVínculo(vínculo)
+                                              handleEncerrarVinculo(vinculo)
                                             }
                                             className="text-orange-600 hover:text-orange-800 dark:text-orange-400"
                                             title="Encerrar"
@@ -841,7 +946,7 @@ export default function DetalheConfinamento() {
                                           </button>
                                           <button
                                             onClick={() =>
-                                              handleEditarVínculo(vínculo)
+                                              handleEditarVinculo(vinculo)
                                             }
                                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
                                             title="Editar"
@@ -858,30 +963,36 @@ export default function DetalheConfinamento() {
                           </tbody>
                         </table>
                       </div>
+                      <Pagination
+                        page={ativosPagination.page}
+                        setPage={ativosPagination.setPage}
+                        total={ativosPagination.total}
+                        pageSize={PAGE_SIZE}
+                      />
                     </div>
                   )}
 
-                  {vínculosEncerrados.length > 0 && (
+                  {vinculosEncerrados.length > 0 && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        Animais Encerrados ({vínculosEncerrados.length})
+                        Animais Encerrados ({vinculosEncerrados.length})
                       </h3>
                       {/* Mobile: cards */}
                       <div className="md:hidden space-y-3">
-                        {vínculosEncerrados.map((vínculo) => {
-                          const animal = animaisMap.get(vínculo.animalId);
+                        {encerradosPagination.paginated.map((vinculo) => {
+                          const animal = animaisMap.get(vinculo.animalId);
                           const gmd =
-                            vínculo.pesoSaida && vínculo.dataSaida
+                            vinculo.pesoSaida && vinculo.dataSaida
                               ? calcularGMD(
-                                  vínculo.pesoEntrada,
-                                  vínculo.pesoSaida,
-                                  vínculo.dataEntrada,
-                                  vínculo.dataSaida,
+                                  vinculo.pesoEntrada,
+                                  vinculo.pesoSaida,
+                                  vinculo.dataEntrada,
+                                  vinculo.dataSaida,
                                 )
                               : null;
                           return (
                             <div
-                              key={vínculo.id}
+                              key={vinculo.id}
                               className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm"
                             >
                               <div className="font-semibold text-gray-900 dark:text-slate-100 mb-2">
@@ -899,16 +1010,16 @@ export default function DetalheConfinamento() {
                                     Entrada
                                   </span>
                                   <span>
-                                    {formatDateBR(vínculo.dataEntrada)}
+                                    {formatDateBR(vinculo.dataEntrada)}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-500 dark:text-slate-400">
-                                    Saída
+                                    Saida
                                   </span>
                                   <span>
-                                    {vínculo.dataSaida
-                                      ? formatDateBR(vínculo.dataSaida)
+                                    {vinculo.dataSaida
+                                      ? formatDateBR(vinculo.dataSaida)
                                       : "-"}
                                   </span>
                                 </div>
@@ -917,16 +1028,16 @@ export default function DetalheConfinamento() {
                                     Peso Entrada
                                   </span>
                                   <span>
-                                    {vínculo.pesoEntrada.toFixed(2)} kg
+                                    {vinculo.pesoEntrada.toFixed(2)} kg
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-500 dark:text-slate-400">
-                                    Peso Saída
+                                    Peso Saida
                                   </span>
                                   <span>
-                                    {vínculo.pesoSaida
-                                      ? `${vínculo.pesoSaida.toFixed(2)} kg`
+                                    {vinculo.pesoSaida
+                                      ? `${vinculo.pesoSaida.toFixed(2)} kg`
                                       : "-"}
                                   </span>
                                 </div>
@@ -945,9 +1056,9 @@ export default function DetalheConfinamento() {
                                     Motivo
                                   </span>
                                   <span>
-                                    {vínculo.motivoSaida ? (
+                                    {vinculo.motivoSaida ? (
                                       <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-xs">
-                                        {vínculo.motivoSaida}
+                                        {vinculo.motivoSaida}
                                       </span>
                                     ) : (
                                       "-"
@@ -958,6 +1069,12 @@ export default function DetalheConfinamento() {
                             </div>
                           );
                         })}
+                        <Pagination
+                          page={encerradosPagination.page}
+                          setPage={encerradosPagination.setPage}
+                          total={encerradosPagination.total}
+                          pageSize={PAGE_SIZE}
+                        />
                       </div>
                       {/* Desktop: tabela */}
                       <div className="hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none -mx-1 px-1 border border-gray-200 dark:border-slate-700 rounded-lg">
@@ -974,13 +1091,13 @@ export default function DetalheConfinamento() {
                                 Entrada
                               </th>
                               <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">
-                                Saída
+                                Saida
                               </th>
                               <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">
                                 Peso Entrada
                               </th>
                               <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">
-                                Peso Saída
+                                Peso Saida
                               </th>
                               <th className="px-3 sm:px-4 py-2 text-left whitespace-nowrap">
                                 GMD
@@ -991,19 +1108,19 @@ export default function DetalheConfinamento() {
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-                            {vínculosEncerrados.map((vínculo) => {
-                              const animal = animaisMap.get(vínculo.animalId);
+                            {encerradosPagination.paginated.map((vinculo) => {
+                              const animal = animaisMap.get(vinculo.animalId);
                               const gmd =
-                                vínculo.pesoSaida && vínculo.dataSaida
+                                vinculo.pesoSaida && vinculo.dataSaida
                                   ? calcularGMD(
-                                      vínculo.pesoEntrada,
-                                      vínculo.pesoSaida,
-                                      vínculo.dataEntrada,
-                                      vínculo.dataSaida,
+                                      vinculo.pesoEntrada,
+                                      vinculo.pesoSaida,
+                                      vinculo.dataEntrada,
+                                      vinculo.dataSaida,
                                     )
                                   : null;
                               return (
-                                <tr key={vínculo.id}>
+                                <tr key={vinculo.id}>
                                   <td className="px-3 sm:px-4 py-2 whitespace-nowrap">
                                     {animal?.brinco || "N/A"}
                                   </td>
@@ -1011,19 +1128,19 @@ export default function DetalheConfinamento() {
                                     {animal?.nome || "-"}
                                   </td>
                                   <td className="px-3 sm:px-4 py-2 whitespace-nowrap">
-                                    {formatDateBR(vínculo.dataEntrada)}
+                                    {formatDateBR(vinculo.dataEntrada)}
                                   </td>
                                   <td className="px-3 sm:px-4 py-2 whitespace-nowrap">
-                                    {vínculo.dataSaida
-                                      ? formatDateBR(vínculo.dataSaida)
+                                    {vinculo.dataSaida
+                                      ? formatDateBR(vinculo.dataSaida)
                                       : "-"}
                                   </td>
                                   <td className="px-3 sm:px-4 py-2 whitespace-nowrap">
-                                    {vínculo.pesoEntrada.toFixed(2)} kg
+                                    {vinculo.pesoEntrada.toFixed(2)} kg
                                   </td>
                                   <td className="px-3 sm:px-4 py-2">
-                                    {vínculo.pesoSaida
-                                      ? `${vínculo.pesoSaida.toFixed(2)} kg`
+                                    {vinculo.pesoSaida
+                                      ? `${vinculo.pesoSaida.toFixed(2)} kg`
                                       : "-"}
                                   </td>
                                   <td className="px-3 sm:px-4 py-2">
@@ -1032,9 +1149,9 @@ export default function DetalheConfinamento() {
                                       : "-"}
                                   </td>
                                   <td className="px-3 sm:px-4 py-2">
-                                    {vínculo.motivoSaida ? (
+                                    {vinculo.motivoSaida ? (
                                       <span className="px-2 py-1 text-xs rounded-full bg-gray-100 dark:bg-slate-800">
-                                        {vínculo.motivoSaida}
+                                        {vinculo.motivoSaida}
                                       </span>
                                     ) : (
                                       "-"
@@ -1046,6 +1163,12 @@ export default function DetalheConfinamento() {
                           </tbody>
                         </table>
                       </div>
+                      <Pagination
+                        page={encerradosPagination.page}
+                        setPage={encerradosPagination.setPage}
+                        total={encerradosPagination.total}
+                        pageSize={PAGE_SIZE}
+                      />
                     </div>
                   )}
                 </div>
@@ -1062,7 +1185,7 @@ export default function DetalheConfinamento() {
                 </h2>
                 {podeGerenciarConfinamentos &&
                   statusConfinamentoDerivado === "ativo" &&
-                  vínculosAtivos.length > 0 && (
+                  vinculosAtivos.length > 0 && (
                     <button
                       onClick={() => setModalPesagemOpen(true)}
                       className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg shadow-sm ${getPrimaryButtonClass(primaryColor)} hover:opacity-90`}
@@ -1084,105 +1207,6 @@ export default function DetalheConfinamento() {
                   onChange={(e) => setBuscaAnimaisPesagens(e.target.value)}
                   className="w-full max-w-md px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder:text-gray-500"
                 />
-                {vínculosAtivos.length === 0 ? (
-                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                    Nenhum animal ativo no confinamento. Adicione animais na aba
-                    Animais.
-                  </p>
-                ) : (
-                  <>
-                    <div className="mt-2 md:hidden space-y-3">
-                      {vínculosAtivosFiltradosPesagens.map((vínculo) => {
-                        const animal = animaisMap.get(vínculo.animalId);
-                        return (
-                          <div
-                            key={vínculo.id}
-                            className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm"
-                          >
-                            <div className="font-semibold text-gray-900 dark:text-slate-100 mb-2">
-                              Brinco {animal?.brinco ?? "N/A"}
-                            </div>
-                            <div className="space-y-1.5 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-500 dark:text-slate-400">
-                                  Nome
-                                </span>
-                                <span>{animal?.nome ?? "-"}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-500 dark:text-slate-400">
-                                  Entrada
-                                </span>
-                                <span>{formatDateBR(vínculo.dataEntrada)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-500 dark:text-slate-400">
-                                  Peso entrada
-                                </span>
-                                <span>{vínculo.pesoEntrada.toFixed(2)} kg</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {vínculosAtivosFiltradosPesagens.length === 0 &&
-                        buscaAnimaisPesagens.trim() && (
-                          <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-4">
-                            Nenhum animal encontrado com &quot;
-                            {buscaAnimaisPesagens.trim()}&quot;
-                          </p>
-                        )}
-                    </div>
-                    <div className="mt-2 hidden md:block w-full min-w-0 overflow-auto max-h-[55vh] sm:max-h-none border border-gray-200 dark:border-slate-700 rounded-lg">
-                      <table className="min-w-[400px] w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
-                        <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800">
-                          <tr>
-                            <th className="px-3 py-2 text-left whitespace-nowrap">
-                              Brinco
-                            </th>
-                            <th className="px-3 py-2 text-left whitespace-nowrap">
-                              Nome
-                            </th>
-                            <th className="px-3 py-2 text-left whitespace-nowrap">
-                              Entrada
-                            </th>
-                            <th className="px-3 py-2 text-left whitespace-nowrap">
-                              Peso entrada
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
-                          {vínculosAtivosFiltradosPesagens.map((vínculo) => {
-                            const animal = animaisMap.get(vínculo.animalId);
-                            return (
-                              <tr key={vínculo.id}>
-                                <td className="px-3 py-2 font-medium">
-                                  {animal?.brinco ?? "N/A"}
-                                </td>
-                                <td className="px-3 py-2">
-                                  {animal?.nome ?? "-"}
-                                </td>
-                                <td className="px-3 py-2">
-                                  {formatDateBR(vínculo.dataEntrada)}
-                                </td>
-                                <td className="px-3 py-2">
-                                  {vínculo.pesoEntrada.toFixed(2)} kg
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      {vínculosAtivosFiltradosPesagens.length === 0 &&
-                        buscaAnimaisPesagens.trim() && (
-                          <p className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400 text-center">
-                            Nenhum animal encontrado com &quot;
-                            {buscaAnimaisPesagens.trim()}&quot;
-                          </p>
-                        )}
-                    </div>
-                  </>
-                )}
               </div>
 
               <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
@@ -1196,7 +1220,7 @@ export default function DetalheConfinamento() {
               ) : (
                 <>
                   <div className="md:hidden space-y-3">
-                    {pesagensRaw.map((pesagem) => {
+                    {historicoPesagensPagination.paginated.map((pesagem) => {
                       const animal = animaisMap.get(pesagem.animalId);
 
                       return (
@@ -1248,29 +1272,37 @@ export default function DetalheConfinamento() {
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-                        {pesagensRaw.map((pesagem) => {
-                          const animal = animaisMap.get(pesagem.animalId);
+                        {historicoPesagensPagination.paginated.map(
+                          (pesagem) => {
+                            const animal = animaisMap.get(pesagem.animalId);
 
-                          return (
-                            <tr key={pesagem.id}>
-                              <td className="px-3 sm:px-4 py-2">
-                                {formatDateBR(pesagem.dataPesagem)}
-                              </td>
-                              <td className="px-3 sm:px-4 py-2">
-                                {animal?.brinco ?? "N/A"}
-                              </td>
-                              <td className="px-3 sm:px-4 py-2">
-                                {pesagem.peso.toFixed(2)}
-                              </td>
-                              <td className="px-3 sm:px-4 py-2">
-                                {pesagem.observacao || "-"}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                            return (
+                              <tr key={pesagem.id}>
+                                <td className="px-3 sm:px-4 py-2">
+                                  {formatDateBR(pesagem.dataPesagem)}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2">
+                                  {animal?.brinco ?? "N/A"}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2">
+                                  {pesagem.peso.toFixed(2)}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2">
+                                  {pesagem.observacao || "-"}
+                                </td>
+                              </tr>
+                            );
+                          },
+                        )}
                       </tbody>
                     </table>
                   </div>
+                  <Pagination
+                    page={historicoPesagensPagination.page}
+                    setPage={historicoPesagensPagination.setPage}
+                    total={historicoPesagensPagination.total}
+                    pageSize={PAGE_SIZE}
+                  />
                 </>
               )}
             </div>
@@ -1467,6 +1499,20 @@ export default function DetalheConfinamento() {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="bg-orange-50/70 dark:bg-orange-950/30 p-4 rounded-xl border-l-4 border-orange-500 flex gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                    <Icons.Calendar className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-orange-700/80 dark:text-orange-300/80 font-medium">
+                      Dias Confinado
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                      {indicadores.diasConfinamento}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="bg-blue-50/70 dark:bg-blue-950/30 p-4 rounded-xl border-l-4 border-blue-500 flex gap-3">
                   <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
                     <Icons.Cow className="w-5 h-5" />
@@ -1480,6 +1526,7 @@ export default function DetalheConfinamento() {
                     </p>
                   </div>
                 </div>
+
                 <div className="bg-green-50/70 dark:bg-green-950/30 p-4 rounded-xl border-l-4 border-green-500 flex gap-3">
                   <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400">
                     <Icons.CheckCircle className="w-5 h-5" />
@@ -1510,21 +1557,7 @@ export default function DetalheConfinamento() {
                     </p>
                   </div>
                 </div>
-                <div className="bg-amber-50/70 dark:bg-amber-950/30 p-4 rounded-xl border-l-4 border-amber-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                    <Icons.Scale className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm text-amber-700/80 dark:text-amber-300/80 font-medium">
-                      Peso Médio Saída
-                    </p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
-                      {indicadores.pesoMedioSaida > 0
-                        ? `${indicadores.pesoMedioSaida.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`
-                        : "-"}
-                    </p>
-                  </div>
-                </div>
+
                 <div className="bg-emerald-50/70 dark:bg-emerald-950/30 p-4 rounded-xl border-l-4 border-emerald-500 flex gap-3">
                   <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                     <Icons.BarChart className="w-5 h-5" />
@@ -1573,7 +1606,7 @@ export default function DetalheConfinamento() {
                       {indicadores.mortalidade}
                     </p>
                     <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-0.5">
-                      Saídas por morte
+                      Saidas por morte
                     </p>
                   </div>
                 </div>
@@ -1689,60 +1722,61 @@ export default function DetalheConfinamento() {
                 <h2 className="text-lg font-semibold">
                   Ocorrências (sanidade)
                 </h2>
-                {podeGerenciarConfinamentos && vinculosRaw.length > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setOcorrenciaPickerOpen(true)}
-                      className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-white ${getPrimaryButtonClass(primaryColor)}`}
-                    >
-                      <Icons.Plus className="w-4 h-4" />
-                      Nova ocorrência
-                    </button>
-                    {ocorrenciaPickerOpen && (
-                      <div
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-                        onClick={() => setOcorrenciaPickerOpen(false)}
+                {podeGerenciarConfinamentos &&
+                  vinculoAnimalConfinamento.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setOcorrenciaPickerOpen(true)}
+                        className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-white ${getPrimaryButtonClass(primaryColor)}`}
                       >
+                        <Icons.Plus className="w-4 h-4" />
+                        Nova ocorrência
+                      </button>
+                      {ocorrenciaPickerOpen && (
                         <div
-                          className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-4 space-y-3"
-                          onClick={(e) => e.stopPropagation()}
+                          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                          onClick={() => setOcorrenciaPickerOpen(false)}
                         >
-                          <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                            Selecione o animal
-                          </p>
-                          <div className="max-h-60 overflow-y-auto space-y-1">
-                            {vinculosRaw.map((v) => {
-                              const animal = animaisMap.get(v.animalId);
-                              return (
-                                <button
-                                  key={v.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setOcorrenciaVinculoParaNovo(v);
-                                    setOcorrenciaPickerOpen(false);
-                                    setModalOcorrenciaOpen(true);
-                                  }}
-                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-900 dark:text-slate-100"
-                                >
-                                  {animal?.brinco ?? "N/A"} —{" "}
-                                  {animal?.nome || "(sem nome)"}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setOcorrenciaPickerOpen(false)}
-                            className="w-full py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-sm"
+                          <div
+                            className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-4 space-y-3"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            Cancelar
-                          </button>
+                            <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                              Selecione o animal
+                            </p>
+                            <div className="max-h-60 overflow-y-auto space-y-1">
+                              {vinculoAnimalConfinamento.map((v) => {
+                                const animal = animaisMap.get(v.animalId);
+                                return (
+                                  <button
+                                    key={v.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setOcorrenciaVinculoParaNovo(v);
+                                      setOcorrenciaPickerOpen(false);
+                                      setModalOcorrenciaOpen(true);
+                                    }}
+                                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-900 dark:text-slate-100"
+                                  >
+                                    {animal?.brinco ?? "N/A"} —{" "}
+                                    {animal?.nome || "(sem nome)"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setOcorrenciaPickerOpen(false)}
+                              className="w-full py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-sm"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </>
-                )}
+                      )}
+                    </>
+                  )}
               </div>
               {ocorrenciasRaw.length === 0 ? (
                 <p className="text-gray-500 dark:text-slate-400 text-center py-8">
@@ -1752,7 +1786,7 @@ export default function DetalheConfinamento() {
                 <>
                   <div className="md:hidden space-y-3">
                     {ocorrenciasRaw.map((oc) => {
-                      const vinculo = vinculosRaw.find(
+                      const vinculo = vinculoAnimalConfinamento.find(
                         (v) => v.id === oc.confinamentoAnimalId,
                       );
                       const animal = vinculo
@@ -1858,7 +1892,7 @@ export default function DetalheConfinamento() {
                       </thead>
                       <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                         {ocorrenciasRaw.map((oc) => {
-                          const vinculo = vinculosRaw.find(
+                          const vinculo = vinculoAnimalConfinamento.find(
                             (v) => v.id === oc.confinamentoAnimalId,
                           );
                           const animal = vinculo
@@ -2062,16 +2096,16 @@ export default function DetalheConfinamento() {
 
       <ConfinamentoAnimalModal
         open={modalAnimalOpen}
-        mode={vínculoEditando ? "edit" : "create"}
+        mode={vinculoEditando ? "edit" : "create"}
         confinamentoId={confinamentoId}
-        initialData={vínculoEditando}
+        initialData={vinculoEditando}
         onClose={() => {
           setModalAnimalOpen(false);
-          setVínculoEditando(null);
+          setVinculoEditando(null);
         }}
         onSaved={() => {
           setModalAnimalOpen(false);
-          setVínculoEditando(null);
+          setVinculoEditando(null);
         }}
       />
 
@@ -2093,7 +2127,7 @@ export default function DetalheConfinamento() {
       <ConfinamentoPesagemModal
         open={modalPesagemOpen}
         confinamentoId={confinamentoId!}
-        vinculosAtivos={vínculosAtivos}
+        vinculosAtivos={vinculosAtivos}
         animaisMap={animaisMap}
         dataInicioConfinamento={confinamento?.dataInicio}
         onClose={() => setModalPesagemOpen(false)}
@@ -2101,18 +2135,18 @@ export default function DetalheConfinamento() {
       />
 
       <ConfirmDialog
-        open={!!vínculoAEncerrar}
+        open={!!vinculoAEncerrar}
         title="Encerrar animal no confinamento"
         message={
-          vínculoAEncerrar
-            ? `Deseja realmente encerrar o animal ${animaisMap.get(vínculoAEncerrar.animalId)?.brinco ?? "este"} no confinamento? O vínculo será marcado como encerrado com a data de hoje.`
+          vinculoAEncerrar
+            ? `Deseja realmente encerrar o animal ${animaisMap.get(vinculoAEncerrar.animalId)?.brinco ?? "este"} no confinamento? O vinculo será marcado como encerrado com a data de hoje.`
             : ""
         }
         variant="warning"
         confirmText="Encerrar"
         cancelText="Cancelar"
-        onConfirm={confirmarEncerrarVínculo}
-        onCancel={() => setVínculoAEncerrar(null)}
+        onConfirm={confirmarEncerrarVinculo}
+        onCancel={() => setVinculoAEncerrar(null)}
       />
 
       <ConfirmDialog

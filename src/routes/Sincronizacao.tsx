@@ -26,6 +26,7 @@ import {
 } from "../utils/syncEvents";
 import { exportarBackupCompleto, importarBackup } from "../utils/exportarDados";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { GiConsoleController } from "react-icons/gi";
 
 interface PendenciaTabela {
   nome: string;
@@ -487,7 +488,7 @@ export default function Sincronizacao() {
             icone: Icons.ListTree,
             detalhes: pendGenealogias.map((g) => ({
               id: g.id,
-              animalId: g.animalId?.substring(0, 8),
+              animalId: g.animalId?.substring(0, 200),
               geracoes: g.geracoes,
             })),
           });
@@ -1301,11 +1302,11 @@ export default function Sincronizacao() {
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {todasTabelas?.map((tabela) => {
+            {todasTabelas?.map((tabela, index) => {
               const Icon = tabela.icone;
               return (
                 <div
-                  key={tabela.nome}
+                  key={`${tabela.nome}-${index}`}
                   className="bg-white dark:bg-slate-800 rounded-lg border-2 border-yellow-200 dark:border-yellow-800 hover:border-yellow-300 dark:hover:border-yellow-700 transition-colors"
                 >
                   <div className="flex items-center gap-3 p-3">
@@ -1325,9 +1326,9 @@ export default function Sincronizacao() {
                   {tabela.detalhes && tabela.detalhes.length > 0 && (
                     <div className="px-3 pb-3 border-t border-yellow-200 dark:border-yellow-800">
                       <div className="mt-2 space-y-2">
-                        {tabela.detalhes.map((detalhe, idx) => (
+                        {tabela.detalhes.map((detalhe) => (
                           <div
-                            key={idx}
+                            key={`${tabela.nome}-${detalhe.id ?? detalhe.uuid}`}
                             className="text-xs bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded border border-yellow-200 dark:border-yellow-800"
                           >
                             <p className="font-medium text-gray-700 dark:text-gray-300">
@@ -1421,7 +1422,8 @@ export default function Sincronizacao() {
                               (tabela.nome === "Pesagens" ||
                                 tabela.nome === "Vacinações") && (
                                 <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                  Animal: {detalhe.animalId.substring(0, 8)}...
+                                  Animal: {detalhe.animalId.substring(0, 200)}
+                                  ...
                                 </p>
                               )}
                           </div>
@@ -1570,7 +1572,7 @@ export default function Sincronizacao() {
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            ID: {evento.entityId.substring(0, 8)}...
+                            ID: {evento.entityId.substring(0, 200)}...
                           </p>
                           {evento.erro && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1 truncate">

@@ -1,7 +1,7 @@
-import { db } from "../db/dexieDB";
+import { db } from "./../db/dexieDB";
 import { SyncEvent, SyncEventType, SyncEntity } from "../db/models";
 import { uuid } from "./uuid";
-
+import type { Genealogia } from "../db/models";
 /**
  * Verifica se há usuário logado (sessionStorage + Dexie). O sync usa getSupabaseForSync()
  * que retorna o client quando há sessão Supabase Auth (auth.uid() no servidor).
@@ -301,6 +301,73 @@ function payloadToServerAnimalWithMaps(
     obs: payload.obs ?? null,
     created_at: payload.createdAt ?? null,
     updated_at: payload.updatedAt ?? null,
+    deleted_at: payload.deletedAt ?? null,
+  };
+}
+
+interface GenealogiaFkMaps {
+  animais: Map<string, number>;
+  tiposAnimal: Map<string, number>;
+}
+
+async function loadGenealogiaFkMaps(): Promise<GenealogiaFkMaps> {
+  const [animais, tiposAnimal] = await Promise.all([
+    db.animais.where("remoteId").above(0).toArray(),
+    db.tiposAnimal.where("remoteId").above(0).toArray(),
+  ]);
+
+  return {
+    animais: new Map(animais.map((a) => [a.id, a.remoteId!])),
+    tiposAnimal: new Map(tiposAnimal.map((t) => [t.id, t.remoteId!])),
+  };
+}
+function fk(map: Map<string, number>, id?: string): number | null {
+  if (!id) return null;
+  return map.get(id) ?? null;
+}
+
+function payloadToServerGenealogiaWithMaps(
+  payload: Genealogia,
+  maps: GenealogiaFkMaps,
+) {
+  const animalId = maps.animais.get(payload.animalId);
+  if (!animalId) return null;
+
+  const matrizId = fk(maps.animais, payload.matrizId);
+  const reprodutorId = fk(maps.animais, payload.reprodutorId);
+  const avoMaterna = fk(maps.animais, payload.avoMaterna);
+  const avoPaterna = fk(maps.animais, payload.avoPaterna);
+  const avoPaternoMaterno = fk(maps.animais, payload.avoPaternoMaterno);
+  const avoPaternoPatro = fk(maps.animais, payload.avoPaternoPatro);
+  const tipoMatrizId = fk(maps.tiposAnimal, payload.tipoMatrizId);
+
+  // ❗ Se informou FK mas ela ainda não foi sincronizada → aguarda
+  if (
+    (payload.matrizId && matrizId == null) ||
+    (payload.reprodutorId && reprodutorId == null) ||
+    (payload.avoMaterna && avoMaterna == null) ||
+    (payload.avoPaterna && avoPaterna == null) ||
+    (payload.avoPaternoMaterno && avoPaternoMaterno == null) ||
+    (payload.avoPaternoPatro && avoPaternoPatro == null) ||
+    (payload.tipoMatrizId && tipoMatrizId == null)
+  ) {
+    return null;
+  }
+
+  return {
+    uuid: payload.id, // PK lógico da genealogia
+    animal_id: animalId,
+    matriz_id: matrizId,
+    reprodutor_id: reprodutorId,
+    avo_materna_id: avoMaterna,
+    avo_paterna_id: avoPaterna,
+    avo_paterno_materno_id: avoPaternoMaterno,
+    avo_paterno_patro_id: avoPaternoPatro,
+    tipo_matriz_id: tipoMatrizId,
+    geracoes: payload.geracoes,
+    observacoes: payload.observacoes ?? null,
+    created_at: payload.createdAt,
+    updated_at: payload.updatedAt,
     deleted_at: payload.deletedAt ?? null,
   };
 }
@@ -607,6 +674,37 @@ async function processUpsertBatch(
     }
     payloads = converted.map((c) => c.payload);
     eventosValidos = converted.map((c) => c.event);
+    if (payloads.length === 0) return resultados;
+  } else if (entidade === "genealogia") {
+    const maps = await loadGenealogiaFkMaps();
+    const converted: { event: SyncEvent; payload: Record<string, unknown> }[] =
+      [];
+    const falhas: SyncEvent[] = [];
+
+    for (const { event, payload } of parsed) {
+      const serverPayload = payloadToServerGenealogiaWithMaps(
+        payload as Record<string, unknown>,
+        maps,
+      );
+
+      if (serverPayload != null) {
+        converted.push({ event, payload: serverPayload });
+      } else {
+        falhas.push(event);
+      }
+    }
+
+    if (falhas.length > 0) {
+      const msg =
+        "FK de genealogia não resolvida (animal/matriz ainda não sincronizados). Sincronize animais antes.";
+      await markBatchError(falhas, msg, now);
+      resultados.falhas = falhas.length;
+      falhas.forEach((e) => resultados.erros.push({ event: e, error: msg }));
+    }
+
+    payloads = converted.map((c) => c.payload);
+    eventosValidos = converted.map((c) => c.event);
+
     if (payloads.length === 0) return resultados;
   } else if (isConfinamentoEntity) {
     const confMaps = await loadConfinamentoFkMaps();
@@ -1249,15 +1347,21 @@ export async function createSyncEventsForPendingRecords(): Promise<{
   }
 
   // ===============================
-  // GENEALOGIAS ✅ (NOVO)
+  // GENEALOGIAS ✅ (CORRIGIDO)
   // ===============================
   try {
     if (db.genealogias) {
       const genealogias = await db.genealogias.toArray();
+
       for (const g of genealogias.filter(
-        (r: any) => r.deletedAt == null && r.synced === false,
+        (r: any) => !r.deletedAt && r.synced === false,
       )) {
-        await addEvent("genealogia", g.id, g);
+        await addEvent("genealogia", g.uuid, g);
+
+        console.log({
+          animal: await db.animais.get(g.animalId),
+          matriz: await db.animais.get(g.matrizId?.toString() ?? ""),
+        });
       }
     }
   } catch (err: any) {
