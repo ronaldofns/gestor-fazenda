@@ -1001,6 +1001,17 @@ export async function processSyncQueue(): Promise<{
 
   // Ordem de processamento: confinamento antes de confinamento_animais, que antes de pesagens/alimentação (FKs)
   const entityOrder: SyncEntity[] = [
+    // Base
+    "fazenda",
+    "raca",
+    "categoria",
+    "matriz",
+
+    // Dependência direta
+    "animal",
+    "genealogia",
+
+    // Confinamento
     "confinamento",
     "confinamentoAnimal",
     "ocorrenciaAnimal",

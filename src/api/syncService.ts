@@ -156,7 +156,7 @@ export async function pushPending() {
     console.error("Erro ao processar fila de eventos:", err);
   }
 
-  // Sincronizar exclusões pendentes primeiro
+  //#region Sincronizar exclusões pendentes primeiro
   try {
     // Verificar se a tabela deletedRecords existe (pode não existir em versões antigas do banco)
     if (db.deletedRecords) {
@@ -251,77 +251,15 @@ export async function pushPending() {
   } catch (err) {
     console.error("Erro geral ao sincronizar exclusões:", err);
   }
+  //#endregion Exclusões
 }
 
 export async function pullUpdates(syncClient: SupabaseClient) {
   console.log("📥 Iniciando pull de atualizações do servidor...");
-  const totalSteps = 11; // Categorias, Raças, Fazendas, Usuários, Animais, Confinamento x4, Notificações lidas, Auditoria
+  const totalSteps = 11; // Fazendas, Usuários, Categorias, Raças, Animais, Confinamento x4, Notificações lidas, Auditoria
   let currentStep = 0;
 
-  // Buscar categorias (motor genérico) — forceFullPull: tabela pequena
-  try {
-    currentStep++;
-    startSyncStep("Pull Categorias");
-    emitSyncProgress(
-      "pull",
-      currentStep,
-      totalSteps,
-      "Sincronizando Categorias...",
-    );
-    const n = await pullEntity(
-      {
-        remoteTable: "categorias_online",
-        orderBy: "updated_at",
-        updatedAtField: "updated_at",
-        localTable: db.categorias as any,
-        mapper: (s: any) => ({
-          id: s.uuid,
-          nome: s.nome,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id,
-        }),
-        forceFullPull: true,
-      },
-      syncClient,
-    );
-    endSyncStep("Pull Categorias", n);
-  } catch (err) {
-    console.error("Erro ao processar pull de categorias:", err);
-    endSyncStep("Pull Categorias", 0);
-  }
-
-  // Buscar raças (motor genérico) — forceFullPull: tabela pequena, evita perder registros por checkpoint incremental
-  try {
-    currentStep++;
-    startSyncStep("Pull Raças");
-    emitSyncProgress("pull", currentStep, totalSteps, "Sincronizando Raças...");
-    const n = await pullEntity(
-      {
-        remoteTable: "racas_online",
-        orderBy: "updated_at",
-        updatedAtField: "updated_at",
-        localTable: db.racas as any,
-        mapper: (s: any) => ({
-          id: s.uuid,
-          nome: s.nome,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id,
-        }),
-        forceFullPull: true,
-      },
-      syncClient,
-    );
-    endSyncStep("Pull Raças", n);
-  } catch (err) {
-    console.error("Erro ao processar pull de raças:", err);
-    endSyncStep("Pull Raças", 0);
-  }
-
-  // Buscar fazendas (motor genérico) — forceFullPull: tabela pequena
+  //#region Buscar fazendas (motor genérico) — forceFullPull: tabela pequena
   try {
     currentStep++;
     startSyncStep("Pull Fazendas");
@@ -355,22 +293,67 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     console.error("Erro ao processar pull de fazendas:", err);
     endSyncStep("Pull Fazendas", 0);
   }
+  //#endregion Fazendas
 
-  // (Pull de matrizes/nascimentos removido — uso apenas animais/genealogias.)
-
-  // Buscar desmamas (motor bulk - pullEntity)
+  //#region Buscar usuários (motor genérico: incremental + batch)
   try {
-    await pullEntity(
+    currentStep++;
+    startSyncStep("Pull Usuários");
+    emitSyncProgress(
+      "pull",
+      currentStep,
+      totalSteps,
+      "Sincronizando Usuários...",
+    );
+    const nUsuarios = await pullEntity(
       {
-        remoteTable: "desmamas_online",
+        remoteTable: "usuarios_online",
         orderBy: "updated_at",
         updatedAtField: "updated_at",
-        localTable: db.desmamas as any,
+        localTable: db.usuarios as any,
         mapper: (s: any) => ({
           id: s.uuid,
-          animalId: s.animal_id ?? s.nascimento_uuid,
-          dataDesmama: s.data_desmama,
-          pesoDesmama: s.peso_desmama,
+          nome: s.nome,
+          email: s.email,
+          senhaHash: s.senha_hash,
+          role: s.role,
+          fazendaId: s.fazenda_uuid || undefined,
+          ativo: s.ativo,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+          synced: true,
+          remoteId: s.id,
+        }),
+      },
+      syncClient,
+    );
+    endSyncStep("Pull Usuários", nUsuarios);
+  } catch (err) {
+    console.error("Erro ao processar pull de usuários:", err);
+    endSyncStep("Pull Usuários", 0);
+    throw err;
+  }
+  //#endregion Usuários
+
+  //#region Buscar categorias (motor genérico) — forceFullPull: tabela pequena
+  try {
+    currentStep++;
+    startSyncStep("Pull Categorias");
+    emitSyncProgress(
+      "pull",
+      currentStep,
+      totalSteps,
+      "Sincronizando Categorias...",
+    );
+    const n = await pullEntity(
+      {
+        remoteTable: "categorias_online",
+        orderBy: "updated_at",
+        updatedAtField: "updated_at",
+        localTable: db.categorias as any,
+        mapper: (s: any) => ({
+          id: s.uuid,
+          nome: s.nome,
           createdAt: s.created_at,
           updatedAt: s.updated_at,
           synced: true,
@@ -380,178 +363,114 @@ export async function pullUpdates(syncClient: SupabaseClient) {
       },
       syncClient,
     );
+    endSyncStep("Pull Categorias", n);
   } catch (err) {
-    console.error("Erro ao processar pull de desmamas:", err);
-    throw err;
+    console.error("Erro ao processar pull de categorias:", err);
+    endSyncStep("Pull Categorias", 0);
   }
+  //#endregion Categorias
 
-  // Buscar pesagens (motor bulk: toPut/toUpdate/bulkDelete)
+  //#region Buscar raças (motor genérico) — forceFullPull: tabela pequena, evita perder registros por checkpoint incremental
   try {
-    const servPesagens = await fetchAllFromSupabase(
-      "pesagens_online",
-      "id",
+    currentStep++;
+    startSyncStep("Pull Raças");
+    emitSyncProgress("pull", currentStep, totalSteps, "Sincronizando Raças...");
+    const n = await pullEntity(
+      {
+        remoteTable: "racas_online",
+        orderBy: "updated_at",
+        updatedAtField: "updated_at",
+        localTable: db.racas as any,
+        mapper: (s: any) => ({
+          id: s.uuid,
+          nome: s.nome,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+          synced: true,
+          remoteId: s.id,
+        }),
+        forceFullPull: true,
+      },
       syncClient,
     );
-    if (servPesagens && servPesagens.length > 0) {
-      const servUuids = new Set(
-        servPesagens.map((p: any) => p.uuid).filter(Boolean),
-      );
-      const todasPesagensLocais = await db.pesagens.toArray();
-      const localMap = new Map(todasPesagensLocais.map((p) => [p.id, p]));
-      const deletedUuids = new Set<string>();
-      if (db.deletedRecords) {
-        const todasExclusoes = await db.deletedRecords.toArray();
-        todasExclusoes.forEach((d) => deletedUuids.add(d.uuid));
-      }
-      const idsParaDeletar = todasPesagensLocais
-        .filter((p) => p.remoteId != null && !servUuids.has(p.id))
-        .map((p) => p.id);
-      if (idsParaDeletar.length > 0)
-        await db.pesagens.bulkDelete(idsParaDeletar);
-
-      const margemTimestamp = 1000;
-      const toPut: any[] = [];
-      const toUpdate: Array<{ key: string; changes: any }> = [];
-      for (const s of servPesagens) {
-        if (!s.uuid || deletedUuids.has(s.uuid)) continue;
-        const local = localMap.get(s.uuid);
-        const mapped = {
-          id: s.uuid,
-          animalId: s.animal_id ?? s.nascimento_id ?? s.nascimento_uuid,
-          dataPesagem: s.data_pesagem,
-          peso: s.peso,
-          observacao: s.observacao || undefined,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id,
-        };
-        if (!local) {
-          toPut.push(mapped);
-        } else {
-          if (!local.synced) {
-            const servUpdated = s.updated_at
-              ? new Date(s.updated_at).getTime()
-              : 0;
-            const localUpdated = local.updatedAt
-              ? new Date(local.updatedAt).getTime()
-              : 0;
-            if (localUpdated >= servUpdated - margemTimestamp) continue;
-          }
-          if (
-            !local.remoteId ||
-            new Date(local.updatedAt) < new Date(s.updated_at)
-          ) {
-            toUpdate.push({ key: s.uuid, changes: mapped });
-          }
-        }
-      }
-      if (toPut.length > 0) await db.pesagens.bulkPut(toPut);
-      if (toUpdate.length > 0) await db.pesagens.bulkUpdate(toUpdate);
-    }
+    endSyncStep("Pull Raças", n);
   } catch (err) {
-    console.error("Erro ao processar pull de pesagens:", err);
-    throw err;
+    console.error("Erro ao processar pull de raças:", err);
+    endSyncStep("Pull Raças", 0);
   }
+  //#endregion Raças
 
-  // Buscar vacinações (motor bulk: toPut/toUpdate/bulkDelete)
+  //#region Pull tipos, status e origens (motor genérico - bulkPut)
   try {
-    let servVacinacoes: any[] = [];
-    try {
-      servVacinacoes = await fetchAllFromSupabase(
-        "vacinacoes_online",
-        "id",
-        syncClient,
-      );
-    } catch (errorVacinacoes: any) {
-      if (
-        errorVacinacoes?.code === "PGRST205" ||
-        errorVacinacoes?.code === "42P01" ||
-        errorVacinacoes?.message?.includes("Could not find the table")
-      ) {
-        console.warn(
-          "Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.",
-        );
-      } else {
-        console.error(
-          "Erro ao buscar vacinações do servidor:",
-          errorVacinacoes,
-        );
-      }
-    }
-    if (servVacinacoes && servVacinacoes.length > 0) {
-      const servUuids = new Set(
-        servVacinacoes.map((v: any) => v.uuid).filter(Boolean),
-      );
-      const todasVacinacoesLocais = await db.vacinacoes.toArray();
-      const localMap = new Map(todasVacinacoesLocais.map((v) => [v.id, v]));
-      const deletedUuids = new Set<string>();
-      if (db.deletedRecords) {
-        const todasExclusoes = await db.deletedRecords.toArray();
-        todasExclusoes.forEach((d) => deletedUuids.add(d.uuid));
-      }
-      const idsParaDeletar = todasVacinacoesLocais
-        .filter((v) => v.remoteId != null && !servUuids.has(v.id))
-        .map((v) => v.id);
-      if (idsParaDeletar.length > 0)
-        await db.vacinacoes.bulkDelete(idsParaDeletar);
-
-      const margemTimestamp = 1000;
-      const toPut: any[] = [];
-      const toUpdate: Array<{ key: string; changes: any }> = [];
-      for (const s of servVacinacoes) {
-        if (!s.uuid || deletedUuids.has(s.uuid)) continue;
-        const local = localMap.get(s.uuid);
-        const mapped = {
-          id: s.uuid,
-          animalId: s.animal_id ?? s.nascimento_id ?? s.nascimento_uuid,
-          vacina: s.vacina,
-          dataAplicacao: s.data_aplicacao,
-          dataVencimento: s.data_vencimento || undefined,
-          lote: s.lote || undefined,
-          responsavel: s.responsavel || undefined,
-          observacao: s.observacao || undefined,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id,
-        };
-        if (!local) {
-          toPut.push(mapped);
-        } else {
-          if (!local.synced) {
-            const servUpdated = s.updated_at
-              ? new Date(s.updated_at).getTime()
-              : 0;
-            const localUpdated = local.updatedAt
-              ? new Date(local.updatedAt).getTime()
-              : 0;
-            if (localUpdated >= servUpdated - margemTimestamp) continue;
-          }
-          if (
-            !local.remoteId ||
-            new Date(local.updatedAt) < new Date(s.updated_at)
-          ) {
-            toUpdate.push({ key: s.uuid, changes: mapped });
-          }
-        }
-      }
-      if (toPut.length > 0) await db.vacinacoes.bulkPut(toPut);
-      if (toUpdate.length > 0) await db.vacinacoes.bulkUpdate(toUpdate);
-    }
-  } catch (err: any) {
-    if (
-      err?.code === "PGRST205" ||
-      err?.code === "42P01" ||
-      err?.message?.includes("Could not find the table")
-    ) {
-      console.warn("Tabela vacinacoes_online não existe no servidor.");
-    } else {
-      console.error("Erro ao processar pull de vacinações:", err);
-    }
+    await pullEntitySimple(
+      "tipos_animal_online",
+      db.tiposAnimal as any,
+      (s: any) => ({
+        id: s.uuid,
+        nome: s.nome,
+        descricao: s.descricao,
+        ordem: s.ordem,
+        ativo: s.ativo,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        deletedAt: s.deleted_at,
+        synced: true,
+        remoteId: s.id,
+      }),
+      {},
+      syncClient,
+    );
+  } catch (err) {
+    console.error("Erro ao fazer pull de tipos de animal:", err);
   }
+  try {
+    await pullEntitySimple(
+      "status_animal_online",
+      db.statusAnimal as any,
+      (s: any) => ({
+        id: s.uuid,
+        nome: s.nome,
+        cor: s.cor,
+        descricao: s.descricao,
+        ordem: s.ordem,
+        ativo: s.ativo,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        deletedAt: s.deleted_at,
+        synced: true,
+        remoteId: s.id,
+      }),
+      {},
+      syncClient,
+    );
+  } catch (err) {
+    console.error("Erro ao fazer pull de status de animal:", err);
+  }
+  try {
+    await pullEntitySimple(
+      "origens_online",
+      db.origens as any,
+      (s: any) => ({
+        id: s.uuid,
+        nome: s.nome,
+        descricao: s.descricao,
+        ordem: s.ordem,
+        ativo: s.ativo,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        deletedAt: s.deleted_at,
+        synced: true,
+        remoteId: s.id,
+      }),
+      {},
+      syncClient,
+    );
+  } catch (err) {
+    console.error("Erro ao fazer pull de origens:", err);
+  }
+  //#endregion
 
-  // Buscar tags (incluir deletadas para sincronizar soft deletes)
+  //#region Buscar tags (incluir deletadas para sincronizar soft deletes)
   try {
     const { data: servTags, error: errorTags } = await syncClient
       .from("tags")
@@ -648,80 +567,68 @@ export async function pullUpdates(syncClient: SupabaseClient) {
       console.error("Erro ao processar tags:", err);
     }
   }
+  //#endregion Tags
 
-  // Buscar usuários (motor genérico: incremental + batch)
+  //#region Pull de permissões: merge por (role, permission) — não deleta locais, evita "reset" ao sincronizar
   try {
-    currentStep++;
-    startSyncStep("Pull Usuários");
-    emitSyncProgress(
-      "pull",
-      currentStep,
-      totalSteps,
-      "Sincronizando Usuários...",
-    );
-    const nUsuarios = await pullEntity(
+    const { getLastPulledAt, setLastPulledAt } =
+      await import("../utils/syncCheckpoints");
+    const lastPulled = getLastPulledAt("role_permissions_online");
+    const servRecords = await fetchFromSupabase<any>(
+      "role_permissions_online",
       {
-        remoteTable: "usuarios_online",
         orderBy: "updated_at",
         updatedAtField: "updated_at",
-        localTable: db.usuarios as any,
-        mapper: (s: any) => ({
-          id: s.uuid,
-          nome: s.nome,
-          email: s.email,
-          senhaHash: s.senha_hash,
+        lastPulledAt: lastPulled || undefined,
+      },
+      syncClient,
+    );
+    if (servRecords && servRecords.length > 0) {
+      const localRecords = await db.rolePermissions.toArray();
+      const localByRolePerm = new Map(
+        localRecords.map((r: any) => [`${r.role}\0${r.permission}`, r]),
+      );
+      const toPut: any[] = [];
+      const toUpdate: Array<{ key: string; changes: any }> = [];
+      for (const s of servRecords) {
+        if (!s.uuid) continue;
+        const key = `${s.role}\0${s.permission}`;
+        const local = localByRolePerm.get(key);
+        const payload = {
           role: s.role,
-          fazendaId: s.fazenda_uuid || undefined,
-          ativo: s.ativo,
+          permission: s.permission,
+          granted: s.granted,
           createdAt: s.created_at,
           updatedAt: s.updated_at,
           synced: true,
           remoteId: s.id,
-        }),
-      },
-      syncClient,
-    );
-    endSyncStep("Pull Usuários", nUsuarios);
-  } catch (err) {
-    console.error("Erro ao processar pull de usuários:", err);
-    endSyncStep("Pull Usuários", 0);
-    throw err;
-  }
-
-  // Pull de auditoria (motor genérico: incremental + batch, limit 1000)
-  try {
-    if (db.audits) {
-      await pullEntity(
-        {
-          remoteTable: "audits_online",
-          orderBy: "timestamp",
-          updatedAtField: "timestamp",
-          updatedAtFieldLocal: "timestamp",
-          localTable: db.audits as any,
-          limit: 1000,
-          mapper: (s: any) => ({
-            id: s.uuid,
-            entity: s.entity,
-            entityId: s.entity_id,
-            action: s.action,
-            timestamp: s.timestamp,
-            userId: s.user_uuid || null,
-            userNome: s.user_nome || null,
-            before: s.before_json ? JSON.stringify(s.before_json) : null,
-            after: s.after_json ? JSON.stringify(s.after_json) : null,
-            description: s.description || null,
-            synced: true,
-            remoteId: s.id,
-          }),
-        },
-        syncClient,
+        };
+        if (local) {
+          toUpdate.push({ key: local.id, changes: payload });
+        } else {
+          toPut.push({ id: s.uuid, ...payload });
+        }
+      }
+      if (toPut.length > 0) await db.rolePermissions.bulkPut(toPut);
+      if (toUpdate.length > 0) await db.rolePermissions.bulkUpdate(toUpdate);
+      const maxUpdated = servRecords.reduce(
+        (max: string | null, r: any) =>
+          r.updated_at && (!max || r.updated_at > max) ? r.updated_at : max,
+        null,
       );
+      if (maxUpdated) setLastPulledAt("role_permissions_online", maxUpdated);
+    } else {
+      const { setLastPulledAt: setCheck } =
+        await import("../utils/syncCheckpoints");
+      setCheck("role_permissions_online", new Date().toISOString());
     }
   } catch (err) {
-    console.error("Erro ao processar pull de auditoria:", err);
+    console.error("Erro ao processar pull de permissões:", err);
+    // Não lançar erro - permissões não são críticas para funcionamento básico
   }
+  //#endregion Permissões
 
-  // Buscar configurações de alerta
+  //#region Buscar configurações de alerta
   try {
     if (db.alertSettings) {
       const { data: servSettings, error: errorSettings } = await syncClient
@@ -858,8 +765,9 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     console.error("Erro ao processar pull de configurações de alerta:", err);
     // Não lançar erro - configurações não são críticas para funcionamento
   }
+  //#endregion Configurações de alerta
 
-  // Buscar configurações do app
+  //#region Buscar configurações do app
   try {
     if (db.appSettings) {
       const { data: servSettings, error: errorSettings } = await syncClient
@@ -981,139 +889,9 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     console.error("Erro ao processar pull de configurações do app:", err);
     // Não lançar erro - configurações não são críticas para funcionamento
   }
+  //#endregion Configurações do app
 
-  // Pull de permissões: merge por (role, permission) — não deleta locais, evita "reset" ao sincronizar
-  try {
-    const { getLastPulledAt, setLastPulledAt } =
-      await import("../utils/syncCheckpoints");
-    const lastPulled = getLastPulledAt("role_permissions_online");
-    const servRecords = await fetchFromSupabase<any>(
-      "role_permissions_online",
-      {
-        orderBy: "updated_at",
-        updatedAtField: "updated_at",
-        lastPulledAt: lastPulled || undefined,
-      },
-      syncClient,
-    );
-    if (servRecords && servRecords.length > 0) {
-      const localRecords = await db.rolePermissions.toArray();
-      const localByRolePerm = new Map(
-        localRecords.map((r: any) => [`${r.role}\0${r.permission}`, r]),
-      );
-      const toPut: any[] = [];
-      const toUpdate: Array<{ key: string; changes: any }> = [];
-      for (const s of servRecords) {
-        if (!s.uuid) continue;
-        const key = `${s.role}\0${s.permission}`;
-        const local = localByRolePerm.get(key);
-        const payload = {
-          role: s.role,
-          permission: s.permission,
-          granted: s.granted,
-          createdAt: s.created_at,
-          updatedAt: s.updated_at,
-          synced: true,
-          remoteId: s.id,
-        };
-        if (local) {
-          toUpdate.push({ key: local.id, changes: payload });
-        } else {
-          toPut.push({ id: s.uuid, ...payload });
-        }
-      }
-      if (toPut.length > 0) await db.rolePermissions.bulkPut(toPut);
-      if (toUpdate.length > 0) await db.rolePermissions.bulkUpdate(toUpdate);
-      const maxUpdated = servRecords.reduce(
-        (max: string | null, r: any) =>
-          r.updated_at && (!max || r.updated_at > max) ? r.updated_at : max,
-        null,
-      );
-      if (maxUpdated) setLastPulledAt("role_permissions_online", maxUpdated);
-    } else {
-      const { setLastPulledAt: setCheck } =
-        await import("../utils/syncCheckpoints");
-      setCheck("role_permissions_online", new Date().toISOString());
-    }
-  } catch (err) {
-    console.error("Erro ao processar pull de permissões:", err);
-    // Não lançar erro - permissões não são críticas para funcionamento básico
-  }
-
-  // ========================================
-  // PULL SISTEMA DE ANIMAIS
-  // ========================================
-
-  // Pull tipos, status e origens (motor genérico - bulkPut)
-  try {
-    await pullEntitySimple(
-      "tipos_animal_online",
-      db.tiposAnimal as any,
-      (s: any) => ({
-        id: s.uuid,
-        nome: s.nome,
-        descricao: s.descricao,
-        ordem: s.ordem,
-        ativo: s.ativo,
-        createdAt: s.created_at,
-        updatedAt: s.updated_at,
-        deletedAt: s.deleted_at,
-        synced: true,
-        remoteId: s.id,
-      }),
-      {},
-      syncClient,
-    );
-  } catch (err) {
-    console.error("Erro ao fazer pull de tipos de animal:", err);
-  }
-  try {
-    await pullEntitySimple(
-      "status_animal_online",
-      db.statusAnimal as any,
-      (s: any) => ({
-        id: s.uuid,
-        nome: s.nome,
-        cor: s.cor,
-        descricao: s.descricao,
-        ordem: s.ordem,
-        ativo: s.ativo,
-        createdAt: s.created_at,
-        updatedAt: s.updated_at,
-        deletedAt: s.deleted_at,
-        synced: true,
-        remoteId: s.id,
-      }),
-      {},
-      syncClient,
-    );
-  } catch (err) {
-    console.error("Erro ao fazer pull de status de animal:", err);
-  }
-  try {
-    await pullEntitySimple(
-      "origens_online",
-      db.origens as any,
-      (s: any) => ({
-        id: s.uuid,
-        nome: s.nome,
-        descricao: s.descricao,
-        ordem: s.ordem,
-        ativo: s.ativo,
-        createdAt: s.created_at,
-        updatedAt: s.updated_at,
-        deletedAt: s.deleted_at,
-        synced: true,
-        remoteId: s.id,
-      }),
-      {},
-      syncClient,
-    );
-  } catch (err) {
-    console.error("Erro ao fazer pull de origens:", err);
-  }
-
-  // Pull animais
+  //#region  Pull animais
   try {
     currentStep++;
     startSyncStep("Pull Animais");
@@ -1122,17 +900,6 @@ export async function pullUpdates(syncClient: SupabaseClient) {
       currentStep,
       totalSteps,
       "Sincronizando Animais...",
-    );
-
-    // Verificar raças disponíveis antes de sincronizar animais
-    const racasDisponiveis = await db.racas.toArray();
-    console.log(
-      `📊 Raças disponíveis no Dexie antes do pull de animais: ${racasDisponiveis.length}`,
-      racasDisponiveis.map((r) => ({
-        id: r.id,
-        remoteId: r.remoteId,
-        nome: r.nome,
-      })),
     );
 
     // Buscar animais com paginação + incremental
@@ -1274,7 +1041,239 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     endSyncStep("Pull Animais", 0);
   }
 
-  // PULL GENEALOGIAS (robusto, idempotente, definitivo)
+  //#endregion Animais
+
+  //#region Buscar desmamas (motor bulk - pullEntity)
+  try {
+    await pullEntity(
+      {
+        remoteTable: "desmamas_online",
+        orderBy: "updated_at",
+        updatedAtField: "updated_at",
+        localTable: db.desmamas as any,
+        mapper: (s: any) => ({
+          id: s.uuid,
+          animalId: s.animal_id ?? s.nascimento_uuid,
+          dataDesmama: s.data_desmama,
+          pesoDesmama: s.peso_desmama,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+          synced: true,
+          remoteId: s.id,
+        }),
+        forceFullPull: true,
+      },
+      syncClient,
+    );
+  } catch (err) {
+    console.error("Erro ao processar pull de desmamas:", err);
+    throw err;
+  }
+  //#endregion Desmamas
+
+  //#region Buscar pesagens (motor bulk: toPut/toUpdate/bulkDelete)
+  try {
+    const servPesagens = await fetchAllFromSupabase(
+      "pesagens_online",
+      "id",
+      syncClient,
+    );
+    if (servPesagens && servPesagens.length > 0) {
+      const servUuids = new Set(
+        servPesagens.map((p: any) => p.uuid).filter(Boolean),
+      );
+      const todasPesagensLocais = await db.pesagens.toArray();
+      const localMap = new Map(todasPesagensLocais.map((p) => [p.id, p]));
+      const deletedUuids = new Set<string>();
+      if (db.deletedRecords) {
+        const todasExclusoes = await db.deletedRecords.toArray();
+        todasExclusoes.forEach((d) => deletedUuids.add(d.uuid));
+      }
+      const idsParaDeletar = todasPesagensLocais
+        .filter((p) => p.remoteId != null && !servUuids.has(p.id))
+        .map((p) => p.id);
+      if (idsParaDeletar.length > 0)
+        await db.pesagens.bulkDelete(idsParaDeletar);
+
+      const margemTimestamp = 1000;
+      const toPut: any[] = [];
+      const toUpdate: Array<{ key: string; changes: any }> = [];
+      for (const s of servPesagens) {
+        if (!s.uuid || deletedUuids.has(s.uuid)) continue;
+        const local = localMap.get(s.uuid);
+        const mapped = {
+          id: s.uuid,
+          animalId: s.animal_id ?? s.nascimento_id ?? s.nascimento_uuid,
+          dataPesagem: s.data_pesagem,
+          peso: s.peso,
+          observacao: s.observacao || undefined,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+          synced: true,
+          remoteId: s.id,
+        };
+        if (!local) {
+          toPut.push(mapped);
+        } else {
+          if (!local.synced) {
+            const servUpdated = s.updated_at
+              ? new Date(s.updated_at).getTime()
+              : 0;
+            const localUpdated = local.updatedAt
+              ? new Date(local.updatedAt).getTime()
+              : 0;
+            if (localUpdated >= servUpdated - margemTimestamp) continue;
+          }
+          if (
+            !local.remoteId ||
+            new Date(local.updatedAt) < new Date(s.updated_at)
+          ) {
+            toUpdate.push({ key: s.uuid, changes: mapped });
+          }
+        }
+      }
+      if (toPut.length > 0) await db.pesagens.bulkPut(toPut);
+      if (toUpdate.length > 0) await db.pesagens.bulkUpdate(toUpdate);
+    }
+  } catch (err) {
+    console.error("Erro ao processar pull de pesagens:", err);
+    throw err;
+  }
+  //#endregion Pesagens
+
+  //#region Buscar vacinações (motor bulk: toPut/toUpdate/bulkDelete)
+  try {
+    let servVacinacoes: any[] = [];
+    try {
+      servVacinacoes = await fetchAllFromSupabase(
+        "vacinacoes_online",
+        "id",
+        syncClient,
+      );
+    } catch (errorVacinacoes: any) {
+      if (
+        errorVacinacoes?.code === "PGRST205" ||
+        errorVacinacoes?.code === "42P01" ||
+        errorVacinacoes?.message?.includes("Could not find the table")
+      ) {
+        console.warn(
+          "Tabela vacinacoes_online não existe no servidor. Execute a migração 024_add_vacinacoes_online.sql no Supabase.",
+        );
+      } else {
+        console.error(
+          "Erro ao buscar vacinações do servidor:",
+          errorVacinacoes,
+        );
+      }
+    }
+    if (servVacinacoes && servVacinacoes.length > 0) {
+      const servUuids = new Set(
+        servVacinacoes.map((v: any) => v.uuid).filter(Boolean),
+      );
+      const todasVacinacoesLocais = await db.vacinacoes.toArray();
+      const localMap = new Map(todasVacinacoesLocais.map((v) => [v.id, v]));
+      const deletedUuids = new Set<string>();
+      if (db.deletedRecords) {
+        const todasExclusoes = await db.deletedRecords.toArray();
+        todasExclusoes.forEach((d) => deletedUuids.add(d.uuid));
+      }
+      const idsParaDeletar = todasVacinacoesLocais
+        .filter((v) => v.remoteId != null && !servUuids.has(v.id))
+        .map((v) => v.id);
+      if (idsParaDeletar.length > 0)
+        await db.vacinacoes.bulkDelete(idsParaDeletar);
+
+      const margemTimestamp = 1000;
+      const toPut: any[] = [];
+      const toUpdate: Array<{ key: string; changes: any }> = [];
+      for (const s of servVacinacoes) {
+        if (!s.uuid || deletedUuids.has(s.uuid)) continue;
+        const local = localMap.get(s.uuid);
+        const mapped = {
+          id: s.uuid,
+          animalId: s.animal_id ?? s.nascimento_id ?? s.nascimento_uuid,
+          vacina: s.vacina,
+          dataAplicacao: s.data_aplicacao,
+          dataVencimento: s.data_vencimento || undefined,
+          lote: s.lote || undefined,
+          responsavel: s.responsavel || undefined,
+          observacao: s.observacao || undefined,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+          synced: true,
+          remoteId: s.id,
+        };
+        if (!local) {
+          toPut.push(mapped);
+        } else {
+          if (!local.synced) {
+            const servUpdated = s.updated_at
+              ? new Date(s.updated_at).getTime()
+              : 0;
+            const localUpdated = local.updatedAt
+              ? new Date(local.updatedAt).getTime()
+              : 0;
+            if (localUpdated >= servUpdated - margemTimestamp) continue;
+          }
+          if (
+            !local.remoteId ||
+            new Date(local.updatedAt) < new Date(s.updated_at)
+          ) {
+            toUpdate.push({ key: s.uuid, changes: mapped });
+          }
+        }
+      }
+      if (toPut.length > 0) await db.vacinacoes.bulkPut(toPut);
+      if (toUpdate.length > 0) await db.vacinacoes.bulkUpdate(toUpdate);
+    }
+  } catch (err: any) {
+    if (
+      err?.code === "PGRST205" ||
+      err?.code === "42P01" ||
+      err?.message?.includes("Could not find the table")
+    ) {
+      console.warn("Tabela vacinacoes_online não existe no servidor.");
+    } else {
+      console.error("Erro ao processar pull de vacinações:", err);
+    }
+  }
+  //#endregion Vacinações
+
+  //#region Pull de auditoria (motor genérico: incremental + batch, limit 1000)
+  try {
+    if (db.audits) {
+      await pullEntity(
+        {
+          remoteTable: "audits_online",
+          orderBy: "timestamp",
+          updatedAtField: "timestamp",
+          updatedAtFieldLocal: "timestamp",
+          localTable: db.audits as any,
+          limit: 1000,
+          mapper: (s: any) => ({
+            id: s.uuid,
+            entity: s.entity,
+            entityId: s.entity_id,
+            action: s.action,
+            timestamp: s.timestamp,
+            userId: s.user_uuid || null,
+            userNome: s.user_nome || null,
+            before: s.before_json ? JSON.stringify(s.before_json) : null,
+            after: s.after_json ? JSON.stringify(s.after_json) : null,
+            description: s.description || null,
+            synced: true,
+            remoteId: s.id,
+          }),
+        },
+        syncClient,
+      );
+    }
+  } catch (err) {
+    console.error("Erro ao processar pull de auditoria:", err);
+  }
+  //#endregion Auditoria
+
+  //#region  PULL GENEALOGIAS (robusto, idempotente, definitivo)
 
   try {
     const { getLastPulledAt, setLastPulledAt } =
@@ -1296,7 +1295,7 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     // MAPAS LOCAIS (dependências)
     // ==============================
     const animaisLocais = await db.animais.toArray();
-    const animaisMap = new Map(animaisLocais.map((a) => [a.remoteId, a]));
+    const animaisMap = new Map(animaisLocais.map((a) => [a.id, a]));
 
     const tiposLocais = await db.tiposAnimal.toArray();
     const tiposLocaisMap = new Map(tiposLocais.map((t) => [t.remoteId, t]));
@@ -1316,6 +1315,7 @@ export async function pullUpdates(syncClient: SupabaseClient) {
         // 🔒 Resolver dependências locais
         const animalLocal = animaisMap.get(s.animal_id);
         const matrizLocal = animaisMap.get(s.matriz_id);
+
         const reprodutorLocal = s.reprodutor_id
           ? animaisMap.get(s.reprodutor_id)
           : null;
@@ -1440,10 +1440,10 @@ export async function pullUpdates(syncClient: SupabaseClient) {
   } catch (err) {
     console.error("❌ Erro no pull de genealogias:", err);
   }
+  //#endregion
 
-  // ========================================
-  // MÓDULO DE CONFINAMENTO (pull em "Sincronizar Agora")
-  // ========================================
+  //#region pull confinamentos
+
   const fazendasLocais = await db.fazendas.toArray();
   const remoteIdToFazendaId = new Map(
     fazendasLocais
@@ -1555,8 +1555,6 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     endSyncStep("Pull Confinamento Animais", 0);
   }
 
-  // Pull de confinamentoPesagens removido: usamos tabela geral `pesagens` sincronizada acima
-
   try {
     currentStep++;
     startSyncStep("Pull Confinamento Alimentação");
@@ -1602,8 +1600,9 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     );
     endSyncStep("Pull Confinamento Alimentação", 0);
   }
+  //#endregion Confinamento
 
-  // Pull ocorrências animal (motor bulk; só executa se a tabela existir no backend — evita 404/PGRST205 no console)
+  //#region  Pull ocorrências animal (motor bulk; só executa se a tabela existir no backend — evita 404/PGRST205 no console)
   if (db.ocorrenciaAnimais) {
     const { error: tableCheck } = await syncClient
       .from("ocorrencia_animais_online")
@@ -1657,8 +1656,9 @@ export async function pullUpdates(syncClient: SupabaseClient) {
       }
     }
   }
+  //#endregion Ocorrências animal
 
-  // Pull notificações lidas (Sincronizar Agora)
+  //#region Pull notificações lidas (Sincronizar Agora)
   try {
     currentStep++;
     startSyncStep("Pull Notificações lidas");
@@ -1697,8 +1697,9 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     );
     endSyncStep("Pull Notificações lidas", 0);
   }
+  //#endregion notificações lidas
 
-  // Pull auditoria (Sincronizar Agora)
+  //#region Pull auditoria (Sincronizar Agora)
   try {
     currentStep++;
     startSyncStep("Pull Auditoria");
@@ -1772,6 +1773,7 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     console.error("Erro ao processar pull de auditoria:", err?.message ?? err);
     endSyncStep("Pull Auditoria", 0);
   }
+  //#endregion auditoria
 }
 
 /**
@@ -1781,6 +1783,7 @@ export async function pullUpdates(syncClient: SupabaseClient) {
  */
 export async function pullUsuarios() {
   try {
+    console.log("🚀 Iniciando pull de usuários do servidor...");
     const { data: servUsuarios, error: errorUsuarios } = await supabase
       .from("usuarios_online")
       .select("*");
@@ -1789,6 +1792,8 @@ export async function pullUsuarios() {
       // Não lançar erro - permitir continuar com dados locais
       return;
     }
+    console.log("🚀 Usuários do servidor:", servUsuarios.length);
+
     if (servUsuarios && servUsuarios.length > 0) {
       // IMPORTANTE: Não excluir usuários locais nesta função!
       const usuariosLocais = await db.usuarios.toArray();
@@ -1865,9 +1870,7 @@ export async function syncAll(): Promise<{ ran: boolean }> {
     steps: {},
   };
 
-  console.log("🚀 ========================================");
   console.log("🚀 INICIANDO SINCRONIZAÇÃO COMPLETA");
-  console.log("🚀 ========================================");
 
   if (typeof window !== "undefined") {
     const { setGlobalSyncing } = await import("../utils/syncState");

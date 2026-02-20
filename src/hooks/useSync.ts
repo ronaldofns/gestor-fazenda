@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
-import useOnline from './useOnline';
-import { useAuth } from './useAuth';
-import { useAppSettings } from './useAppSettings';
-import { syncAll } from '../api/syncService';
+import { useEffect, useRef } from "react";
+import useOnline from "./useOnline";
+import { useAuth } from "./useAuth";
+import { useAppSettings } from "./useAppSettings";
+import { syncAll } from "../api/syncService";
 
 /**
  * Hook para sincronização automática.
@@ -33,7 +33,7 @@ export default function useSync() {
         // Sincronizar tudo (exceto usuários, que já foram sincronizados antes do login)
         await syncAll();
       } catch (e) {
-        console.error('sync failed', e);
+        console.error("sync failed", e);
       }
     }
 

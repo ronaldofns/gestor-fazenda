@@ -1,10 +1,10 @@
-import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { usePermissions } from '../hooks/usePermissions';
-import { UserRole } from '../db/models';
-import { PermissionType } from '../db/models';
-import ErrorPage from './ErrorPage';
+import React from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { usePermissions } from "../hooks/usePermissions";
+import { UserRole } from "../db/models";
+import { PermissionType } from "../db/models";
+import ErrorPage from "./ErrorPage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,7 +12,11 @@ interface ProtectedRouteProps {
   requiredPermission?: PermissionType | PermissionType[];
 }
 
-export default function ProtectedRoute({ children, requiredRole, requiredPermission }: ProtectedRouteProps) {
+export default function ProtectedRoute({
+  children,
+  requiredRole,
+  requiredPermission,
+}: ProtectedRouteProps) {
   const { user, loading, hasRole } = useAuth();
   const { hasPermission, hasAnyPermission } = usePermissions();
   const location = useLocation();
@@ -43,7 +47,9 @@ export default function ProtectedRoute({ children, requiredRole, requiredPermiss
 
   // Verificar permissão se necessário
   if (requiredPermission) {
-    const permissions = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
+    const permissions = Array.isArray(requiredPermission)
+      ? requiredPermission
+      : [requiredPermission];
     if (!hasAnyPermission(permissions)) {
       return <ErrorPage variant="forbidden" code={403} />;
     }

@@ -92,7 +92,6 @@ class AppDB extends Dexie {
   // MÓDULO DE CONFINAMENTO
   confinamentos!: Dexie.Table<Confinamento, string>; // Tabela de confinamentos (lotes/ciclos)
   confinamentoAnimais!: Dexie.Table<ConfinamentoAnimal, string>; // Vínculo animal-confinamento
-  // Tabela `confinamentoPesagens` removida - usamos `pesagens` gerais
   confinamentoAlimentacao!: Dexie.Table<ConfinamentoAlimentacao, string>; // Controle de alimentação e custos
   ocorrenciaAnimais!: Dexie.Table<OcorrenciaAnimal, string>; // Sanidade: doença, tratamento, morte, outro
 
