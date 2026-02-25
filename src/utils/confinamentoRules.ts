@@ -10,6 +10,7 @@
 import { db } from "../db/dexieDB";
 import { Confinamento, ConfinamentoAnimal } from "../db/models";
 import { createSyncEvent } from "./syncEvents";
+import { parseDateOnlyLocal } from "./date";
 
 /**
  * Valida se um animal pode entrar em um confinamento
@@ -232,8 +233,8 @@ export function calcularGMD(
     return { gmd: null, dias: 0 };
   }
 
-  const entrada = new Date(dataEntrada);
-  const saida = new Date(dataSaida);
+  const entrada = parseDateOnlyLocal(dataEntrada) ?? new Date(dataEntrada);
+  const saida = parseDateOnlyLocal(dataSaida) ?? new Date(dataSaida);
   const dias = Math.max(
     1,
     Math.floor((saida.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24)),
@@ -257,7 +258,7 @@ export function calcularGMDParcial(
     return { gmd: null, dias: 0 };
   }
 
-  const entrada = new Date(dataEntrada);
+  const entrada = parseDateOnlyLocal(dataEntrada) ?? new Date(dataEntrada);
   const hoje = new Date();
   const dias = Math.max(
     1,

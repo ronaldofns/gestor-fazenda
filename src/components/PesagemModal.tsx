@@ -70,10 +70,11 @@ function PesagemModalComponent({
     onConfirm: () => {}
   });
 
-  const todasPesagens = useLiveQuery(
-    () => db.pesagens.filter(p => p.animalId === animalId).toArray(),
-    [animalId, open]
-  ) || [];
+  const todasPesagens =
+    useLiveQuery<Pesagem[]>(
+      () => Promise.resolve(db.pesagens.filter((p) => p.animalId === animalId).toArray()),
+      [animalId, open],
+    ) ?? [];
 
   // Ordenar pesagens por data (mais recente primeiro)
   const pesagensOrdenadas = useMemo(() => {
@@ -428,14 +429,15 @@ function PesagemModalComponent({
         try {
           const antes = initialData;
           
-          // Registrar exclusão no deletedRecords antes de excluir
+          // Registrar exclusão no deletedRecords antes de excluir (entity = pesagem para sync aplicar só em pesagens_online)
           const deletedId = uuid();
           await db.deletedRecords.add({
             id: deletedId,
             uuid: initialData.id,
             remoteId: initialData.remoteId || null,
             deletedAt: new Date().toISOString(),
-            synced: false
+            synced: false,
+            entity: "pesagem",
           });
           
           // Excluir pesagem no servidor se tiver remoteId
@@ -704,14 +706,15 @@ function PesagemModalComponent({
                                   setIsSubmitting(true);
                                   try {
                                     const antes = pesagem;
-                                    // Registrar exclusão no deletedRecords antes de excluir
+                                    // Registrar exclusão no deletedRecords antes de excluir (entity = pesagem)
                                     const deletedId = uuid();
                                     await db.deletedRecords.add({
                                       id: deletedId,
                                       uuid: pesagem.id,
                                       remoteId: pesagem.remoteId || null,
                                       deletedAt: new Date().toISOString(),
-                                      synced: false
+                                      synced: false,
+                                      entity: "pesagem",
                                     });
                                     
                                     // Excluir pesagem no servidor se tiver remoteId

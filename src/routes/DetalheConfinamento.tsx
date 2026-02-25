@@ -32,7 +32,9 @@ import { createSyncEvent } from "../utils/syncEvents";
 import {
   exportarConfinamentoPDF,
   exportarConfinamentoExcel,
+  exportarConfinamentoDetalhePDF,
   type DadosConfinamentoExportacao,
+  type DadosConfinamentoDetalhePDF,
 } from "../utils/exportarConfinamento";
 
 type TabType =
@@ -79,6 +81,10 @@ export default function DetalheConfinamento() {
   const [alimentacaoAExcluir, setAlimentacaoAExcluir] =
     useState<ConfinamentoAlimentacao | null>(null);
   const [modalPesagemOpen, setModalPesagemOpen] = useState(false);
+  const [modalPdfDetalheOpen, setModalPdfDetalheOpen] = useState(false);
+  const [pdfDetalheOrdenarPor, setPdfDetalheOrdenarPor] = useState<
+    "brinco_az" | "brinco_za" | "ultima_pesagem_peso_maior" | "ultima_pesagem_peso_menor"
+  >("brinco_az");
 
   const [buscaAnimaisPesagens, setBuscaAnimaisPesagens] = useState("");
   const [modalOcorrenciaOpen, setModalOcorrenciaOpen] = useState(false);
@@ -414,6 +420,8 @@ export default function DetalheConfinamento() {
     let totalAnimalDias = 0;
     let kgGanhoTotal = 0;
     const gmdCalculados = [];
+    let totalAnimalDiasEncerrados = 0;
+    let qtdEncerradosComDias = 0;
 
     for (const v of vinculoAnimalConfinamento) {
       let pesoFim = v.pesoSaida;
@@ -434,6 +442,11 @@ export default function DetalheConfinamento() {
           totalAnimalDias += r.dias;
           const ganho = pesoFim - v.pesoEntrada;
           kgGanhoTotal += ganho > 0 ? ganho : 0;
+        }
+        // Duração média (encerrados): só conta quem tem dataSaida
+        if (v.dataSaida && v.pesoSaida != null && r.dias >= 0) {
+          totalAnimalDiasEncerrados += r.dias;
+          qtdEncerradosComDias += 1;
         }
       }
     }
@@ -460,13 +473,21 @@ export default function DetalheConfinamento() {
         ? kgGanhoTotal * confinamento.precoVendaKg - custoTotal
         : null;
 
+    const totalAnimais = vinculoAnimalConfinamento.length;
+    // Duração média apenas dos encerrados (quem tem dataSaida); sem encerrados = 0 e exibe "-"
+    const diasMedio =
+      qtdEncerradosComDias > 0
+        ? totalAnimalDiasEncerrados / qtdEncerradosComDias
+        : 0;
+
     return {
       ...base,
-      totalAnimais: vinculoAnimalConfinamento.length,
+      totalAnimais,
       animaisAtivos: (vinculosAtivos ?? []).length,
       pesoMedioEntrada,
       pesoMedioSaida,
       gmdMedio,
+      diasMedio,
       custoTotal,
       custoPorDia: custoTotal / diasDecorridos,
       custoPorAnimalDia:
@@ -681,6 +702,72 @@ export default function DetalheConfinamento() {
             diasMedio: indicadores.diasMedio,
           },
         ],
+      };
+    };
+
+  const montarDadosDetalhePDF =
+    async (): Promise<DadosConfinamentoDetalhePDF | null> => {
+      if (!confinamento) return null;
+      const fazenda = await db.fazendas.get(confinamento.fazendaId);
+      const dataInicio = confinamento.dataInicio;
+      const pesagensNoPeriodo = (pesagensRaw ?? []).filter(
+        (p) =>
+          p.dataPesagem &&
+          new Date(p.dataPesagem) >= new Date(dataInicio),
+      );
+
+      const animais: DadosConfinamentoDetalhePDF["animais"] = [];
+
+      for (const v of vinculoAnimalConfinamento) {
+        const animal = animaisMap.get(v.animalId);
+        const pesagensAnimal = pesagensNoPeriodo
+          .filter((p) => p.animalId === v.animalId)
+          .sort(
+            (a, b) =>
+              new Date(a.dataPesagem).getTime() -
+              new Date(b.dataPesagem).getTime(),
+          )
+          .map((p) => ({ data: p.dataPesagem, peso: p.peso }));
+
+        let pesoFim = v.pesoSaida ?? null;
+        let dataFim: string | null = v.dataSaida ?? null;
+        if (!pesoFim && pesagensAnimal.length > 0) {
+          const ultima = pesagensAnimal[pesagensAnimal.length - 1];
+          pesoFim = ultima.peso;
+          dataFim = ultima.data;
+        }
+        if (!pesoFim && animal?.pesoAtual != null) {
+          pesoFim = animal.pesoAtual;
+          dataFim = new Date().toISOString().split("T")[0];
+        }
+
+        const { gmd, dias } = calcularGMD(
+          v.pesoEntrada ?? 0,
+          pesoFim ?? undefined,
+          v.dataEntrada,
+          dataFim ?? undefined,
+        );
+
+        // Peso/data saída só para quem realmente saiu (tem dataSaida no vínculo)
+        const saiu = v.dataSaida != null;
+        animais.push({
+          brinco: animal?.brinco ?? "—",
+          dataEntrada: v.dataEntrada,
+          pesoEntrada: v.pesoEntrada ?? 0,
+          pesagens: pesagensAnimal,
+          dataSaida: saiu ? v.dataSaida : null,
+          pesoSaida: saiu ? (v.pesoSaida ?? pesoFim) : null,
+          dias,
+          gmd: gmd ?? null,
+        });
+      }
+
+      return {
+        nomeConfinamento: confinamento.nome,
+        fazenda: fazenda?.nome ?? "N/A",
+        dataInicio,
+        dataFim: confinamento.dataFimReal ?? null,
+        animais,
       };
     };
 
@@ -1473,7 +1560,15 @@ export default function DetalheConfinamento() {
                 <h2 className="text-lg font-semibold">
                   Indicadores do Confinamento
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalPdfDetalheOpen(true)}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                  >
+                    <Icons.FileText className="w-4 h-4" />
+                    PDF com pesagens
+                  </button>
                   <button
                     type="button"
                     onClick={async () => {
@@ -2133,6 +2228,134 @@ export default function DetalheConfinamento() {
         onClose={() => setModalPesagemOpen(false)}
         onSaved={() => setModalPesagemOpen(false)}
       />
+
+      {/* Modal: Ordenação do PDF com pesagens */}
+      {modalPdfDetalheOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-5 border border-gray-200 dark:border-slate-600">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3">
+              Ordenar relatório PDF
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+              Escolha a ordem dos animais no relatório antes de gerar o PDF.
+            </p>
+            <div className="space-y-2 mb-5">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pdfOrdenar"
+                  checked={pdfDetalheOrdenarPor === "brinco_az"}
+                  onChange={() => setPdfDetalheOrdenarPor("brinco_az")}
+                  className="rounded"
+                />
+                <span className="text-sm">Brinco (A → Z)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pdfOrdenar"
+                  checked={pdfDetalheOrdenarPor === "brinco_za"}
+                  onChange={() => setPdfDetalheOrdenarPor("brinco_za")}
+                  className="rounded"
+                />
+                <span className="text-sm">Brinco (Z → A)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pdfOrdenar"
+                  checked={pdfDetalheOrdenarPor === "ultima_pesagem_peso_maior"}
+                  onChange={() => setPdfDetalheOrdenarPor("ultima_pesagem_peso_maior")}
+                  className="rounded"
+                />
+                <span className="text-sm">Última pesagem — maior peso primeiro</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pdfOrdenar"
+                  checked={pdfDetalheOrdenarPor === "ultima_pesagem_peso_menor"}
+                  onChange={() => setPdfDetalheOrdenarPor("ultima_pesagem_peso_menor")}
+                  className="rounded"
+                />
+                <span className="text-sm">Última pesagem — menor peso primeiro</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setModalPdfDetalheOpen(false)}
+                className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const dados = await montarDadosDetalhePDF();
+                  if (!dados) {
+                    setModalPdfDetalheOpen(false);
+                    return;
+                  }
+                  let animais = [...dados.animais];
+                  if (pdfDetalheOrdenarPor === "brinco_az") {
+                    animais.sort((a, b) => {
+                      const na = Number(a.brinco);
+                      const nb = Number(b.brinco);
+                      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+                      return (a.brinco || "").localeCompare(b.brinco || "", "pt-BR");
+                    });
+                  } else if (pdfDetalheOrdenarPor === "brinco_za") {
+                    animais.sort((a, b) => {
+                      const na = Number(a.brinco);
+                      const nb = Number(b.brinco);
+                      if (Number.isFinite(na) && Number.isFinite(nb)) return nb - na;
+                      return (b.brinco || "").localeCompare(a.brinco || "", "pt-BR");
+                    });
+                  } else if (pdfDetalheOrdenarPor === "ultima_pesagem_peso_maior") {
+                    animais.sort((a, b) => {
+                      const pa = a.pesagens.length ? a.pesagens[a.pesagens.length - 1].peso : 0;
+                      const pb = b.pesagens.length ? b.pesagens[b.pesagens.length - 1].peso : 0;
+                      return pb - pa;
+                    });
+                  } else {
+                    animais.sort((a, b) => {
+                      const pa = a.pesagens.length ? a.pesagens[a.pesagens.length - 1].peso : 0;
+                      const pb = b.pesagens.length ? b.pesagens[b.pesagens.length - 1].peso : 0;
+                      return pa - pb;
+                    });
+                  }
+                  const payload: DadosConfinamentoDetalhePDF = {
+                    ...dados,
+                    animais,
+                    indicadores: indicadores
+                      ? {
+                          totalAnimais: indicadores.totalAnimais,
+                          animaisAtivos: indicadores.animaisAtivos,
+                          pesoMedioEntrada: indicadores.pesoMedioEntrada,
+                          pesoMedioSaida: indicadores.pesoMedioSaida,
+                          gmdMedio: indicadores.gmdMedio,
+                          diasMedio: indicadores.diasMedio,
+                          diasConfinamento: indicadores.diasConfinamento,
+                          custoTotal: indicadores.custoTotal,
+                          custoPorDia: indicadores.custoPorDia,
+                          custoPorAnimalDia: indicadores.custoPorAnimalDia,
+                          custoPorKgGanho: indicadores.custoPorKgGanho,
+                          margemEstimada: indicadores.margemEstimada,
+                        }
+                      : undefined,
+                  };
+                  exportarConfinamentoDetalhePDF(payload);
+                  setModalPdfDetalheOpen(false);
+                }}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-lg ${getPrimaryButtonClass(primaryColor)}`}
+              >
+                Gerar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!vinculoAEncerrar}

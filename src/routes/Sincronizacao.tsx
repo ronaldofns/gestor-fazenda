@@ -870,7 +870,7 @@ export default function Sincronizacao() {
       } else if (created > 0) {
         showToast({
           type: "success",
-          message: `${created} evento(s) criado(s) para pendências. Clique em "Sincronizar Agora" para enviar.`,
+          message: `${created} evento(s) criado(s). A sincronização automática enviará em breve.`,
         });
       } else {
         showToast({
@@ -892,7 +892,7 @@ export default function Sincronizacao() {
       if (count > 0) {
         showToast({
           type: "success",
-          message: `${count} evento(s) com erro foram resetados. Clique em "Sincronizar Agora" para reenviar.`,
+          message: `${count} evento(s) com erro foram resetados. A sincronização automática tentará reenviar em breve.`,
         });
       } else {
         showToast({
@@ -1144,8 +1144,20 @@ export default function Sincronizacao() {
                 Tudo sincronizado!
               </p>
             )}
+            {totalPendencias > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Serão enviados na próxima sincronização automática.
+              </p>
+            )}
           </div>
         </div>
+
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          A sincronização é automática enquanto você está online (a cada{" "}
+          {appSettings.intervaloSincronizacao ?? 30}s). Pendências ganham evento
+          na fila e são enviadas sem precisar clicar em nada. Use &quot;Sincronizar
+          Agora&quot; apenas se quiser forçar uma execução imediata.
+        </p>
 
         {/* Botão de Sincronização e Backup */}
         <div className="flex items-center justify-center gap-3 flex-wrap pt-3 border-t border-gray-200 dark:border-slate-700">

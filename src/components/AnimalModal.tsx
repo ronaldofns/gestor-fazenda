@@ -22,7 +22,7 @@ import { useAppSettings } from "../hooks/useAppSettings";
 import { useAuth } from "../hooks/useAuth";
 import { usePermissions } from "../hooks/usePermissions";
 import { ColorPaletteKey } from "../hooks/useThemeColors";
-import { getPrimaryButtonClass, getThemeClasses } from "../utils/themeHelpers";
+import { getPrimaryButtonClass, getThemeClasses, getPrimaryActionButtonLightClass } from "../utils/themeHelpers";
 import { registrarAudit } from "../utils/audit";
 import { recalculateTagUsage } from "../utils/fixTagUsageCount";
 import {
@@ -49,6 +49,32 @@ import {
   converterDataParaFormatoBanco,
 } from "../utils/dateInput";
 import { msg } from "../utils/validationMessages";
+import { calcularGMD, calcularGMDAcumulado } from "../utils/calcularGMD";
+import { formatDateBR } from "../utils/date";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
+
+/** Converte string de data (YYYY-MM-DD ou DD/MM/YYYY) para Date, usado na aba Pesagens. */
+function parseDatePesagem(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  if (dateStr.includes("-")) {
+    const parts = dateStr.split("-").map(Number);
+    if (parts.length === 3) return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  if (dateStr.includes("/")) {
+    const parts = dateStr.split("/").map(Number);
+    if (parts.length === 3) return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+  const parsed = new Date(dateStr);
+  return !isNaN(parsed.getTime()) ? parsed : null;
+}
 
 // Helper para validar números opcionais (aceita número, string vazia ou undefined)
 const numeroOpcional = z.preprocess((val) => {
@@ -386,24 +412,33 @@ export default function AnimalModal({
       ? internalInitialData.id
       : null;
 
-  // Usar useMemo para evitar queries desnecessárias
+  // Genérico em useLiveQuery evita incompatibilidade PromiseExtended (Dexie) vs Promise
   const pesagens =
-    useLiveQuery(() => {
-      if (!open || !animalId) return Promise.resolve([]);
-      return db.pesagens.filter((p) => p.animalId === animalId).toArray();
-    }, [animalId, open]) || [];
+    useLiveQuery<Pesagem[]>(
+      () =>
+        !open || !animalId
+          ? Promise.resolve([])
+          : Promise.resolve(db.pesagens.filter((p) => p.animalId === animalId).toArray()),
+      [animalId, open],
+    ) ?? [];
 
   const vacinacoes =
-    useLiveQuery(() => {
-      if (!open || !animalId) return Promise.resolve([]);
-      return db.vacinacoes.filter((v) => v.animalId === animalId).toArray();
-    }, [animalId, open]) || [];
+    useLiveQuery<Vacina[]>(
+      () =>
+        !open || !animalId
+          ? Promise.resolve([])
+          : Promise.resolve(db.vacinacoes.filter((v) => v.animalId === animalId).toArray()),
+      [animalId, open],
+    ) ?? [];
 
   const desmamas =
-    useLiveQuery(() => {
-      if (!open || !animalId) return Promise.resolve([]);
-      return db.desmamas.filter((d) => d.animalId === animalId).toArray();
-    }, [animalId, open]) || [];
+    useLiveQuery<Desmama[]>(
+      () =>
+        !open || !animalId
+          ? Promise.resolve([])
+          : Promise.resolve(db.desmamas.filter((d) => d.animalId === animalId).toArray()),
+      [animalId, open],
+    ) ?? [];
 
   // Confinamento ativo do animal (no máximo um)
   const confinamentoAtivo = useLiveQuery(async () => {
@@ -1873,7 +1908,7 @@ export default function AnimalModal({
                                   shouldValidate: false,
                                 });
 
-                                // Se o campo brinco contiver valor (não vazio e não temporário), desmarcar automaticamente
+                                // Sincronizar estado do checkbox com o valor: não preencher de volta se o usuário apagou
                                 if (
                                   newValue &&
                                   newValue.length > 0 &&
@@ -1886,83 +1921,35 @@ export default function AnimalModal({
                                   newValue.startsWith("TEMP-") ||
                                   newValue.startsWith("PEND-")
                                 ) {
-                                  // Se for temporário, marcar o checkbox
                                   setBrincoTemporario(true);
                                   setBrincoTemporarioGerado(newValue);
-                                } else if (!newValue || newValue.length === 0) {
-                                  // Se estiver vazio, marcar o checkbox e gerar temporário
-                                  setBrincoTemporario(true);
-                                  const agora = new Date();
-                                  const ano = agora.getFullYear();
-                                  const mes = String(
-                                    agora.getMonth() + 1,
-                                  ).padStart(2, "0");
-                                  const dia = String(agora.getDate()).padStart(
-                                    2,
-                                    "0",
-                                  );
-                                  const hora = String(
-                                    agora.getHours(),
-                                  ).padStart(2, "0");
-                                  const minuto = String(
-                                    agora.getMinutes(),
-                                  ).padStart(2, "0");
-                                  const segundo = String(
-                                    agora.getSeconds(),
-                                  ).padStart(2, "0");
-                                  const brincoTemp = `TEMP-${ano}${mes}${dia}-${hora}${minuto}${segundo}`;
-                                  setValue("brinco", brincoTemp, {
-                                    shouldValidate: false,
-                                  });
-                                  setBrincoTemporarioGerado(brincoTemp);
+                                } else {
+                                  // Campo vazio: apenas desmarcar e limpar; não gerar temporário (usuário pode ter apagado de propósito)
+                                  setBrincoTemporario(false);
+                                  setBrincoTemporarioGerado(null);
                                 }
                               },
                               onBlur: (e) => {
                                 onBlur(e);
-                                // Verificar novamente ao perder o foco
-                                const value = e.target.value.trim();
+                                const value = (e.target.value || "").trim();
                                 if (
                                   value &&
                                   value.length > 0 &&
                                   !value.startsWith("TEMP-") &&
                                   !value.startsWith("PEND-")
                                 ) {
-                                  // Se tiver valor real, desmarcar
                                   setBrincoTemporario(false);
                                   setBrincoTemporarioGerado(null);
-                                } else if (!value || value.length === 0) {
-                                  // Se estiver vazio, marcar checkbox e gerar temporário
-                                  setBrincoTemporario(true);
-                                  const agora = new Date();
-                                  const ano = agora.getFullYear();
-                                  const mes = String(
-                                    agora.getMonth() + 1,
-                                  ).padStart(2, "0");
-                                  const dia = String(agora.getDate()).padStart(
-                                    2,
-                                    "0",
-                                  );
-                                  const hora = String(
-                                    agora.getHours(),
-                                  ).padStart(2, "0");
-                                  const minuto = String(
-                                    agora.getMinutes(),
-                                  ).padStart(2, "0");
-                                  const segundo = String(
-                                    agora.getSeconds(),
-                                  ).padStart(2, "0");
-                                  const brincoTemp = `TEMP-${ano}${mes}${dia}-${hora}${minuto}${segundo}`;
-                                  setValue("brinco", brincoTemp, {
-                                    shouldValidate: false,
-                                  });
-                                  setBrincoTemporarioGerado(brincoTemp);
                                 } else if (
                                   value.startsWith("TEMP-") ||
                                   value.startsWith("PEND-")
                                 ) {
-                                  // Se for temporário, garantir que está marcado
                                   setBrincoTemporario(true);
                                   setBrincoTemporarioGerado(value);
+                                } else {
+                                  // Campo vazio ao sair: não preencher de volta (respeita usuário ter apagado)
+                                  setBrincoTemporario(false);
+                                  setBrincoTemporarioGerado(null);
                                 }
                               },
                               ref,
@@ -2972,7 +2959,7 @@ export default function AnimalModal({
             {activeTab === "pesagens" && (
               <div className="space-y-4">
                 {animalId ? (
-                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-xl p-4 md:p-5 border border-gray-200/60 dark:border-slate-700/60">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
                         <Icons.Scale className="w-4 h-4" />
@@ -2984,7 +2971,7 @@ export default function AnimalModal({
                           setPesagemEditando(null);
                           setPesagemModalOpen(true);
                         }}
-                        className={`px-3 py-1.5 text-sm ${getPrimaryButtonClass(primaryColor)} text-white rounded-md hover:opacity-90 transition-opacity flex items-center gap-2`}
+                        className={`px-3 py-1.5 text-sm ${getPrimaryButtonClass(primaryColor)} text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 shadow-sm`}
                       >
                         <Icons.Plus className="w-4 h-4" />
                         Adicionar Pesagem
@@ -2992,148 +2979,223 @@ export default function AnimalModal({
                     </div>
 
                     {pesagens.length === 0 ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                         Nenhuma pesagem cadastrada ainda.
                       </p>
                     ) : (
-                      <div className="space-y-2">
-                        {pesagens
-                          .sort((a, b) => {
-                            const dataA = a.dataPesagem.includes("/")
-                              ? a.dataPesagem.split("/").reverse().join("-")
-                              : a.dataPesagem;
-                            const dataB = b.dataPesagem.includes("/")
-                              ? b.dataPesagem.split("/").reverse().join("-")
-                              : b.dataPesagem;
-                            return (
-                              new Date(dataB).getTime() -
-                              new Date(dataA).getTime()
-                            );
-                          })
-                          .map((pesagem) => {
-                            const dataFormatada = pesagem.dataPesagem.includes(
-                              "/",
-                            )
-                              ? pesagem.dataPesagem
-                              : pesagem.dataPesagem
-                                  .split("-")
-                                  .reverse()
-                                  .join("/");
-                            return (
-                              <div
-                                key={pesagem.id}
-                                className="flex items-center justify-between p-3 bg-white dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 transition-colors"
-                              >
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-3">
-                                    <span className="font-medium text-gray-900 dark:text-slate-100">
-                                      {dataFormatada}
-                                    </span>
-                                    <span className="text-gray-600 dark:text-slate-400">
-                                      {pesagem.peso.toFixed(2)} kg
-                                    </span>
-                                    {pesagem.observacao && (
-                                      <span className="text-sm text-gray-500 dark:text-slate-400">
-                                        {pesagem.observacao}
-                                      </span>
-                                    )}
+                      <>
+                        {/* Evolução da pesagem - gráfico */}
+                        {pesagens.length >= 2 && (() => {
+                          const chartData = [...pesagens]
+                            .sort((a, b) => {
+                              const tA = parseDatePesagem(a.dataPesagem)?.getTime() ?? 0;
+                              const tB = parseDatePesagem(b.dataPesagem)?.getTime() ?? 0;
+                              return tA - tB;
+                            })
+                            .map((p) => ({
+                              data: p.dataPesagem,
+                              dataLabel: formatDateBR(p.dataPesagem),
+                              peso: p.peso,
+                            }));
+                          const gmdAcumulado = calcularGMDAcumulado(pesagens);
+                          return (
+                            <div className="mb-5 p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-600 shadow-sm">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Icons.TrendingUp className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                                  Evolução da pesagem
+                                </h4>
+                                {gmdAcumulado !== null && (
+                                  <span className="text-xs font-semibold text-gray-700 dark:text-slate-200 bg-gray-100 dark:bg-slate-700/80 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-slate-600">
+                                    GMD médio: {gmdAcumulado.toFixed(2)} kg/dia
+                                  </span>
+                                )}
+                              </div>
+                              <ResponsiveContainer width="100%" height={200} className="min-w-0">
+                                <LineChart data={chartData} margin={{ top: 5, right: 8, left: -10, bottom: 5 }}>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-gray-200 dark:stroke-slate-600" />
+                                  <XAxis
+                                    dataKey="dataLabel"
+                                    tick={{ fontSize: 10 }}
+                                    tickLine={false}
+                                    className="text-gray-600 dark:text-slate-400"
+                                  />
+                                  <YAxis
+                                    tick={{ fontSize: 10 }}
+                                    tickLine={false}
+                                    className="text-gray-600 dark:text-slate-400"
+                                    domain={["auto", "auto"]}
+                                  />
+                                  <Tooltip
+                                    formatter={(value: number) => [`${value.toFixed(2)} kg`, "Peso"]}
+                                    labelFormatter={(label) => `Data: ${label}`}
+                                    contentStyle={{
+                                      fontSize: 12,
+                                      borderRadius: 8,
+                                      border: "1px solid var(--border)",
+                                    }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="peso"
+                                    name="Peso (kg)"
+                                    stroke="var(--color-primary, #3b82f6)"
+                                    strokeWidth={2}
+                                    dot={{ r: 4 }}
+                                    activeDot={{ r: 5 }}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Lista de pesagens - cards (ordenadas da mais recente para a mais antiga) */}
+                        {(() => {
+                          const pesagensOrdenadasDesc = [...pesagens].sort((a, b) => {
+                            const tA = parseDatePesagem(a.dataPesagem)?.getTime() ?? 0;
+                            const tB = parseDatePesagem(b.dataPesagem)?.getTime() ?? 0;
+                            return tB - tA;
+                          });
+                          return (
+                        <div className="space-y-3">
+                          {pesagensOrdenadasDesc.map((pesagem, index) => {
+                              const isUltima = index === 0;
+                              const pesagemAnterior = index < pesagensOrdenadasDesc.length - 1 ? pesagensOrdenadasDesc[index + 1] : null;
+                              const pesoAnterior = pesagemAnterior?.peso ?? null;
+                              const diferenca = pesoAnterior !== null ? pesagem.peso - pesoAnterior : null;
+                              const variacaoPercentual = pesoAnterior && pesoAnterior > 0 && diferenca !== null
+                                ? ((diferenca / pesoAnterior) * 100).toFixed(1)
+                                : null;
+                              const gmd = pesagemAnterior
+                                ? calcularGMD(pesagemAnterior.peso, pesagem.peso, pesagemAnterior.dataPesagem, pesagem.dataPesagem)
+                                : null;
+                              const dias = pesagemAnterior
+                                ? (() => {
+                                    const d1 = parseDatePesagem(pesagemAnterior.dataPesagem);
+                                    const d2 = parseDatePesagem(pesagem.dataPesagem);
+                                    if (!d1 || !d2) return null;
+                                    const diff = Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+                                    return diff > 0 ? diff : null;
+                                  })()
+                                : null;
+                              const dataFormatada = formatDateBR(pesagem.dataPesagem);
+                              return (
+                                <div
+                                  key={pesagem.id}
+                                  className={`p-4 rounded-xl border shadow-sm transition-colors ${
+                                    isUltima
+                                      ? `${getThemeClasses(primaryColor, "border")} ${getThemeClasses(primaryColor, "bg-light")}`
+                                      : "border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700/80 hover:border-gray-300 dark:hover:border-slate-500"
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                                          {dataFormatada}
+                                        </span>
+                                        {isUltima && (
+                                          <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${getThemeClasses(primaryColor, "bg")} text-white`}>
+                                            Mais recente
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                                        <span className="font-bold text-gray-800 dark:text-slate-200">
+                                          {pesagem.peso.toFixed(2)} kg
+                                        </span>
+                                        {diferenca !== null && (
+                                          <span className={`text-xs flex items-center gap-1 ${
+                                            diferenca > 0
+                                              ? "text-green-600 dark:text-green-400"
+                                              : diferenca < 0
+                                                ? "text-red-600 dark:text-red-400"
+                                                : "text-gray-500 dark:text-slate-400"
+                                          }`}>
+                                            {diferenca > 0 ? <Icons.ChevronUp className="w-3 h-3" /> : diferenca < 0 ? <Icons.ChevronDown className="w-3 h-3" /> : null}
+                                            {diferenca > 0 ? "+" : ""}{diferenca.toFixed(2)} kg
+                                            {variacaoPercentual && (
+                                              <span className="text-gray-500 dark:text-slate-400">({variacaoPercentual}%)</span>
+                                            )}
+                                          </span>
+                                        )}
+                                        {gmd !== null && dias !== null && (
+                                          <span className="text-xs text-gray-600 dark:text-slate-300">
+                                            GMD: <span className="font-semibold">{gmd.toFixed(2)} kg/dia</span> ({dias} dia{dias === 1 ? "" : "s"})
+                                          </span>
+                                        )}
+                                      </div>
+                                      {pesagem.observacao && (
+                                        <p className="text-xs text-gray-600 dark:text-slate-400 mt-1.5 truncate" title={pesagem.observacao}>
+                                          {pesagem.observacao}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPesagemEditando(pesagem);
+                                          setPesagemModalOpen(true);
+                                        }}
+                                        className={`p-2 rounded-lg transition-colors ${getPrimaryActionButtonLightClass(primaryColor)}`}
+                                        title="Editar pesagem"
+                                      >
+                                        <Icons.Edit className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          if (confirm(`Deseja realmente excluir a pesagem de ${dataFormatada} (${pesagem.peso.toFixed(2)} kg)?`)) {
+                                            try {
+                                              const { uuid } = await import("../utils/uuid");
+                                              const deletedId = uuid();
+                                              await db.deletedRecords.add({
+                                                id: deletedId,
+                                                uuid: pesagem.id,
+                                                remoteId: pesagem.remoteId || null,
+                                                deletedAt: new Date().toISOString(),
+                                                synced: false,
+                                                entity: "pesagem",
+                                              });
+                                              if (pesagem.remoteId) {
+                                                try {
+                                                  const { supabase } = await import("../api/supabaseClient");
+                                                  const { error } = await supabase.from("pesagens_online").delete().eq("id", pesagem.remoteId);
+                                                  if (!error) await db.deletedRecords.update(deletedId, { synced: true });
+                                                } catch (err) {
+                                                  console.error("Erro ao excluir pesagem no servidor:", err);
+                                                }
+                                              } else {
+                                                await db.deletedRecords.update(deletedId, { synced: true });
+                                              }
+                                              await db.pesagens.delete(pesagem.id);
+                                              showToast({ type: "success", title: "Pesagem excluída", message: "A pesagem foi excluída com sucesso." });
+                                            } catch (error) {
+                                              console.error("Erro ao excluir pesagem:", error);
+                                              showToast({ type: "error", title: "Erro ao excluir", message: "Não foi possível excluir a pesagem." });
+                                            }
+                                          }
+                                        }}
+                                        className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                        title="Excluir pesagem"
+                                      >
+                                        <Icons.Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setPesagemEditando(pesagem);
-                                      setPesagemModalOpen(true);
-                                    }}
-                                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
-                                    title="Editar pesagem"
-                                  >
-                                    <Icons.Edit className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      if (
-                                        confirm(
-                                          `Deseja realmente excluir a pesagem de ${dataFormatada} (${pesagem.peso.toFixed(2)} kg)?`,
-                                        )
-                                      ) {
-                                        try {
-                                          const { uuid } =
-                                            await import("../utils/uuid");
-                                          const deletedId = uuid();
-                                          await db.deletedRecords.add({
-                                            id: deletedId,
-                                            uuid: pesagem.id,
-                                            remoteId: pesagem.remoteId || null,
-                                            deletedAt: new Date().toISOString(),
-                                            synced: false,
-                                          });
-
-                                          if (pesagem.remoteId) {
-                                            try {
-                                              const { supabase } =
-                                                await import("../api/supabaseClient");
-                                              const { error } = await supabase
-                                                .from("pesagens_online")
-                                                .delete()
-                                                .eq("id", pesagem.remoteId);
-
-                                              if (!error) {
-                                                await db.deletedRecords.update(
-                                                  deletedId,
-                                                  { synced: true },
-                                                );
-                                              }
-                                            } catch (err) {
-                                              console.error(
-                                                "Erro ao excluir pesagem no servidor:",
-                                                err,
-                                              );
-                                            }
-                                          } else {
-                                            await db.deletedRecords.update(
-                                              deletedId,
-                                              { synced: true },
-                                            );
-                                          }
-
-                                          await db.pesagens.delete(pesagem.id);
-                                          showToast({
-                                            type: "success",
-                                            title: "Pesagem excluída",
-                                            message:
-                                              "A pesagem foi excluída com sucesso.",
-                                          });
-                                        } catch (error) {
-                                          console.error(
-                                            "Erro ao excluir pesagem:",
-                                            error,
-                                          );
-                                          showToast({
-                                            type: "error",
-                                            title: "Erro ao excluir",
-                                            message:
-                                              "Não foi possível excluir a pesagem.",
-                                          });
-                                        }
-                                      }
-                                    }}
-                                    className="p-1.5 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
-                                    title="Excluir pesagem"
-                                  >
-                                    <Icons.Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
+                              );
+                            })}
+                        </div>
+                          );
+                        })()}
+                      </>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                  <div className="bg-gray-50 dark:bg-slate-800/50 rounded-xl p-4 border border-gray-200/60 dark:border-slate-700/60">
                     <div className="text-center py-8">
                       <Icons.Scale className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
                       <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -3269,6 +3331,7 @@ export default function AnimalModal({
                                             remoteId: vacina.remoteId || null,
                                             deletedAt: new Date().toISOString(),
                                             synced: false,
+                                            entity: "vacina",
                                           });
 
                                           if (vacina.remoteId) {

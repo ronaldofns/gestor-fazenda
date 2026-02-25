@@ -703,7 +703,7 @@ export default function Animais() {
           (buscaPreparada!.statusMap.get(animal.statusId) || "").includes(
             termoBusca,
           ) ||
-          (buscaPreparada!.racaMap.get(animal.racaId) || "").includes(
+          (buscaPreparada!.racaMap.get(animal.racaId || "") || "").includes(
             termoBusca,
           ) ||
           matrizIdentificador.includes(termoBusca) ||
@@ -725,7 +725,7 @@ export default function Animais() {
         const fazenda = buscaPreparada!.fazendaMap.get(animal.fazendaId) || "";
         const tipo = buscaPreparada!.tipoMap.get(animal.tipoId) || "";
         const status = buscaPreparada!.statusMap.get(animal.statusId) || "";
-        const raca = buscaPreparada!.racaMap.get(animal.racaId) || "";
+        const raca = buscaPreparada!.racaMap.get(animal.racaId || "") || "";
         const genealogia = genealogiaMap.get(animal.id);
         const matrizId = genealogia?.matrizId || animal.matrizId;
         const matrizAnimal = matrizId ? animaisMap.get(matrizId) : undefined;
@@ -783,8 +783,8 @@ export default function Animais() {
             comp = (a.sexo || "").localeCompare(b.sexo || "");
             break;
           case "raca":
-            comp = (racaMap.get(a.racaId) || "").localeCompare(
-              racaMap.get(b.racaId) || "",
+            comp = (racaMap.get(a.racaId || "") || "").localeCompare(
+              racaMap.get(b.racaId || "") || "",
             );
             break;
           case "fazenda":
@@ -833,8 +833,8 @@ export default function Animais() {
             comp = (a.sexo || "").localeCompare(b.sexo || "");
             break;
           case "raca":
-            comp = (racaMap.get(a.racaId) || "").localeCompare(
-              racaMap.get(b.racaId) || "",
+            comp = (racaMap.get(a.racaId || "") || "").localeCompare(
+              racaMap.get(b.racaId || "") || "",
             );
             break;
           case "fazenda":
@@ -1039,7 +1039,7 @@ export default function Animais() {
           const { uuid } = await import("../utils/uuid");
           const deletedId = uuid();
 
-          // Registrar exclusão na tabela deletedRecords
+          // Registrar exclusão na tabela deletedRecords (entity = animal para sync aplicar só em animais_online)
           if (db.deletedRecords) {
             await db.deletedRecords.add({
               id: deletedId,
@@ -1047,6 +1047,7 @@ export default function Animais() {
               remoteId: animal.remoteId || null,
               deletedAt: new Date().toISOString(),
               synced: false,
+              entity: "animal",
             });
           }
 
@@ -1123,7 +1124,7 @@ export default function Animais() {
           Tipo: tipoMap.get(a.tipoId) || "",
           Status: statusMap.get(a.statusId) || "",
           Sexo: a.sexo === "M" ? "Macho" : "Fêmea",
-          Raça: racaMap.get(a.racaId) || "",
+          Raça: racaMap.get(a.racaId || "") || "",
           Matriz: matrizAnimal?.brinco || "",
           "Nome Matriz": matrizAnimal?.nome || "",
           "Tipo Matriz": tipoMatrizId ? tipoMap.get(tipoMatrizId) : "",
@@ -1180,7 +1181,7 @@ export default function Animais() {
           Tipo: tipoMap.get(a.tipoId) || "",
           Status: statusMap.get(a.statusId) || "",
           Sexo: a.sexo === "M" ? "Macho" : "Fêmea",
-          Raça: racaMap.get(a.racaId) || "",
+          Raça: racaMap.get(a.racaId || "") || "",
           Matriz: matrizAnimal?.brinco || "",
           "Nome Matriz": matrizAnimal?.nome || "",
           "Tipo Matriz": tipoMatrizId ? tipoMap.get(tipoMatrizId) : "",
@@ -1372,8 +1373,8 @@ export default function Animais() {
                           : value &&
                               typeof value === "object" &&
                               "value" in value &&
-                              typeof value.value === "string"
-                            ? value.value
+                              typeof (value as any).value === "string"
+                            ? (value as any).value
                             : "";
                       setFiltroAno(valorFinal);
                     }}

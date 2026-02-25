@@ -36,8 +36,9 @@ const schema = z.object({
     .string()
     .optional()
     .transform((s) => {
-      if (!s || s.trim() === "") return undefined;
-      const n = parseFloat(s.replace(",", "."));
+      if (s == null || String(s).trim() === "") return undefined;
+      const normalized = String(s).trim().replace(",", ".");
+      const n = parseFloat(normalized);
       return isNaN(n) ? undefined : n;
     }),
   observacoes: z.string().optional(),
@@ -91,16 +92,20 @@ export default function ConfinamentoModal({
       dataInicio: "",
       dataFimPrevista: "",
       status: "ativo",
-      precoVendaKg: initialData?.precoVendaKg
-        ? initialData.precoVendaKg
-        : undefined,
+      precoVendaKg: "",
       observacoes: "",
     },
   });
 
   const statusSelecionado = watch("status");
 
-  // Pré-carregar dados no modo edição
+  // Formata número para exibição com vírgula (pt-BR)
+  const precoVendaKgParaForm = (value: number | undefined | null): string => {
+    if (value == null || (typeof value === "number" && isNaN(value))) return "";
+    return String(value).replace(".", ",");
+  };
+
+  // Pré-carregar dados no modo edição (precoVendaKg sempre string com vírgula para o input)
   useEffect(() => {
     if (mode === "edit" && initialData) {
       reset({
@@ -111,7 +116,10 @@ export default function ConfinamentoModal({
           ? converterDataParaFormatoInput(initialData.dataFimPrevista)
           : "",
         status: initialData.status,
-        precoVendaKg: initialData.precoVendaKg,
+        precoVendaKg:
+          initialData.precoVendaKg != null
+            ? String(initialData.precoVendaKg).replace(".", ",")
+            : "",
         observacoes: initialData.observacoes || "",
       });
     } else if (mode === "create" && open) {
@@ -121,9 +129,7 @@ export default function ConfinamentoModal({
         dataInicio: "",
         dataFimPrevista: "",
         status: "ativo",
-        precoVendaKg: initialData?.precoVendaKg
-          ? initialData.precoVendaKg
-          : undefined,
+        precoVendaKg: "",
         observacoes: "",
       });
     }
@@ -136,9 +142,7 @@ export default function ConfinamentoModal({
       dataInicio: "",
       dataFimPrevista: "",
       status: "ativo",
-      precoVendaKg: initialData?.precoVendaKg
-        ? initialData.precoVendaKg
-        : undefined,
+      precoVendaKg: mode === "edit" && initialData ? precoVendaKgParaForm(initialData.precoVendaKg) : "",
       observacoes: "",
     });
   };

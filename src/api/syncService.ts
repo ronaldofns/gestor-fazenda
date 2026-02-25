@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { db } from "../db/dexieDB";
 import { supabase } from "./supabaseClient";
 import { getSupabaseForSync } from "./supabaseSyncClient";
-import { processSyncQueue } from "../utils/syncEvents";
+import {
+  processSyncQueue,
+  createSyncEventsForPendingRecords,
+} from "../utils/syncEvents";
 import {
   pullEntity,
   pullEntitySimple,
@@ -143,7 +146,7 @@ async function fetchAllFromSupabase(
   return allRecords;
 }
 
-export async function pushPending() {
+export async function pushPending(syncClient?: SupabaseClient) {
   // Processar fila de eventos de sincronização primeiro (se houver)
   try {
     const queueResults = await processSyncQueue();
@@ -158,56 +161,37 @@ export async function pushPending() {
 
   //#region Sincronizar exclusões pendentes primeiro
   try {
-    // Verificar se a tabela deletedRecords existe (pode não existir em versões antigas do banco)
     if (db.deletedRecords) {
-      // Query mais segura: buscar todos e filtrar manualmente para evitar erros com dados inválidos
+      const client = syncClient ?? (await getSupabaseForSync()) ?? supabase;
       const todasExclusoes = await db.deletedRecords.toArray();
       const deletedRecords = todasExclusoes.filter((d) => d.synced === false);
+      const entityTableMap: Record<
+        "animal" | "pesagem" | "vacina",
+        string
+      > = {
+        animal: "animais_online",
+        pesagem: "pesagens_online",
+        vacina: "vacinacoes_online",
+      };
+
       for (const deleted of deletedRecords) {
         try {
-          // Se tem remoteId, tentar excluir no servidor
-          if (deleted.remoteId) {
+          if (deleted.remoteId != null) {
             let sucesso = false;
-            let ultimoErro = null;
+            let ultimoErro: unknown = null;
+            const entity = deleted.entity;
 
-            // Tentar excluir de cada tabela sequencialmente
-            const tabelas = [
-              "vacinacoes_online",
-              "pesagens_online",
-              "nascimentos_online",
-              "animais_online",
-            ];
-
-            for (const tabela of tabelas) {
-              const { error } = await supabase
-                .from(tabela)
-                .delete()
-                .eq("id", deleted.remoteId);
-              if (!error) {
-                sucesso = true;
-                break;
-              } else if (
-                error.code === "PGRST116" ||
-                error.message?.includes("No rows") ||
-                error.message?.includes("not found")
-              ) {
-                // Registro não existe nesta tabela, continuar tentando outras
-                continue;
-              } else {
-                // Erro real, guardar e continuar tentando
-                ultimoErro = error;
-                continue;
-              }
-            }
-
-            // Se não conseguiu excluir via DELETE (hard delete), tentar soft delete via UPDATE
-            if (!sucesso) {
-              // Verificar se é um animal e fazer soft delete
+            // Animal: apenas soft delete em animais_online
+            if (entity === "animal" || (!entity && (await db.animais.get(deleted.uuid))?.deletedAt)) {
               const animal = await db.animais.get(deleted.uuid);
-              if (animal && animal.deletedAt && animal.remoteId) {
-                const { error: updateError } = await supabase
+              if (animal?.deletedAt && animal.remoteId != null) {
+                const now = new Date().toISOString();
+                const { error: updateError } = await client
                   .from("animais_online")
-                  .update({ deleted_at: animal.deletedAt })
+                  .update({
+                    deleted_at: animal.deletedAt,
+                    updated_at: now,
+                  })
                   .eq("id", animal.remoteId);
 
                 if (!updateError) {
@@ -216,11 +200,51 @@ export async function pushPending() {
                     `✅ Soft delete aplicado para animal ${deleted.uuid}`,
                   );
                 } else {
-                  console.error(
-                    "Erro ao fazer soft delete de animal:",
-                    updateError,
-                  );
                   ultimoErro = updateError;
+                  console.error("Erro ao fazer soft delete de animal:", updateError);
+                }
+              }
+            }
+
+            // Pesagem ou vacina: apenas DELETE na tabela correspondente
+            if (!sucesso && entity && entityTableMap[entity]) {
+              const tabela = entityTableMap[entity];
+              const { error } = await client
+                .from(tabela)
+                .delete()
+                .eq("id", deleted.remoteId);
+              if (!error) {
+                sucesso = true;
+                console.log(`✅ Exclusão sincronizada: ${entity} ${deleted.uuid}`);
+              } else {
+                ultimoErro = error;
+                console.error(`Erro ao excluir ${entity} no servidor:`, error);
+              }
+            }
+
+            // Registros antigos sem entity: fallback (tentar tabelas na ordem)
+            if (!sucesso && !entity) {
+              const tabelas = [
+                "vacinacoes_online",
+                "pesagens_online",
+                "nascimentos_online",
+                "animais_online",
+              ] as const;
+              for (const tabela of tabelas) {
+                const { error } = await client
+                  .from(tabela)
+                  .delete()
+                  .eq("id", deleted.remoteId);
+                if (!error) {
+                  sucesso = true;
+                  break;
+                }
+                if (
+                  error.code !== "PGRST116" &&
+                  !error.message?.includes("No rows") &&
+                  !error.message?.includes("not found")
+                ) {
+                  ultimoErro = error;
                 }
               }
             }
@@ -235,10 +259,8 @@ export async function pushPending() {
               );
             }
             continue;
-          } else {
-            // Se não tem remoteId, nunca foi ao servidor, então já está "sincronizado"
-            await db.deletedRecords.update(deleted.id, { synced: true });
           }
+          await db.deletedRecords.update(deleted.id, { synced: true });
         } catch (err) {
           console.error(
             "Erro ao processar exclusão pendente:",
@@ -906,7 +928,7 @@ export async function pullUpdates(syncClient: SupabaseClient) {
     const { getLastPulledAt, setLastPulledAt } =
       await import("../utils/syncCheckpoints");
     const lastPulledAnimais = getLastPulledAt("animais_online");
-    const servAnimais = await fetchAllPaginated<any>(
+    let servAnimais = await fetchAllPaginated<any>(
       "animais_online",
       {
         orderBy: "id",
@@ -915,6 +937,23 @@ export async function pullUpdates(syncClient: SupabaseClient) {
       },
       syncClient,
     );
+
+    // Inclusão de exclusões antigas: animais com deleted_at preenchido e deleted_at > lastPulled
+    // (exclusões feitas antes do fix que não atualizavam updated_at no servidor)
+    if (lastPulledAnimais && servAnimais) {
+      const uuidsJaIncluidos = new Set(servAnimais.map((a: any) => a.uuid));
+      const { data: deletadosRecentes } = await syncClient
+        .from("animais_online")
+        .select("*")
+        .not("deleted_at", "is", null)
+        .gt("deleted_at", lastPulledAnimais);
+      if (deletadosRecentes?.length) {
+        const novos = (deletadosRecentes as any[]).filter(
+          (a) => a.uuid && !uuidsJaIncluidos.has(a.uuid),
+        );
+        if (novos.length) servAnimais = [...servAnimais, ...novos];
+      }
+    }
 
     if (servAnimais && servAnimais.length > 0) {
       // 🚀 OTIMIZAÇÃO: Carregar todos locais em memória (evita 1857× get individuais)
@@ -1885,9 +1924,19 @@ export async function syncAll(): Promise<{ ran: boolean }> {
       );
     }
 
+    // Criar eventos para registros pendentes que ainda não têm evento na fila (automático)
+    try {
+      const { created } = await createSyncEventsForPendingRecords();
+      if (created > 0) {
+        console.log(`📋 ${created} evento(s) criado(s) automaticamente para pendências.`);
+      }
+    } catch (e) {
+      console.warn("Erro ao criar eventos para pendências (sync continua):", e);
+    }
+
     // IMPORTANTE: Fazer pull ANTES do push para evitar conflitos de timestamp
     await pullUpdates(syncClient);
-    await pushPending();
+    await pushPending(syncClient);
 
     // Finalizar estatísticas
     if (currentSyncStats) {

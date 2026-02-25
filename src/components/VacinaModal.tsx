@@ -606,14 +606,15 @@ function VacinaModalComponent({
                                   try {
                                     const antes = vacina;
                                     
-                                    // Registrar exclusão no deletedRecords antes de excluir
+                                    // Registrar exclusão no deletedRecords antes de excluir (entity = vacina para sync aplicar só em vacinacoes_online)
                                     const deletedId = uuid();
                                     await db.deletedRecords.add({
                                       id: deletedId,
                                       uuid: vacina.id,
                                       remoteId: vacina.remoteId || null,
                                       deletedAt: new Date().toISOString(),
-                                      synced: false
+                                      synced: false,
+                                      entity: "vacina",
                                     });
                                     
                                     // Excluir vacinação no servidor se tiver remoteId

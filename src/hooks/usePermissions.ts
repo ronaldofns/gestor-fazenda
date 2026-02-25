@@ -1,8 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/dexieDB';
-import { PermissionType, UserRole, RolePermission } from '../db/models';
-import { useAuth } from './useAuth';
-import { createSyncEvent } from '../utils/syncEvents';
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "../db/dexieDB";
+import { PermissionType, UserRole, RolePermission } from "../db/models";
+import { useAuth } from "./useAuth";
+import { createSyncEvent } from "../utils/syncEvents";
 
 /**
  * Hook para gerenciar permissões do sistema
@@ -11,19 +11,18 @@ export function usePermissions() {
   const { user } = useAuth();
 
   // Buscar todas as permissões
-  const allPermissions = useLiveQuery(() => 
-    db.rolePermissions.toArray()
-  ) || [];
+  const allPermissions = useLiveQuery(() => db.rolePermissions.toArray()) || [];
 
   // Buscar permissões do usuário atual
-  const userPermissions = useLiveQuery(() => {
-    if (!user) return [];
-    return db.rolePermissions
-      .where('role')
-      .equals(user.role)
-      .and(p => p.granted === true)
-      .toArray();
-  }, [user]) || [];
+  const userPermissions =
+    useLiveQuery(() => {
+      if (!user) return [];
+      return db.rolePermissions
+        .where("role")
+        .equals(user.role)
+        .and((p) => p.granted === true)
+        .toArray();
+    }, [user]) || [];
 
   /**
    * Verifica se o usuário atual tem uma permissão específica
@@ -31,9 +30,9 @@ export function usePermissions() {
   const hasPermission = (permission: PermissionType): boolean => {
     if (!user) return false;
     // Admin sempre tem todas as permissões
-    if (user.role === 'admin') return true;
-    
-    const perm = userPermissions.find(p => p.permission === permission);
+    if (user.role === "admin") return true;
+
+    const perm = userPermissions.find((p) => p.permission === permission);
     return perm?.granted === true;
   };
 
@@ -41,21 +40,21 @@ export function usePermissions() {
    * Verifica se o usuário atual tem pelo menos uma das permissões
    */
   const hasAnyPermission = (permissions: PermissionType[]): boolean => {
-    return permissions.some(perm => hasPermission(perm));
+    return permissions.some((perm) => hasPermission(perm));
   };
 
   /**
    * Verifica se o usuário atual tem todas as permissões
    */
   const hasAllPermissions = (permissions: PermissionType[]): boolean => {
-    return permissions.every(perm => hasPermission(perm));
+    return permissions.every((perm) => hasPermission(perm));
   };
 
   /**
    * Busca permissões de uma role específica
    */
   const getRolePermissions = (role: UserRole): RolePermission[] => {
-    return allPermissions.filter(p => p.role === role);
+    return allPermissions.filter((p) => p.role === role);
   };
 
   /**
@@ -64,10 +63,10 @@ export function usePermissions() {
   const updatePermission = async (
     role: UserRole,
     permission: PermissionType,
-    granted: boolean
+    granted: boolean,
   ): Promise<void> => {
     const existing = await db.rolePermissions
-      .where('[role+permission]')
+      .where("[role+permission]")
       .equals([role, permission])
       .first();
 
@@ -77,12 +76,12 @@ export function usePermissions() {
       await db.rolePermissions.update(existing.id, {
         granted,
         updatedAt: now,
-        synced: false
+        synced: false,
       });
       const updated = { ...existing, granted, updatedAt: now };
-      await createSyncEvent('UPDATE', 'rolePermission', updated.id, updated);
+      await createSyncEvent("UPDATE", "rolePermission", updated.id, updated);
     } else {
-      const { v4: uuidv4 } = await import('uuid');
+      const { v4: uuidv4 } = await import("uuid");
       const newRec = {
         id: uuidv4(),
         role,
@@ -91,10 +90,10 @@ export function usePermissions() {
         createdAt: now,
         updatedAt: now,
         synced: false,
-        remoteId: null
+        remoteId: null,
       };
       await db.rolePermissions.add(newRec);
-      await createSyncEvent('UPDATE', 'rolePermission', newRec.id, newRec);
+      await createSyncEvent("UPDATE", "rolePermission", newRec.id, newRec);
     }
   };
 
@@ -103,10 +102,10 @@ export function usePermissions() {
    */
   const updateRolePermissions = async (
     role: UserRole,
-    permissions: Record<PermissionType, boolean>
+    permissions: Record<PermissionType, boolean>,
   ): Promise<void> => {
     const updates = Object.entries(permissions).map(([permission, granted]) =>
-      updatePermission(role, permission as PermissionType, granted)
+      updatePermission(role, permission as PermissionType, granted),
     );
     await Promise.all(updates);
   };
@@ -117,100 +116,102 @@ export function usePermissions() {
   const resetRolePermissions = async (role: UserRole): Promise<void> => {
     const defaultPermissions: Record<UserRole, PermissionType[]> = {
       admin: [
-        'gerenciar_usuarios',
-        'gerenciar_fazendas',
-        'gerenciar_racas',
-        'gerenciar_categorias',
-        'cadastrar_animal',
-        'editar_animal',
-        'excluir_animal',
-        'cadastrar_desmama',
-        'editar_desmama',
-        'excluir_desmama',
-        'cadastrar_pesagem',
-        'editar_pesagem',
-        'excluir_pesagem',
-        'cadastrar_vacina',
-        'editar_vacina',
-        'excluir_vacina',
-        'ver_dashboard',
-        'ver_notificacoes',
-        'ver_sincronizacao',
-        'ver_planilha',
-        'ver_confinamentos',
-        'ver_fazendas',
-        'ver_usuarios',
-        'exportar_dados',
-        'gerar_relatorios'
+        "gerenciar_usuarios",
+        "gerenciar_fazendas",
+        "gerenciar_racas",
+        "gerenciar_tipos_animais",
+        "gerenciar_status_animais",
+        "gerenciar_categorias",
+        "cadastrar_animal",
+        "editar_animal",
+        "excluir_animal",
+        "cadastrar_desmama",
+        "editar_desmama",
+        "excluir_desmama",
+        "cadastrar_pesagem",
+        "editar_pesagem",
+        "excluir_pesagem",
+        "cadastrar_vacina",
+        "editar_vacina",
+        "excluir_vacina",
+        "ver_dashboard",
+        "ver_notificacoes",
+        "ver_sincronizacao",
+        "ver_planilha",
+        "ver_confinamentos",
+        "ver_fazendas",
+        "ver_usuarios",
+        "exportar_dados",
+        "gerar_relatorios",
       ],
       gerente: [
-        'ver_dashboard',
-        'ver_notificacoes',
-        'ver_sincronizacao',
-        'ver_planilha',
-        'ver_confinamentos',
-        'ver_fazendas',
-        'cadastrar_animal',
-        'editar_animal',
-        'cadastrar_desmama',
-        'editar_desmama',
-        'cadastrar_pesagem',
-        'editar_pesagem',
-        'cadastrar_vacina',
-        'editar_vacina',
-        'exportar_dados',
-        'gerar_relatorios'
+        "ver_dashboard",
+        "ver_notificacoes",
+        "ver_sincronizacao",
+        "ver_planilha",
+        "ver_confinamentos",
+        "ver_fazendas",
+        "cadastrar_animal",
+        "editar_animal",
+        "cadastrar_desmama",
+        "editar_desmama",
+        "cadastrar_pesagem",
+        "editar_pesagem",
+        "cadastrar_vacina",
+        "editar_vacina",
+        "exportar_dados",
+        "gerar_relatorios",
       ],
       peao: [
-        'ver_dashboard',
-        'ver_notificacoes',
-        'ver_planilha',
-        'ver_confinamentos',
-        'cadastrar_animal',
-        'cadastrar_desmama',
-        'cadastrar_pesagem',
-        'cadastrar_vacina'
+        "ver_dashboard",
+        "ver_notificacoes",
+        "ver_planilha",
+        "ver_confinamentos",
+        "cadastrar_animal",
+        "cadastrar_desmama",
+        "cadastrar_pesagem",
+        "cadastrar_vacina",
       ],
       visitante: [
-        'ver_dashboard',
-        'ver_notificacoes',
-        'ver_planilha',
-        'ver_confinamentos',
-        'ver_fazendas'
-      ]
+        "ver_dashboard",
+        "ver_notificacoes",
+        "ver_planilha",
+        "ver_confinamentos",
+        "ver_fazendas",
+      ],
     };
 
     const allPerms: PermissionType[] = [
-      'gerenciar_usuarios',
-      'gerenciar_fazendas',
-      'gerenciar_racas',
-      'gerenciar_categorias',
-      'cadastrar_animal',
-      'editar_animal',
-      'excluir_animal',
-      'cadastrar_desmama',
-      'editar_desmama',
-      'excluir_desmama',
-      'cadastrar_pesagem',
-      'editar_pesagem',
-      'excluir_pesagem',
-      'cadastrar_vacina',
-      'editar_vacina',
-      'excluir_vacina',
-      'ver_dashboard',
-      'ver_notificacoes',
-      'ver_sincronizacao',
-      'ver_planilha',
-      'ver_confinamentos',
-      'ver_fazendas',
-      'ver_usuarios',
-      'exportar_dados',
-      'gerar_relatorios'
+      "gerenciar_usuarios",
+      "gerenciar_fazendas",
+      "gerenciar_racas",
+      "gerenciar_categorias",
+      "cadastrar_animal",
+      "editar_animal",
+      "excluir_animal",
+      "cadastrar_desmama",
+      "editar_desmama",
+      "excluir_desmama",
+      "cadastrar_pesagem",
+      "editar_pesagem",
+      "excluir_pesagem",
+      "cadastrar_vacina",
+      "editar_vacina",
+      "excluir_vacina",
+      "ver_dashboard",
+      "ver_notificacoes",
+      "ver_sincronizacao",
+      "ver_planilha",
+      "ver_confinamentos",
+      "ver_fazendas",
+      "ver_usuarios",
+      "exportar_dados",
+      "gerar_relatorios",
     ];
 
     const rolePerms = defaultPermissions[role];
-    const updates = allPerms.map(permission =>
-      updatePermission(role, permission, rolePerms.includes(permission))
+    const updates = allPerms.map((permission) =>
+      updatePermission(role, permission, rolePerms.includes(permission)),
     );
     await Promise.all(updates);
   };
@@ -224,7 +225,6 @@ export function usePermissions() {
     getRolePermissions,
     updatePermission,
     updateRolePermissions,
-    resetRolePermissions
+    resetRolePermissions,
   };
 }
-

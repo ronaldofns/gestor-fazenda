@@ -27,12 +27,20 @@ import {
   OcorrenciaAnimal,
 } from "./models";
 
+/** Tipo de entidade para exclusão (define qual tabela do Supabase atualizar). */
+export type DeletedRecordEntity =
+  | "animal"
+  | "pesagem"
+  | "vacina";
+
 interface DeletedRecord {
   id: string;
   uuid: string; // UUID do registro excluído
-  remoteId?: number | null; // ID remoto no Supabase (para poder excluir depois)
+  remoteId?: number | string | null; // ID remoto no Supabase (para poder excluir depois)
   deletedAt: string;
   synced: boolean; // Se a exclusão foi sincronizada com o servidor
+  /** Tipo da entidade: garante que a exclusão seja aplicada apenas na tabela correta. */
+  entity?: DeletedRecordEntity;
 }
 
 export interface Tag {

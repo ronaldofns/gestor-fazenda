@@ -230,6 +230,8 @@ export type PermissionType =
   | "gerenciar_usuarios"
   | "gerenciar_fazendas"
   | "gerenciar_racas"
+  | "gerenciar_tipos_animais"
+  | "gerenciar_status_animais"
   | "gerenciar_categorias"
   | "cadastrar_animal"
   | "editar_animal"
