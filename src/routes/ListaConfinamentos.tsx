@@ -34,7 +34,8 @@ export default function ListaConfinamentos() {
   const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
   const navigate = useNavigate();
 
-  const podeGerenciarConfinamentos = hasPermission("gerenciar_fazendas"); // Usar mesma permissão por enquanto
+  // Quem não tem esta permissão vê apenas "Ver detalhes" e "Ver relatório"; sem criar/editar/excluir/encerrar
+  const podeGerenciarConfinamentos = hasPermission("gerenciar_confinamentos");
 
   // Buscar confinamentos
   const confinamentosRaw =

@@ -21,6 +21,8 @@ const PERMISSION_LABELS: Record<PermissionType, string> = {
   gerenciar_usuarios: 'Gerenciar Usuários',
   gerenciar_fazendas: 'Gerenciar Fazendas',
   gerenciar_racas: 'Gerenciar Raças',
+  gerenciar_tipos_animais: 'Gerenciar Tipos de Animal',
+  gerenciar_status_animais: 'Gerenciar Status de Animal',
   gerenciar_categorias: 'Gerenciar Categorias',
   cadastrar_animal: 'Cadastrar Animal',
   editar_animal: 'Editar Animal',
@@ -41,13 +43,14 @@ const PERMISSION_LABELS: Record<PermissionType, string> = {
   ver_usuarios: 'Ver Usuários',
   ver_planilha: 'Ver Animais',
   ver_confinamentos: 'Ver Confinamentos',
+  gerenciar_confinamentos: 'Gerenciar Confinamentos',
   exportar_dados: 'Exportar Dados',
   gerar_relatorios: 'Gerar Relatórios'
 };
 
 const PERMISSION_GROUPS: Record<string, PermissionType[]> = {
   'Visualização': ['ver_dashboard', 'ver_notificacoes', 'ver_sincronizacao', 'ver_planilha', 'ver_confinamentos', 'ver_fazendas', 'ver_usuarios'],
-  'Gerenciamento': ['gerenciar_usuarios', 'gerenciar_fazendas', 'gerenciar_racas', 'gerenciar_categorias'],
+  'Gerenciamento': ['gerenciar_usuarios', 'gerenciar_fazendas', 'gerenciar_confinamentos', 'gerenciar_racas', 'gerenciar_tipos_animais', 'gerenciar_status_animais', 'gerenciar_categorias'],
   'Animais': ['cadastrar_animal', 'editar_animal', 'excluir_animal'],
   'Desmamas': ['cadastrar_desmama', 'editar_desmama', 'excluir_desmama'],
   'Pesagens': ['cadastrar_pesagem', 'editar_pesagem', 'excluir_pesagem'],

@@ -250,6 +250,7 @@ export type PermissionType =
   | "ver_sincronizacao"
   | "ver_planilha"
   | "ver_confinamentos"
+  | "gerenciar_confinamentos"
   | "ver_fazendas"
   | "ver_usuarios"
   | "exportar_dados"

@@ -55,7 +55,7 @@ export default function DetalheConfinamento() {
   const { appSettings } = useAppSettings();
   const { hasPermission } = usePermissions();
   const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
-  const podeGerenciarConfinamentos = hasPermission("gerenciar_fazendas");
+  const podeGerenciarConfinamentos = hasPermission("gerenciar_confinamentos");
 
   const [activeTab, setActiveTab] = useState<TabType>("animais");
 
