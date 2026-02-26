@@ -1434,7 +1434,7 @@ export default function Sincronizacao() {
                               (tabela.nome === "Pesagens" ||
                                 tabela.nome === "Vacinações") && (
                                 <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                  Animal: {detalhe.animalId.substring(0, 200)}
+                                  Animal: {String(detalhe.animalId).substring(0, 200)}
                                   ...
                                 </p>
                               )}
@@ -1584,7 +1584,7 @@ export default function Sincronizacao() {
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            ID: {evento.entityId.substring(0, 200)}...
+                            ID: {evento.entityId != null ? `${String(evento.entityId).substring(0, 200)}...` : "—"}
                           </p>
                           {evento.erro && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1 truncate">

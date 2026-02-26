@@ -8,7 +8,7 @@ import type { jsPDF } from "jspdf";
 export const RELATORIO_MARGIN = 14;
 export const RELATORIO_PAGE_WIDTH = 210; // A4 portrait
 export const RELATORIO_PAGE_HEIGHT = 297;
-const RELATORIO_FOOTER_HEIGHT = 14;
+const RELATORIO_FOOTER_HEIGHT = 10;
 const HEADER_COLOR: [number, number, number] = [59, 130, 246]; // blue-500
 const BORDER_COLOR: [number, number, number] = [226, 232, 240]; // slate-200
 const TEXT_MUTED: [number, number, number] = [100, 116, 139]; // slate-400
@@ -64,15 +64,15 @@ export function addRelatorioFooters(
 
     doc.setDrawColor(...BORDER_COLOR);
     doc.setLineWidth(0.3);
-    doc.line(m, y - 2, w - m, y - 2);
+    /*doc.line(m, y - 2, w - m, y - 2);*/
 
     doc.setFontSize(8);
     doc.setTextColor(...TEXT_MUTED);
-    doc.text("Gestor Fazenda — Sistema de Gestão de Rebanhos", m, y + 4, {
+    doc.text("Gestor Fazenda — Sistema de Gestão de Rebanhos", m, y + 3, {
       maxWidth: 85,
     });
-    doc.text(`Página ${i} de ${pageCount}`, w - m, y + 4, { align: "right" });
-    doc.text(`Relatório gerado em ${dataExportacao}`, w - m, y + 8, {
+    doc.text(`Página ${i} de ${pageCount}`, w - m, y + 3, { align: "right" });
+    doc.text(`Relatório gerado em ${dataExportacao}`, w - m, y + 6, {
       align: "right",
     });
     doc.setTextColor(0, 0, 0);

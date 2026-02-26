@@ -19,13 +19,8 @@ import { formatDateBR, parseDateOnlyLocal } from "./date";
 
 const BORDER_COLOR: [number, number, number] = [226, 232, 240];
 
-/** Cores para evolução de peso na tabela detalhada */
-const EVOLUCAO_PESO_ENTRADA: [number, number, number] = [230, 242, 255]; // azul claro
-/*
-const EVOLUCAO_GANHO: [number, number, number] = [220, 252, 231]; // verde claro
-const EVOLUCAO_PERDA: [number, number, number] = [254, 226, 226]; // vermelho claro
-*/
-const EVOLUCAO_NEUTRO: [number, number, number] = [248, 250, 252]; // cinza claro (igual)
+/** Cor de fundo das células do corpo da tabela (cinza claro) */
+const EVOLUCAO_NEUTRO: [number, number, number] = [248, 250, 252];
 
 /** Cores para o texto da evolução (fonte menor): ganho, perda, igual. */
 const EVOLUCAO_TEXTO_GANHO: [number, number, number] = [22, 163, 74];
@@ -180,7 +175,7 @@ export function exportarConfinamentoPDF(
         cellPadding: 2,
       },
       bodyStyles: { fontSize: 7, cellPadding: 2 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
+      alternateRowStyles: { fillColor: EVOLUCAO_NEUTRO },
       tableLineColor: BORDER_COLOR,
       tableLineWidth: 0.2,
     });
@@ -411,7 +406,7 @@ export function exportarConfinamentoDetalhePDF(
         textColor,
         fillColor,
       });
-      return pesoStr;
+      return ""; // desenhado em didDrawCell em duas linhas (peso + evolução)
     });
     return [
       a.brinco || "—",
@@ -427,7 +422,7 @@ export function exportarConfinamentoDetalhePDF(
   });
 
   const headerHeight = 32;
-  let y = headerHeight + 2;
+  let y = headerHeight + 1;
   const tableBottomMargin = 15;
   const contentW = A4_LANDSCAPE.pageWidth - m * 2;
 
@@ -463,43 +458,55 @@ export function exportarConfinamentoDetalhePDF(
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text("Animais e evolução de pesagem", m, y);
-  y += 6;
+  y += 4;
 
   const numDateCols = datasOrdenadas.length;
   const colPesoEntrada = 2;
   const colUltimaData = 2 + numDateCols;
 
-  const cellPadding = 1;
+  const cellPadding = 2;
   const fontSizePeso = 8;
   const fontSizeEvol = 6;
+  const lineHeight = 3.5;
+  const minCellHeightEvolucao = 9;
 
   autoTable(doc, {
     startY: y,
     head: [headers],
     body,
     margin: { left: m, right: m, bottom: tableBottomMargin, top: m },
+    rowPageBreak: "avoid",
+    styles: { lineWidth: 0.3, lineColor: BORDER_COLOR },
+    bodyStyles: {
+      fontSize: fontSizePeso,
+      cellPadding: 1,
+      halign: "center",
+      minCellHeight: minCellHeightEvolucao,
+      fillColor: EVOLUCAO_NEUTRO,
+    },
     headStyles: {
       fillColor: RELATORIO_HEADER_DARK,
       textColor: [255, 255, 255],
       fontStyle: "bold",
       fontSize: 8,
       cellPadding: 1,
+      halign: "center",
     },
-    bodyStyles: { fontSize: fontSizePeso, cellPadding: 1 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    alternateRowStyles: { fillColor: EVOLUCAO_NEUTRO },
     tableLineColor: BORDER_COLOR,
-    tableLineWidth: 0.2,
+    tableLineWidth: 0.3,
     didParseCell(data) {
       if (data.section !== "body") return;
       const col = data.column.index;
       if (col === colPesoEntrada) {
-        data.cell.styles.fillColor = EVOLUCAO_PESO_ENTRADA;
+        data.cell.styles.fillColor = EVOLUCAO_NEUTRO;
         return;
       }
       if (col >= colPrimeiraData && col < colUltimaData) {
         const info = evolucaoPreCompute.get(`${data.row.index}-${col}`);
         if (info) {
           data.cell.styles.fillColor = info.fillColor;
+          data.cell.styles.minCellHeight = minCellHeightEvolucao;
           (
             data.cell as unknown as { evolucaoInfo?: EvolucaoInfo }
           ).evolucaoInfo = info;
@@ -514,19 +521,26 @@ export function exportarConfinamentoDetalhePDF(
         info = evolucaoPreCompute.get(`${data.row.index}-${data.column.index}`);
       if (!info) return;
       const { cell } = data;
+      const centerX = cell.x + cell.width / 2;
+      const yLinha1 = cell.y + cellPadding + fontSizePeso * 0.35;
+      const yLinha2 = yLinha1 + lineHeight;
       doc.setFontSize(fontSizePeso);
-      const wPeso = doc.getTextWidth(info.pesoStr);
-      const baseY = cell.y + cell.height / 2 + (fontSizePeso * 0.35) / 2;
-      doc.setFontSize(fontSizeEvol);
-      doc.setTextColor(...info.textColor);
-      doc.text(info.evolStr, cell.x + cellPadding + wPeso + 0.5, baseY);
       doc.setTextColor(0, 0, 0);
+      const wPeso = doc.getTextWidth(info.pesoStr);
+      doc.text(info.pesoStr, centerX - wPeso / 2, yLinha1);
+      if (info.evolStr) {
+        doc.setFontSize(fontSizeEvol);
+        doc.setTextColor(...info.textColor);
+        const wEvol = doc.getTextWidth(info.evolStr);
+        doc.text(info.evolStr, centerX - wEvol / 2, yLinha2);
+        doc.setTextColor(0, 0, 0);
+      }
     },
   });
 
   // Legenda no final do relatório — layout em cards por indicador (mesma margem mínima)
   doc.addPage("a4", "landscape");
-  const footerZone = 22;
+  const footerZone = 15;
   const legendaContentW = A4_LANDSCAPE.pageWidth - m * 2;
   let legendaY = m + 8;
 

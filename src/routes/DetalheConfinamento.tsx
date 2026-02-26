@@ -83,7 +83,10 @@ export default function DetalheConfinamento() {
   const [modalPesagemOpen, setModalPesagemOpen] = useState(false);
   const [modalPdfDetalheOpen, setModalPdfDetalheOpen] = useState(false);
   const [pdfDetalheOrdenarPor, setPdfDetalheOrdenarPor] = useState<
-    "brinco_az" | "brinco_za" | "ultima_pesagem_peso_maior" | "ultima_pesagem_peso_menor"
+    | "brinco_az"
+    | "brinco_za"
+    | "ultima_pesagem_peso_maior"
+    | "ultima_pesagem_peso_menor"
   >("brinco_az");
 
   const [buscaAnimaisPesagens, setBuscaAnimaisPesagens] = useState("");
@@ -711,9 +714,7 @@ export default function DetalheConfinamento() {
       const fazenda = await db.fazendas.get(confinamento.fazendaId);
       const dataInicio = confinamento.dataInicio;
       const pesagensNoPeriodo = (pesagensRaw ?? []).filter(
-        (p) =>
-          p.dataPesagem &&
-          new Date(p.dataPesagem) >= new Date(dataInicio),
+        (p) => p.dataPesagem && new Date(p.dataPesagem) >= new Date(dataInicio),
       );
 
       const animais: DadosConfinamentoDetalhePDF["animais"] = [];
@@ -1569,6 +1570,7 @@ export default function DetalheConfinamento() {
                     <Icons.FileText className="w-4 h-4" />
                     PDF com pesagens
                   </button>
+                  {/*
                   <button
                     type="button"
                     onClick={async () => {
@@ -1591,6 +1593,7 @@ export default function DetalheConfinamento() {
                     <Icons.FileSpreadsheet className="w-4 h-4" />
                     Exportar Excel
                   </button>
+                  */}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2265,20 +2268,28 @@ export default function DetalheConfinamento() {
                   type="radio"
                   name="pdfOrdenar"
                   checked={pdfDetalheOrdenarPor === "ultima_pesagem_peso_maior"}
-                  onChange={() => setPdfDetalheOrdenarPor("ultima_pesagem_peso_maior")}
+                  onChange={() =>
+                    setPdfDetalheOrdenarPor("ultima_pesagem_peso_maior")
+                  }
                   className="rounded"
                 />
-                <span className="text-sm">Última pesagem — maior peso primeiro</span>
+                <span className="text-sm">
+                  Última pesagem — maior peso primeiro
+                </span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
                   name="pdfOrdenar"
                   checked={pdfDetalheOrdenarPor === "ultima_pesagem_peso_menor"}
-                  onChange={() => setPdfDetalheOrdenarPor("ultima_pesagem_peso_menor")}
+                  onChange={() =>
+                    setPdfDetalheOrdenarPor("ultima_pesagem_peso_menor")
+                  }
                   className="rounded"
                 />
-                <span className="text-sm">Última pesagem — menor peso primeiro</span>
+                <span className="text-sm">
+                  Última pesagem — menor peso primeiro
+                </span>
               </label>
             </div>
             <div className="flex justify-end gap-2">
@@ -2302,26 +2313,44 @@ export default function DetalheConfinamento() {
                     animais.sort((a, b) => {
                       const na = Number(a.brinco);
                       const nb = Number(b.brinco);
-                      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-                      return (a.brinco || "").localeCompare(b.brinco || "", "pt-BR");
+                      if (Number.isFinite(na) && Number.isFinite(nb))
+                        return na - nb;
+                      return (a.brinco || "").localeCompare(
+                        b.brinco || "",
+                        "pt-BR",
+                      );
                     });
                   } else if (pdfDetalheOrdenarPor === "brinco_za") {
                     animais.sort((a, b) => {
                       const na = Number(a.brinco);
                       const nb = Number(b.brinco);
-                      if (Number.isFinite(na) && Number.isFinite(nb)) return nb - na;
-                      return (b.brinco || "").localeCompare(a.brinco || "", "pt-BR");
+                      if (Number.isFinite(na) && Number.isFinite(nb))
+                        return nb - na;
+                      return (b.brinco || "").localeCompare(
+                        a.brinco || "",
+                        "pt-BR",
+                      );
                     });
-                  } else if (pdfDetalheOrdenarPor === "ultima_pesagem_peso_maior") {
+                  } else if (
+                    pdfDetalheOrdenarPor === "ultima_pesagem_peso_maior"
+                  ) {
                     animais.sort((a, b) => {
-                      const pa = a.pesagens.length ? a.pesagens[a.pesagens.length - 1].peso : 0;
-                      const pb = b.pesagens.length ? b.pesagens[b.pesagens.length - 1].peso : 0;
+                      const pa = a.pesagens.length
+                        ? a.pesagens[a.pesagens.length - 1].peso
+                        : 0;
+                      const pb = b.pesagens.length
+                        ? b.pesagens[b.pesagens.length - 1].peso
+                        : 0;
                       return pb - pa;
                     });
                   } else {
                     animais.sort((a, b) => {
-                      const pa = a.pesagens.length ? a.pesagens[a.pesagens.length - 1].peso : 0;
-                      const pb = b.pesagens.length ? b.pesagens[b.pesagens.length - 1].peso : 0;
+                      const pa = a.pesagens.length
+                        ? a.pesagens[a.pesagens.length - 1].peso
+                        : 0;
+                      const pb = b.pesagens.length
+                        ? b.pesagens[b.pesagens.length - 1].peso
+                        : 0;
                       return pa - pb;
                     });
                   }
