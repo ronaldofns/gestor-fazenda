@@ -305,6 +305,12 @@ function payloadToServerAnimalWithMaps(
   };
 }
 
+/**
+ * Regra: colunas que referenciam animais_online(uuid) (animal_id, matriz_id, reprodutor_id, avo_*)
+ * devem receber o UUID local (payload.animalId etc.), pois no servidor o uuid do animal é o mesmo.
+ * NÃO usar maps.animais.get() como valor nessas colunas (retorna remoteId inteiro).
+ * tipo_matriz_id é INTEGER (FK tipos_animal_online.id) → usar maps.tiposAnimal.get().
+ */
 interface GenealogiaFkMaps {
   animais: Map<string, number>;
   tiposAnimal: Map<string, number>;
@@ -330,15 +336,17 @@ function payloadToServerGenealogiaWithMaps(
   payload: Genealogia,
   maps: GenealogiaFkMaps,
 ) {
-  const animalId = maps.animais.get(payload.animalId);
-  if (!animalId) return null;
+  // animal_id é obrigatório e deve estar sincronizado (genealogias_online referencia animais_online(uuid))
+  if (!maps.animais.has(payload.animalId)) return null;
 
-  const matrizId = fk(maps.animais, payload.matrizId);
-  const reprodutorId = fk(maps.animais, payload.reprodutorId);
-  const avoMaterna = fk(maps.animais, payload.avoMaterna);
-  const avoPaterna = fk(maps.animais, payload.avoPaterna);
-  const avoPaternoMaterno = fk(maps.animais, payload.avoPaternoMaterno);
-  const avoPaternoPatro = fk(maps.animais, payload.avoPaternoPatro);
+  // FKs de animais: enviar o UUID local (é o mesmo uuid no servidor para animais já sincronizados)
+  const matrizId = payload.matrizId && maps.animais.has(payload.matrizId) ? payload.matrizId : null;
+  const reprodutorId = payload.reprodutorId && maps.animais.has(payload.reprodutorId) ? payload.reprodutorId : null;
+  const avoMaterna = payload.avoMaterna && maps.animais.has(payload.avoMaterna) ? payload.avoMaterna : null;
+  const avoPaterna = payload.avoPaterna && maps.animais.has(payload.avoPaterna) ? payload.avoPaterna : null;
+  const avoPaternoMaterno = payload.avoPaternoMaterno && maps.animais.has(payload.avoPaternoMaterno) ? payload.avoPaternoMaterno : null;
+  const avoPaternoPatro = payload.avoPaternoPatro && maps.animais.has(payload.avoPaternoPatro) ? payload.avoPaternoPatro : null;
+  // tipo_matriz_id é INTEGER no servidor (FK para tipos_animal_online.id)
   const tipoMatrizId = fk(maps.tiposAnimal, payload.tipoMatrizId);
 
   // ❗ Se informou FK mas ela ainda não foi sincronizada → aguarda
@@ -356,7 +364,7 @@ function payloadToServerGenealogiaWithMaps(
 
   return {
     uuid: payload.id, // PK lógico da genealogia
-    animal_id: animalId,
+    animal_id: payload.animalId, // UUID (mesmo que no servidor)
     matriz_id: matrizId,
     reprodutor_id: reprodutorId,
     avo_materna: avoMaterna,
