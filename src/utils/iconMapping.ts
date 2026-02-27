@@ -82,7 +82,8 @@ import {
   FaSearch,          // Search
   FaCodeBranch,      // GitBranch
   FaDollarSign,      // DollarSign
-  FaList             // List
+  FaList,            // List
+  FaPrint            // Print
 } from 'react-icons/fa';
 
 // Font Awesome 6 (para ícones mais recentes)
@@ -154,6 +155,7 @@ export const Icons = {
   
   // Documentos
   FileText: FaFileAlt,
+  Print: FaPrint,
   
   // Controles
   SlidersHorizontal: FaSlidersH,

@@ -17,15 +17,94 @@ import {
 } from "./relatorioHeaderFooter";
 import { formatDateBR, parseDateOnlyLocal } from "./date";
 
-const BORDER_COLOR: [number, number, number] = [226, 232, 240];
+type RGB = [number, number, number];
 
-/** Cor de fundo das células do corpo da tabela (cinza claro) */
-const EVOLUCAO_NEUTRO: [number, number, number] = [248, 250, 252];
+/** Tokens visuais centralizados para manter consistência entre relatórios. */
+const THEME = {
+  text: {
+    /** Texto padrão (títulos, valores principais). */
+    primary: [15, 23, 42] as RGB, // slate-900
+    /** Texto secundário / explicativo. */
+    muted: [100, 116, 139] as RGB, // slate-500
+    success: [22, 163, 74] as RGB, // verde
+    danger: [220, 38, 38] as RGB, // vermelho
+    info: [37, 99, 235] as RGB, // azul
+    warning: [234, 179, 8] as RGB, // amarelo
+  },
+  bg: {
+    /** Cartões e linhas alternadas de tabela. */
+    card: [248, 250, 252] as RGB, // slate-50
+  },
+  border: {
+    subtle: [226, 232, 240] as RGB, // slate-200
+  },
+} as const;
+
+/**
+ * Executa um bloco de texto garantindo que fonte, tamanho e cor
+ * voltem para o estado base após o desenho.
+ */
+function withTextState(doc: jsPDF, fn: () => void) {
+  const currentFont = (doc as any).getFont?.();
+  const currentSize = (doc as any).getFontSize?.();
+  const fontName = currentFont?.fontName ?? "helvetica";
+  const fontStyle = currentFont?.fontStyle ?? "normal";
+  const fontSize = typeof currentSize === "number" ? currentSize : undefined;
+
+  fn();
+
+  doc.setFont(fontName, fontStyle);
+  if (fontSize) doc.setFontSize(fontSize);
+  doc.setTextColor(...THEME.text.primary);
+}
+
+/** Borda padrão usada nas tabelas e cartões. */
+const BORDER_COLOR: RGB = THEME.border.subtle;
+
+/** Cor de fundo das células do corpo da tabela (cinza claro). */
+const EVOLUCAO_NEUTRO: RGB = THEME.bg.card;
 
 /** Cores para o texto da evolução (fonte menor): ganho, perda, igual. */
-const EVOLUCAO_TEXTO_GANHO: [number, number, number] = [22, 163, 74];
-const EVOLUCAO_TEXTO_PERDA: [number, number, number] = [220, 38, 38];
-const EVOLUCAO_TEXTO_IGUAL: [number, number, number] = [100, 116, 139];
+const EVOLUCAO_TEXTO_GANHO: RGB = THEME.text.success;
+const EVOLUCAO_TEXTO_PERDA: RGB = THEME.text.danger;
+const EVOLUCAO_TEXTO_IGUAL: RGB = THEME.text.muted;
+
+/**
+ * Card de KPI reutilizável para o relatório detalhado de confinamento.
+ * Isola todo o estado de fonte/cor dentro de withTextState.
+ */
+function drawKpiCard(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  label: string,
+  value: string,
+  options?: {
+    valueColor?: RGB;
+  },
+) {
+  const valueColor = options?.valueColor ?? THEME.text.primary;
+
+  // Container do card
+  doc.setFillColor(...THEME.bg.card);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.roundedRect(x, y, w, h, 2, 2, "FD");
+
+  // Texto interno (label + valor) com estado de texto isolado.
+  withTextState(doc, () => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...THEME.text.muted);
+    doc.text(label.toUpperCase(), x + 3, y + 6);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...valueColor);
+    doc.text(value, x + 3, y + 12);
+  });
+}
 
 export interface DadosConfinamentoExportacao {
   resumo: {
@@ -53,10 +132,18 @@ export interface DadosConfinamentoExportacao {
   }>;
 }
 
-/** Gera PDF do relatório de confinamento com header/footer padrão e faz download do arquivo. */
+/** Gera PDF do relatório de confinamento com header/footer padrão. Se returnBlob for true, retorna o Blob; senão faz download. */
 export function exportarConfinamentoPDF(
   dados: DadosConfinamentoExportacao,
-): void {
+): void;
+export function exportarConfinamentoPDF(
+  dados: DadosConfinamentoExportacao,
+  returnBlob: true,
+): Blob;
+export function exportarConfinamentoPDF(
+  dados: DadosConfinamentoExportacao,
+  returnBlob?: true,
+): void | Blob {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const dataExportacao = new Date().toLocaleString("pt-BR");
 
@@ -93,34 +180,39 @@ export function exportarConfinamentoPDF(
     "S",
   );
 
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text("Resumo Geral", RELATORIO_MARGIN + 5, y + 10);
+  // Bloco de textos do resumo, isolando o estado de fonte/cor.
+  withTextState(doc, () => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...THEME.text.primary);
+    doc.text("Resumo Geral", RELATORIO_MARGIN + 5, y + 10);
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(
-    `Confinamentos: ${r.totalConfinamentos} (${r.ativos} ativos)  |  Animais: ${r.totalAnimais}`,
-    RELATORIO_MARGIN + 5,
-    y + 18,
-  );
-  doc.text(
-    `GMD médio: ${r.gmdMedioGeral.toFixed(3)} kg/dia  |  Mortalidade: ${r.mortalidade}`,
-    RELATORIO_MARGIN + 5,
-    y + 25,
-  );
-  doc.text(
-    `Custo total alimentação: R$ ${r.custoTotalGeral.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}  |  Produção: ${r.arrobasProducao.toFixed(1)} @`,
-    RELATORIO_MARGIN + 5,
-    y + 32,
-  );
-  doc.text(
-    r.custoPorArroba != null
-      ? `Custo por arroba: R$ ${r.custoPorArroba.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-      : "Custo por arroba: —",
-    RELATORIO_MARGIN + 5,
-    y + 38,
-  );
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...THEME.text.muted);
+    doc.text(
+      `Confinamentos: ${r.totalConfinamentos} (${r.ativos} ativos)  |  Animais: ${r.totalAnimais}`,
+      RELATORIO_MARGIN + 5,
+      y + 18,
+    );
+    doc.text(
+      `GMD médio: ${r.gmdMedioGeral.toFixed(3)} kg/dia  |  Mortalidade: ${r.mortalidade}`,
+      RELATORIO_MARGIN + 5,
+      y + 25,
+    );
+    doc.text(
+      `Custo total alimentação: R$ ${r.custoTotalGeral.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}  |  Produção: ${r.arrobasProducao.toFixed(1)} @`,
+      RELATORIO_MARGIN + 5,
+      y + 32,
+    );
+    doc.text(
+      r.custoPorArroba != null
+        ? `Custo por arroba: R$ ${r.custoPorArroba.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+        : "Custo por arroba: —",
+      RELATORIO_MARGIN + 5,
+      y + 38,
+    );
+  });
 
   y += cardHeight + 10;
 
@@ -131,8 +223,9 @@ export function exportarConfinamentoPDF(
       y = RELATORIO_MARGIN;
     }
 
-    doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...THEME.text.primary);
     doc.text("Por confinamento", RELATORIO_MARGIN, y);
     y += 6;
 
@@ -182,6 +275,7 @@ export function exportarConfinamentoPDF(
   }
 
   addRelatorioFooters(doc, dataExportacao);
+  if (returnBlob) return doc.output("blob") as Blob;
   doc.save(
     `relatorio-confinamento-${new Date().toISOString().slice(0, 10)}.pdf`,
   );
@@ -309,10 +403,19 @@ function normalizarDataKey(data: string): string {
 
 const MARGEM_MINIMA = 5;
 
-/** Gera PDF detalhado: colunas de pesagem = data no cabeçalho, célula = peso (kg) na linha. Margens mínimas. */
+/** Gera PDF detalhado: colunas de pesagem = data no cabeçalho, célula = peso (kg) na linha. Se returnBlob for true, retorna o Blob; senão faz download. */
 export function exportarConfinamentoDetalhePDF(
   dados: DadosConfinamentoDetalhePDF,
-): void {
+): void;
+export function exportarConfinamentoDetalhePDF(
+  dados: DadosConfinamentoDetalhePDF,
+  returnBlob: true,
+): Blob;
+
+export function exportarConfinamentoDetalhePDF(
+  dados: DadosConfinamentoDetalhePDF,
+  returnBlob?: true,
+): void | Blob {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const dataExportacao = new Date().toLocaleString("pt-BR");
   const m = MARGEM_MINIMA;
@@ -420,45 +523,136 @@ export function exportarConfinamentoDetalhePDF(
         : "—",
     ];
   });
-
   const headerHeight = 32;
-  let y = headerHeight + 1;
+  let y = headerHeight + 6;
   const tableBottomMargin = 15;
   const contentW = A4_LANDSCAPE.pageWidth - m * 2;
 
   if (dados.indicadores) {
     const ind = dados.indicadores;
-    doc.setFillColor(...RELATORIO_BODY_BG);
-    doc.roundedRect(m, y, contentW, headerHeight, 1, 1, "FD");
-    doc.setDrawColor(...BORDER_COLOR);
-    doc.roundedRect(m, y, contentW, headerHeight, 1, 1, "S");
-    doc.setFontSize(10);
+
+    const cardH = 16;
+    const gap = 2;
+    const cols = 4;
+    const cardW = (contentW - gap * (cols - 1)) / cols;
+
+    // Título da seção de indicadores (usa o tema padrão de texto).
     doc.setFont("helvetica", "bold");
-    doc.text("Indicadores", m + 4, y + 8);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(
-      `Animais: ${ind.totalAnimais} (${ind.animaisAtivos} ativos)  |  Peso méd. entrada: ${ind.pesoMedioEntrada.toFixed(1)} kg  |  Peso méd. saída: ${ind.pesoMedioSaida > 0 ? ind.pesoMedioSaida.toFixed(1) : "—"} kg  |  GMD médio: ${ind.gmdMedio.toFixed(3)} kg/dia`,
-      m + 4,
-      y + 15,
+    doc.setFontSize(10);
+    doc.setTextColor(...THEME.text.primary);
+    doc.text("Indicadores", m, y - 2);
+
+    // Linha 1 — KPIs principais
+    drawKpiCard(doc, m, y, cardW, cardH, "Animais", `${ind.totalAnimais}`, {
+      valueColor: THEME.text.info,
+    });
+    drawKpiCard(
+      doc,
+      m + cardW + gap,
+      y,
+      cardW,
+      cardH,
+      "GMD médio",
+      `${ind.gmdMedio.toFixed(3)} kg/dia`,
+      { valueColor: THEME.text.success },
     );
-    doc.text(
-      `Dias confinamento: ${ind.diasConfinamento}  |  Custo total: R$ ${ind.custoTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}  |  Custo/dia: R$ ${ind.custoPorDia != null ? ind.custoPorDia.toFixed(2) : "—"}`,
-      m + 4,
-      y + 22,
+    drawKpiCard(
+      doc,
+      m + 2 * (cardW + gap),
+      y,
+      cardW,
+      cardH,
+      "Dias confinado",
+      `${ind.diasConfinamento}`,
+      { valueColor: THEME.text.warning },
     );
-    doc.text(
-      `Custo/animal/dia: R$ ${ind.custoPorAnimalDia != null ? ind.custoPorAnimalDia.toFixed(2) : "—"}  |  Custo/kg ganho: R$ ${ind.custoPorKgGanho != null ? ind.custoPorKgGanho.toFixed(2) : "—"}  |  Margem estimada: ${ind.margemEstimada != null ? `R$ ${ind.margemEstimada.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}`,
-      m + 4,
-      y + 29,
+    drawKpiCard(
+      doc,
+      m + 3 * (cardW + gap),
+      y,
+      cardW,
+      cardH,
+      "Margem estimada",
+      ind.margemEstimada != null
+        ? `R$ ${ind.margemEstimada.toLocaleString("pt-BR", {
+            maximumFractionDigits: 2,
+            minimumFractionDigits: 2,
+          })}`
+        : "—",
+      { valueColor: THEME.text.success },
     );
-    y += 42;
+
+    y += cardH + 6;
+
+    // Linha 2 — Custos
+    drawKpiCard(
+      doc,
+      m,
+      y - 4,
+      cardW,
+      cardH,
+      "Custo total",
+      `R$ ${ind.custoTotal.toLocaleString("pt-BR", {
+        maximumFractionDigits: 2,
+        minimumFractionDigits: 2,
+      })}`,
+      { valueColor: THEME.text.danger },
+    );
+    drawKpiCard(
+      doc,
+      m + cardW + gap,
+      y - 4,
+      cardW,
+      cardH,
+      "Custo/dia",
+      ind.custoPorDia != null
+        ? `R$ ${ind.custoPorDia.toLocaleString("pt-BR", {
+            maximumFractionDigits: 2,
+            minimumFractionDigits: 2,
+          })}`
+        : "—",
+      { valueColor: THEME.text.danger },
+    );
+    drawKpiCard(
+      doc,
+      m + 2 * (cardW + gap),
+      y - 4,
+      cardW,
+      cardH,
+      "Custo/animal/dia",
+      ind.custoPorAnimalDia != null
+        ? `R$ ${ind.custoPorAnimalDia.toLocaleString("pt-BR", {
+            maximumFractionDigits: 2,
+            minimumFractionDigits: 2,
+          })}`
+        : "—",
+      { valueColor: THEME.text.danger },
+    );
+    drawKpiCard(
+      doc,
+      m + 3 * (cardW + gap),
+      y - 4,
+      cardW,
+      cardH,
+      "Custo/kg ganho",
+      ind.custoPorKgGanho != null
+        ? `R$ ${ind.custoPorKgGanho.toLocaleString("pt-BR", {
+            maximumFractionDigits: 2,
+            minimumFractionDigits: 2,
+          })}`
+        : "—",
+      { valueColor: THEME.text.danger },
+    );
+
+    y += cardH + 2;
   }
 
-  doc.setFontSize(11);
+  // Título principal da tabela de animais + evolução de pesagem.
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...THEME.text.primary);
   doc.text("Animais e evolução de pesagem", m, y);
-  y += 4;
+  y += 2;
 
   const numDateCols = datasOrdenadas.length;
   const colPesoEntrada = 2;
@@ -525,7 +719,7 @@ export function exportarConfinamentoDetalhePDF(
       const yLinha1 = cell.y + cellPadding + fontSizePeso * 0.35;
       const yLinha2 = yLinha1 + lineHeight;
       doc.setFontSize(fontSizePeso);
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(...THEME.text.primary);
       const wPeso = doc.getTextWidth(info.pesoStr);
       doc.text(info.pesoStr, centerX - wPeso / 2, yLinha1);
       if (info.evolStr) {
@@ -533,8 +727,10 @@ export function exportarConfinamentoDetalhePDF(
         doc.setTextColor(...info.textColor);
         const wEvol = doc.getTextWidth(info.evolStr);
         doc.text(info.evolStr, centerX - wEvol / 2, yLinha2);
-        doc.setTextColor(0, 0, 0);
       }
+      // Garante que a próxima célula comece sempre do mesmo estado visual.
+      doc.setTextColor(...THEME.text.primary);
+      doc.setFontSize(fontSizePeso);
     },
   });
 
@@ -617,27 +813,30 @@ export function exportarConfinamentoDetalhePDF(
     const item = legendaItens[i];
     const isOdd = i % 2 === 0;
     if (isOdd) {
-      doc.setFillColor(248, 250, 252);
+      doc.setFillColor(...THEME.bg.card);
       doc.roundedRect(m, legendaY - 2, legendaContentW, 1, 0, 0, "FD");
     }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`${i + 1}. ${item.label}`, labelX, legendaY + 3);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(70, 70, 70);
-    const parts = doc.splitTextToSize(item.desc, descWidth);
-    let descY = legendaY;
-    for (const part of parts) {
-      if (descY > A4_LANDSCAPE.pageHeight - footerZone - 4) break;
-      doc.text(part, descX, descY + 3);
-      descY += 4;
-    }
-    legendaY = descY + 5;
-    doc.setTextColor(0, 0, 0);
+    withTextState(doc, () => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...THEME.text.primary);
+      doc.text(`${i + 1}. ${item.label}`, labelX, legendaY + 3);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...THEME.text.muted);
+      const parts = doc.splitTextToSize(item.desc, descWidth);
+      let descY = legendaY;
+      for (const part of parts) {
+        if (descY > A4_LANDSCAPE.pageHeight - footerZone - 4) break;
+        doc.text(part, descX, descY + 3);
+        descY += 4;
+      }
+      legendaY = descY + 5;
+    });
   }
 
   addRelatorioFooters(doc, dataExportacao, A4_LANDSCAPE, m);
+  if (returnBlob) return doc.output("blob") as Blob;
   doc.save(
     `confinamento-detalhe-${dados.nomeConfinamento.replace(/\s+/g, "-").slice(0, 30)}-${new Date().toISOString().slice(0, 10)}.pdf`,
   );
