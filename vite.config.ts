@@ -19,6 +19,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       strategies: 'injectManifest',
+      // Para estratégias injectManifest o limite é configurado aqui (não em workbox)
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
+      },
       srcDir: 'src',
       filename: 'sw.ts',
       includeAssets: ['logo192.png', 'logo512.png'],
