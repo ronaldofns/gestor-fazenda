@@ -90,7 +90,7 @@ export default function PWAUpdatePrompt() {
   }
 
   return (
-    <div className="fixed inset-x-0 mx-auto z-50 w-full max-w-sm px-4">
+    <div className="fixed inset-x-0 mx-auto z-50 w-full max-w-sm px-4fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
       {offlineReady && !needRefresh && (
         <div className="bg-green-400 dark:bg-green-900/20 border border-green-500 dark:border-green-500/40 rounded-lg shadow-lg p-4 mb-2">
           <div className="flex items-start">
