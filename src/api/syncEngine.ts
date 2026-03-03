@@ -150,7 +150,11 @@ export async function pullEntity<TLocal, TServer extends Record<string, any>>(
   const localRecords = await localTable.toArray();
   const localMap = new Map(localRecords.map((r: any) => [r.id, r]));
 
-  if (deleteRemotes) {
+  // Só remover locais que não vêm mais do servidor quando for FULL pull.
+  // Em pull incremental o servidor retorna só os atualizados — não o conjunto completo — então
+  // deletar "quem não está no batch" apagaria indevidamente os outros registros.
+  const isFullPull = lastPulledAt == null;
+  if (deleteRemotes && isFullPull) {
     const idsParaDeletar = localRecords
       .filter((r: any) => r.remoteId != null && !servUuids.has(r.id))
       .map((r: any) => r.id);
