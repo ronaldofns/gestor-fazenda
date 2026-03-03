@@ -1,32 +1,36 @@
-import { useEffect, useState } from 'react';
-import { Icons } from '../utils/iconMapping';
-import { showToast } from '../utils/toast';
+import { useEffect, useState } from "react";
+import { Icons } from "../utils/iconMapping";
+import { showToast } from "../utils/toast";
 
 export default function PWAUpdatePrompt() {
   const [needRefresh, setNeedRefresh] = useState(false);
   const [offlineReady, setOfflineReady] = useState(false);
-  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [registration, setRegistration] =
+    useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
+    if ("serviceWorker" in navigator) {
       // Obter o service worker registrado
       navigator.serviceWorker.ready.then((reg) => {
         setRegistration(reg);
-        
+
         // Verificar atualizações periodicamente (a cada 1 hora)
-        setInterval(() => {
-          reg.update();
-        }, 60 * 60 * 1000);
+        setInterval(
+          () => {
+            reg.update();
+          },
+          60 * 60 * 1000,
+        );
 
         // Verificar atualizações imediatamente ao carregar
         reg.update();
 
         // Escutar quando um novo service worker está sendo instalado
-        reg.addEventListener('updatefound', () => {
+        reg.addEventListener("updatefound", () => {
           const newWorker = reg.installing;
           if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed') {
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed") {
                 if (navigator.serviceWorker.controller) {
                   // Novo service worker instalado — mostrar apenas o card com botão "Atualizar" (sem toast no topo)
                   setNeedRefresh(true);
@@ -46,7 +50,7 @@ export default function PWAUpdatePrompt() {
       });
 
       // Escutar quando o service worker muda (atualização aplicada)
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
         // Service worker mudou, recarregar página para aplicar atualização
         window.location.reload();
       });
@@ -61,7 +65,7 @@ export default function PWAUpdatePrompt() {
   const update = () => {
     if (registration?.waiting) {
       // Enviar mensagem para o service worker esperando ativar (sw.ts escuta SKIP_WAITING e chama skipWaiting())
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      registration.waiting.postMessage({ type: "SKIP_WAITING" });
       // A página será recarregada automaticamente pelo evento 'controllerchange'
       close();
     } else if (registration) {
@@ -73,9 +77,10 @@ export default function PWAUpdatePrompt() {
       }, 800);
     } else {
       showToast({
-        type: 'warning',
-        title: 'Atualização',
-        message: 'Service worker ainda não está pronto. Tente novamente em instantes.',
+        type: "warning",
+        title: "Atualização",
+        message:
+          "Service worker ainda não está pronto. Tente novamente em instantes.",
       });
     }
   };
@@ -85,11 +90,11 @@ export default function PWAUpdatePrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+    <div className="fixed bottom-4 inset-x-0 mx-auto z-50 w-full max-w-sm px-4">
       {offlineReady && !needRefresh && (
-        <div className="bg-green-600 dark:bg-green-900/20 border border-green-700 dark:border-green-500/40 rounded-lg shadow-lg p-4 mb-2">
+        <div className="bg-green-400 dark:bg-green-900/20 border border-green-500 dark:border-green-500/40 rounded-lg shadow-lg p-4 mb-2">
           <div className="flex items-start">
-            <Icons.CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+            <Icons.CheckCircle className="w-5 h-5 text-green-500 dark:text-green-300 mt-0.5 flex-shrink-0" />
             <div className="ml-3 flex-1">
               <p className="text-sm font-medium text-green-800 dark:text-green-200">
                 App pronto para uso offline
@@ -97,7 +102,7 @@ export default function PWAUpdatePrompt() {
             </div>
             <button
               onClick={close}
-              className="ml-4 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+              className="ml-4 text-green-500 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
             >
               <Icons.X className="w-4 h-4" />
             </button>
@@ -106,7 +111,7 @@ export default function PWAUpdatePrompt() {
       )}
 
       {needRefresh && (
-        <div className="rounded-xl shadow-2xl ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 bg-blue-600 dark:bg-blue-700 p-4 border-0">
+        <div className="rounded-xl shadow-2xl ring-2 ring-blue-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 bg-blue-500 dark:bg-blue-600 p-4 border-0">
           <div className="flex items-start">
             <Icons.Download className="w-5 h-5 text-white mt-0.5 flex-shrink-0" />
             <div className="ml-3 flex-1">
@@ -143,4 +148,3 @@ export default function PWAUpdatePrompt() {
     </div>
   );
 }
-

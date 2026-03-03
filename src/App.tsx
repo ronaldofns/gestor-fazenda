@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -101,7 +101,6 @@ export default function App() {
         <OfflineIndicator />
         <InstallPrompt />
         <PWAUpdatePrompt />
-        <KeyboardShortcutsHelp />
         <ErrorBoundary>
           <Suspense fallback={<RouteLoader />}>
             <Routes>

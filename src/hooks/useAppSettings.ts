@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { db } from '../db/dexieDB';
-import { AppSettingsDB } from '../db/models';
-import { ColorPaletteKey } from './useThemeColors';
+import { useCallback, useEffect, useState } from "react";
+import { db } from "../db/dexieDB";
+import { ColorPaletteKey } from "./useThemeColors";
 
 export interface AppSettings {
   timeoutInatividade: number; // Tempo de inatividade em minutos antes de fazer logout
@@ -14,14 +13,19 @@ export interface AppSettings {
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   timeoutInatividade: 15, // 15 minutos padrão
   intervaloSincronizacao: 30, // 30 segundos padrão
-  primaryColor: 'gray', // Cinza padrão
+  primaryColor: "gray", // Cinza padrão
   allowBrowserNotifications: false,
-  modoCurral: false
+  modoCurral: false,
 };
 
-const EVENT_NAME = 'appSettingsUpdated';
+const EVENT_NAME = "appSettingsUpdated";
 
-function clampNumber(value: number, min: number, max: number, fallback: number) {
+function clampNumber(
+  value: number,
+  min: number,
+  max: number,
+  fallback: number,
+) {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   return Math.min(max, Math.max(min, Math.round(num)));
@@ -33,22 +37,27 @@ function normalizeSettings(settings?: Partial<AppSettings>): AppSettings {
       settings?.timeoutInatividade ?? DEFAULT_APP_SETTINGS.timeoutInatividade,
       1,
       120,
-      DEFAULT_APP_SETTINGS.timeoutInatividade
+      DEFAULT_APP_SETTINGS.timeoutInatividade,
     ),
     intervaloSincronizacao: clampNumber(
-      settings?.intervaloSincronizacao ?? DEFAULT_APP_SETTINGS.intervaloSincronizacao,
+      settings?.intervaloSincronizacao ??
+        DEFAULT_APP_SETTINGS.intervaloSincronizacao,
       10,
       300,
-      DEFAULT_APP_SETTINGS.intervaloSincronizacao
+      DEFAULT_APP_SETTINGS.intervaloSincronizacao,
     ),
-    primaryColor: (settings?.primaryColor || DEFAULT_APP_SETTINGS.primaryColor) as ColorPaletteKey,
-    allowBrowserNotifications: settings?.allowBrowserNotifications ?? DEFAULT_APP_SETTINGS.allowBrowserNotifications,
-    modoCurral: settings?.modoCurral ?? DEFAULT_APP_SETTINGS.modoCurral
+    primaryColor: (settings?.primaryColor ||
+      DEFAULT_APP_SETTINGS.primaryColor) as ColorPaletteKey,
+    allowBrowserNotifications:
+      settings?.allowBrowserNotifications ??
+      DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+    modoCurral: settings?.modoCurral ?? DEFAULT_APP_SETTINGS.modoCurral,
   };
 }
 
 export function useAppSettings() {
-  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [appSettings, setAppSettings] =
+    useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [draftSettings, setDraftSettings] = useState<AppSettings>(() => {
     // Garantir que draftSettings sempre tenha todos os campos
     return { ...DEFAULT_APP_SETTINGS };
@@ -62,41 +71,52 @@ export function useAppSettings() {
   }, []);
 
   const broadcastSettings = useCallback((settings: AppSettings) => {
-    if (typeof window === 'undefined') return;
-    window.dispatchEvent(new CustomEvent<AppSettings>(EVENT_NAME, { detail: settings }));
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent<AppSettings>(EVENT_NAME, { detail: settings }),
+    );
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
+    if (typeof window === "undefined") return;
+
     // Carregar do IndexedDB primeiro (mais recente)
     const loadFromDB = async () => {
       try {
-        const dbSettings = await db.appSettings.get('app-settings-global');
+        const dbSettings = await db.appSettings.get("app-settings-global");
         if (dbSettings) {
           const settings = {
             timeoutInatividade: dbSettings.timeoutInatividade,
-            intervaloSincronizacao: dbSettings.intervaloSincronizacao ?? DEFAULT_APP_SETTINGS.intervaloSincronizacao,
-            primaryColor: dbSettings.primaryColor || DEFAULT_APP_SETTINGS.primaryColor,
-            allowBrowserNotifications: dbSettings.allowBrowserNotifications ?? DEFAULT_APP_SETTINGS.allowBrowserNotifications,
-            modoCurral: dbSettings.modoCurral ?? DEFAULT_APP_SETTINGS.modoCurral
+            intervaloSincronizacao:
+              dbSettings.intervaloSincronizacao ??
+              DEFAULT_APP_SETTINGS.intervaloSincronizacao,
+            primaryColor:
+              dbSettings.primaryColor || DEFAULT_APP_SETTINGS.primaryColor,
+            allowBrowserNotifications:
+              dbSettings.allowBrowserNotifications ??
+              DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+            modoCurral:
+              dbSettings.modoCurral ?? DEFAULT_APP_SETTINGS.modoCurral,
           };
-          applySettings(normalizeSettings(settings));
+          applySettings(normalizeSettings(settings as AppSettings));
           return;
         }
       } catch (err) {
-        console.error('Erro ao carregar configurações do app do IndexedDB:', err);
+        console.error(
+          "Erro ao carregar configurações do app do IndexedDB:",
+          err,
+        );
       }
-      
+
       // Se não encontrou no IndexedDB, usar padrão
       applySettings(DEFAULT_APP_SETTINGS);
     };
-    
+
     loadFromDB();
   }, [applySettings]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     const handler = (event: Event) => {
       try {
         const custom = event as CustomEvent<AppSettings>;
@@ -104,92 +124,99 @@ export function useAppSettings() {
           applySettings(normalizeSettings(custom.detail));
         }
       } catch (err) {
-        console.error('Erro ao processar evento de configurações:', err);
+        console.error("Erro ao processar evento de configurações:", err);
       }
     };
     window.addEventListener(EVENT_NAME, handler);
     return () => window.removeEventListener(EVENT_NAME, handler);
   }, [applySettings]);
 
-  const saveSettings = useCallback(async (override?: Partial<AppSettings>) => {
-    const toSave = override ? { ...draftSettings, ...override } : draftSettings;
-    const normalized = normalizeSettings(toSave);
-    applySettings(normalized);
-    setDraftSettings({ ...normalized });
-    
-    // Salvar no IndexedDB para sincronização
-    try {
-      const now = new Date().toISOString();
-      const existing = await db.appSettings.get('app-settings-global');
-      
-      if (existing) {
-        await db.appSettings.update('app-settings-global', {
-          timeoutInatividade: normalized.timeoutInatividade,
-          intervaloSincronizacao: normalized.intervaloSincronizacao,
-          primaryColor: normalized.primaryColor,
-          allowBrowserNotifications: normalized.allowBrowserNotifications,
-          modoCurral: normalized.modoCurral,
-          updatedAt: now,
-          synced: false
-        });
-      } else {
-        await db.appSettings.add({
-          id: 'app-settings-global',
-          timeoutInatividade: normalized.timeoutInatividade,
-          intervaloSincronizacao: normalized.intervaloSincronizacao,
-          primaryColor: normalized.primaryColor,
-          allowBrowserNotifications: normalized.allowBrowserNotifications,
-          modoCurral: normalized.modoCurral,
-          createdAt: now,
-          updatedAt: now,
-          synced: false,
-          remoteId: null
-        });
+  const saveSettings = useCallback(
+    async (override?: Partial<AppSettings>) => {
+      const toSave = override
+        ? { ...draftSettings, ...override }
+        : draftSettings;
+      const normalized = normalizeSettings(toSave);
+      applySettings(normalized);
+      setDraftSettings({ ...normalized });
+
+      // Salvar no IndexedDB para sincronização
+      try {
+        const now = new Date().toISOString();
+        const existing = await db.appSettings.get("app-settings-global");
+
+        if (existing) {
+          await db.appSettings.update("app-settings-global", {
+            timeoutInatividade: normalized.timeoutInatividade,
+            intervaloSincronizacao: normalized.intervaloSincronizacao,
+            primaryColor: normalized.primaryColor,
+            allowBrowserNotifications: normalized.allowBrowserNotifications,
+            modoCurral: normalized.modoCurral,
+            updatedAt: now,
+            synced: false,
+          });
+        } else {
+          await db.appSettings.add({
+            id: "app-settings-global",
+            timeoutInatividade: normalized.timeoutInatividade,
+            intervaloSincronizacao: normalized.intervaloSincronizacao,
+            primaryColor: normalized.primaryColor,
+            allowBrowserNotifications: normalized.allowBrowserNotifications,
+            modoCurral: normalized.modoCurral,
+            createdAt: now,
+            updatedAt: now,
+            synced: false,
+            remoteId: null,
+          });
+        }
+      } catch (err) {
+        console.error("Erro ao salvar configurações do app no IndexedDB:", err);
       }
-    } catch (err) {
-      console.error('Erro ao salvar configurações do app no IndexedDB:', err);
-    }
-    
-    broadcastSettings(normalized);
-    return normalized;
-  }, [applySettings, broadcastSettings, draftSettings]);
+
+      broadcastSettings(normalized);
+      return normalized;
+    },
+    [applySettings, broadcastSettings, draftSettings],
+  );
 
   const resetSettings = useCallback(async () => {
     applySettings(DEFAULT_APP_SETTINGS);
-    
+
     // Atualizar no IndexedDB para sincronização
     try {
       const now = new Date().toISOString();
-      const existing = await db.appSettings.get('app-settings-global');
-      
+      const existing = await db.appSettings.get("app-settings-global");
+
       if (existing) {
-        await db.appSettings.update('app-settings-global', {
+        await db.appSettings.update("app-settings-global", {
           timeoutInatividade: DEFAULT_APP_SETTINGS.timeoutInatividade,
           intervaloSincronizacao: DEFAULT_APP_SETTINGS.intervaloSincronizacao,
           primaryColor: DEFAULT_APP_SETTINGS.primaryColor,
-          allowBrowserNotifications: DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+          allowBrowserNotifications:
+            DEFAULT_APP_SETTINGS.allowBrowserNotifications,
           modoCurral: DEFAULT_APP_SETTINGS.modoCurral,
           updatedAt: now,
-          synced: false
+          synced: false,
         });
       } else {
         await db.appSettings.add({
-          id: 'app-settings-global',
+          id: "app-settings-global",
           timeoutInatividade: DEFAULT_APP_SETTINGS.timeoutInatividade,
           intervaloSincronizacao: DEFAULT_APP_SETTINGS.intervaloSincronizacao,
           primaryColor: DEFAULT_APP_SETTINGS.primaryColor,
-          allowBrowserNotifications: DEFAULT_APP_SETTINGS.allowBrowserNotifications,
+          allowBrowserNotifications:
+            DEFAULT_APP_SETTINGS.allowBrowserNotifications,
           modoCurral: DEFAULT_APP_SETTINGS.modoCurral,
           createdAt: now,
           updatedAt: now,
           synced: false,
-          remoteId: null
+          remoteId: null,
         });
       }
     } catch (err) {
-      console.error('Erro ao resetar configurações do app no IndexedDB:', err);
+      console.error("Erro ao resetar configurações do app no IndexedDB:", err);
     }
-    
+
     broadcastSettings(DEFAULT_APP_SETTINGS);
     return DEFAULT_APP_SETTINGS;
   }, [applySettings, broadcastSettings]);
@@ -199,6 +226,6 @@ export function useAppSettings() {
     draftSettings,
     setDraftSettings,
     saveSettings,
-    resetSettings
+    resetSettings,
   };
 }

@@ -131,7 +131,7 @@ export default function Login() {
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 relative overflow-hidden`}
+      className={`min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 relative overflow-hidden`}
     >
       {/* Elementos Decorativos de Fundo (Blur) */}
       <div
@@ -143,13 +143,17 @@ export default function Login() {
 
       <div className="max-w-md w-full z-10">
         {/* Logo/Header */}
-        <div className="text-center mb-10 transform transition-all duration-500 hover:scale-105">
+        <div className="text-center mb-10">
           <div
-            className={`inline-flex items-center justify-center w-24 h-24 bg-gradient-to-tr ${getThemeClasses(primaryColor, "gradient-from")} to-white/20 rounded-3xl shadow-2xl mb-6 ring-4 ring-white/50 dark:ring-slate-800/50`}
+            className={`inline-flex items-center justify-center w-24 h-24 bg-gradient-to-tr ${getThemeClasses(primaryColor, "gradient-from")} to-white/20 rounded-3xl shadow-2xl mb-6 ring-4 ring-black/50 dark:ring-slate-800/50`}
           >
-            <Icons.LogIn className="w-12 h-12 text-white drop-shadow-md" />
+            <Icons.LogIn
+              className={`w-12 h-12 ${getThemeClasses(primaryColor, "text")} drop-shadow-md`}
+            />
           </div>
-          <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          <h1
+            className={`text-4xl font-extrabold ${getThemeClasses(primaryColor, "text")} dark:text-white tracking-tight`}
+          >
             Gestor{" "}
             <span className={`${getThemeClasses(primaryColor, "text")}`}>
               Fazenda
@@ -161,7 +165,7 @@ export default function Login() {
         </div>
 
         {/* Card de Login com Efeito Glassmorphism */}
-        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[1rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-10 border border-white dark:border-slate-800 transition-all duration-300 hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)]">
+        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[1rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 border border-white dark:border-slate-800 transition-all duration-300 hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)]">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-8 text-center uppercase tracking-widest">
             {t("login.title")}
           </h2>
@@ -179,19 +183,20 @@ export default function Login() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1 uppercase tracking-wider">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
                 {t("login.email")}
               </label>
-              <div className="group relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-primary-500">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Icons.Mail
-                    className={`h-5 w-5 text-slate-400 transition-colors group-focus-within:${getThemeClasses(primaryColor, "text")}`}
+                    className={`h-5 w-5 ${getThemeClasses(primaryColor, "text")}`}
                   />
                 </div>
                 <input
                   type="email"
-                  className={`w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-0 focus:border-${primaryColor}-500 transition-all duration-200 text-slate-900 dark:text-white`}
+                  className={`w-full pl-10 pr-12 py-3.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-gray-300/60 dark:border-slate-700 shadow-sm
+                     focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, "ring")} focus:border-transparent transition-all duration-200`}
                   placeholder={t("login.emailPlaceholder")}
                   {...register("email", { required: t("login.emailRequired") })}
                 />
@@ -223,18 +228,8 @@ export default function Login() {
                   {...register("password", {
                     required: t("login.passwordRequired"),
                   })}
-                  className={`
-        w-full pl-10 pr-12 py-3.5
-        rounded-xl
-        bg-white/70 dark:bg-slate-900/60
-        border border-gray-300/60 dark:border-slate-700
-        shadow-sm
-        focus:outline-none
-        focus:ring-2
-        ${getThemeClasses(primaryColor, "ring")}
-        focus:border-transparent
-        transition-all duration-200
-      `}
+                  className={`w-full pl-10 pr-12 py-3.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-gray-300/60 dark:border-slate-700 shadow-sm
+                     focus:outline-none focus:ring-2 ${getThemeClasses(primaryColor, "ring")} focus:border-transparent transition-all duration-200`}
                 />
 
                 {/* Toggle show/hide */}
@@ -262,7 +257,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-4 ${getPrimaryButtonClass(primaryColor)} text-white font-bold rounded-2xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-3 mt-4`}
+              className={`w-full py-4 ${getPrimaryButtonClass(primaryColor)} text-white font-bold rounded-2xl shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-3 mt-4`}
             >
               {loading ? (
                 <svg
@@ -322,7 +317,10 @@ export default function Login() {
         {/* Footer */}
         <div className="mt-8 flex flex-col items-center gap-2">
           <p className="text-slate-400 dark:text-slate-500 text-xs font-medium">
-            © 2024 Gestor Fazenda • AgroTech Solutions
+            © 2025 Gerenciador de Fazendas • Desenvolvido por Ronaldo
+          </p>
+          <p className="text-slate-400 dark:text-slate-500 text-xs font-medium">
+            Versão {import.meta.env?.VITE_APP_VERSION || "1.0.0"}
           </p>
         </div>
       </div>
