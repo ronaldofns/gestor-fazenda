@@ -8,7 +8,7 @@ export interface AuditUserInfo {
   nome: string;
 }
 
-export interface AuditPayload<T = any> {
+export interface AuditPayload<T = Record<string, unknown>> {
   entity: AuditEntity;
   entityId: string;
   action: AuditAction;
@@ -28,7 +28,7 @@ export interface AuditPayload<T = any> {
  *
  * Obs.: snapshots são salvos como JSON string (before/after) para evitar problemas de schema.
  */
-export async function registrarAudit<T = any>(payload: AuditPayload<T>) {
+export async function registrarAudit<T = Record<string, unknown>>(payload: AuditPayload<T>) {
   try {
     const now = new Date().toISOString();
     const id = uuid();

@@ -91,7 +91,7 @@ export default function PWAUpdatePrompt() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      className="fixed inset-0 z-100 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="pwa-prompt-title"
@@ -106,7 +106,7 @@ export default function PWAUpdatePrompt() {
         {offlineReady && !needRefresh && (
           <div className="bg-green-400 dark:bg-green-900/20 border border-green-500 dark:border-green-500/40 rounded-lg shadow-lg p-4">
             <div className="flex items-start gap-3">
-              <Icons.CheckCircle className="w-5 h-5 text-green-500 dark:text-green-300 mt-0.5 flex-shrink-0" />
+              <Icons.CheckCircle className="w-5 h-5 text-green-500 dark:text-green-300 mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-green-800 dark:text-green-200">
                   App pronto para uso offline
@@ -115,7 +115,7 @@ export default function PWAUpdatePrompt() {
               <button
                 type="button"
                 onClick={close}
-                className="flex-shrink-0 p-1 rounded text-green-500 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 hover:bg-green-500/20"
+                className="shrink-0 p-1 rounded text-green-500 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 hover:bg-green-500/20"
                 aria-label="Fechar"
               >
                 <Icons.X className="w-4 h-4" />
@@ -130,7 +130,7 @@ export default function PWAUpdatePrompt() {
             className="rounded-xl shadow-2xl ring-2 ring-blue-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 bg-blue-500 dark:bg-blue-600 p-4 border-0"
           >
             <div className="flex items-start gap-3">
-              <Icons.Download className="w-5 h-5 text-white mt-0.5 flex-shrink-0" />
+              <Icons.Download className="w-5 h-5 text-white mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-white mb-1">
                   Nova versão disponível!
@@ -158,7 +158,7 @@ export default function PWAUpdatePrompt() {
               <button
                 type="button"
                 onClick={close}
-                className="flex-shrink-0 p-1 rounded-md text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+                className="shrink-0 p-1 rounded-md text-white/80 hover:text-white hover:bg-white/20 transition-colors"
                 aria-label="Fechar"
               >
                 <Icons.X className="w-4 h-4" />

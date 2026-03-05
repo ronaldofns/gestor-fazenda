@@ -23,8 +23,8 @@ import {
   FaSitemap, // ListTree
   FaMoon, // Moon
   FaSun, // Sun
-  FaChevronLeft, // ChevronLeft
-  FaChevronRight, // ChevronRight
+  FaAngleLeft, // ChevronLeft
+  FaAngleRight, // ChevronRight
   FaChevronUp, // ChevronUp / ArrowUp
   FaArrowLeft, // ArrowLeft
   FaFilter, // Filter
@@ -48,6 +48,8 @@ import {
   FaCalendar, // Calendar
   FaUser, // User
   FaChevronDown, // ChevronDown
+  FaAngleDoubleRight, // ChevronDoubleRight
+  FaAngleDoubleLeft, // ChevronDoubleLeft
   FaStar, // Star
   FaEnvelope, // Mail
   FaHeart, // Heart
@@ -120,8 +122,10 @@ export const Icons = {
   ListTree: FaSitemap,
   Moon: FaMoon,
   Sun: FaSun,
-  ChevronLeft: FaChevronLeft,
-  ChevronRight: FaChevronRight,
+  ChevronLeft: FaAngleLeft,
+  ChevronRight: FaAngleRight,
+  ChevronDoubleRight: FaAngleDoubleRight,
+  ChevronDoubleLeft: FaAngleDoubleLeft,
   ChevronUp: FaChevronUp,
   ArrowUp: FaChevronUp,
   ArrowDown: FaChevronDown,

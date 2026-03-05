@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -13,17 +14,17 @@ import Input from './Input';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses, getCheckboxClass } from '../utils/themeHelpers';
+import { getPrimaryButtonClass, getCheckboxClass } from '../utils/themeHelpers';
 import { msg } from '../utils/validationMessages';
 
 type Mode = 'create' | 'edit';
 
 const schemaUsuario = z.object({
   nome: z.string().min(1, msg.obrigatorio),
-  email: z.string().min(1, msg.obrigatorio).email(msg.emailInvalido),
+  email: z.string().min(1, msg.obrigatorio).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, msg.emailInvalido),
   senha: z.string().min(6, msg.senhaMinima).optional().or(z.literal('')),
   confirmarSenha: z.string().optional().or(z.literal('')),
-  role: z.enum(['admin', 'gerente', 'peao', 'visitante'], { required_error: msg.selecione }),
+  role: z.enum(['admin', 'gerente', 'peao', 'visitante'], { error: msg.selecione }),
   fazendaId: z.string().optional(),
   ativo: z.boolean()
 }).refine((data) => {
@@ -63,7 +64,7 @@ export default function UsuarioModal({
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [loading, setLoading] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [_isPending, startTransition] = useTransition();
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
 
   const fazendaOptions: ComboboxOption[] = React.useMemo(() => {
@@ -151,7 +152,7 @@ export default function UsuarioModal({
     setLoading(true);
     try {
       if (mode === 'edit' && initialData?.id) {
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           nome: data.nome,
           email: data.email,
           role: data.role,
@@ -186,9 +187,10 @@ export default function UsuarioModal({
 
       onSaved?.();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Tente novamente.';
       console.error('Erro ao salvar usuário:', error);
-      showToast({ type: 'error', title: 'Erro ao salvar usuário', message: error?.message || 'Tente novamente.' });
+      showToast({ type: 'error', title: 'Erro ao salvar usuário', message: msg });
     } finally {
       setLoading(false);
     }
@@ -246,7 +248,7 @@ export default function UsuarioModal({
             return String(role);
           })()}
           onChange={(value) => {
-            const roleValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+            const roleValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as { value: unknown }).value) : String(value));
             startTransition(() => setValue('role', roleValue as UserRole));
           }}
           options={Object.entries(ROLE_LABELS).map(([value, label]) => ({ label, value }))}
@@ -267,7 +269,7 @@ export default function UsuarioModal({
             return String(fazendaId);
           })()}
           onChange={(value) => {
-            const fazendaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as any).value) : String(value));
+            const fazendaValue = typeof value === 'string' ? value : (typeof value === 'object' && value !== null && 'value' in value ? String((value as { value: unknown }).value) : String(value));
             startTransition(() => setValue('fazendaId', fazendaValue));
           }}
           options={[

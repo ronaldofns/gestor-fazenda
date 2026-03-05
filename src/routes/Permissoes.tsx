@@ -60,7 +60,7 @@ const PERMISSION_GROUPS: Record<string, PermissionType[]> = {
 
 export default function Permissoes() {
   const { isAdmin } = useAuth();
-  const { allPermissions, getRolePermissions, updatePermission, resetRolePermissions } = usePermissions();
+  const { allPermissions: _allPermissions, getRolePermissions, updatePermission, resetRolePermissions } = usePermissions();
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
   const [selectedRole, setSelectedRole] = useState<UserRole>('admin');

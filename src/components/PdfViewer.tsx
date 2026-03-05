@@ -169,7 +169,7 @@ export default function PdfViewer({
       className={`flex flex-col rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden ${className}`}
     >
       {/* Barra de ferramentas */}
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800/90 flex-shrink-0 flex-wrap">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800/90 shrink-0 flex-wrap">
         <span className="text-sm font-medium text-gray-700 dark:text-slate-200 truncate min-w-0">
           {title}
         </span>
@@ -190,7 +190,7 @@ export default function PdfViewer({
               value={scale}
               onChange={(e) => setScale(Number(e.target.value))}
               title="Escala do zoom"
-              className="appearance-none bg-transparent px-2 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-200 border-x border-gray-200 dark:border-slate-600 min-w-[4.5rem] cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-none"
+              className="appearance-none bg-transparent px-2 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-200 border-x border-gray-200 dark:border-slate-600 min-w-4.5rem cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 rounded-none"
             >
               {zoomOptions.map((s) => (
                 <option key={s} value={s}>

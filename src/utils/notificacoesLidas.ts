@@ -45,14 +45,19 @@ export function chaveVacina(vacinaId: string): string {
 /**
  * Marca uma notificação como lida
  */
-export async function marcarNotificacaoComoLida(chave: string, tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina'): Promise<void> {
+export async function marcarNotificacaoComoLida(
+  chave: string,
+  tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina',
+  usuarioId: string
+): Promise<void> {
   try {
     await db.notificacoesLidas.put({
       id: chave,
       tipo,
       marcadaEm: new Date().toISOString(),
       synced: false,
-      remoteId: null
+      remoteId: null,
+      usuarioId,
     });
   } catch (error) {
     console.error('Erro ao marcar notificação como lida:', error);
@@ -65,7 +70,8 @@ export async function marcarNotificacaoComoLida(chave: string, tipo: 'desmama' |
  */
 export async function marcarTodasComoLidas(
   tipo: 'desmama' | 'mortalidade' | 'dados' | 'matriz' | 'peso' | 'vacina',
-  chaves: string[]
+  chaves: string[],
+  usuarioId: string
 ): Promise<void> {
   try {
     const notificacoes = chaves.map(chave => ({
@@ -73,9 +79,10 @@ export async function marcarTodasComoLidas(
       tipo,
       marcadaEm: new Date().toISOString(),
       synced: false,
-      remoteId: null
+      remoteId: null,
+      usuarioId,
     }));
-    
+
     await db.notificacoesLidas.bulkPut(notificacoes);
   } catch (error) {
     console.error('Erro ao marcar todas as notificações como lidas:', error);

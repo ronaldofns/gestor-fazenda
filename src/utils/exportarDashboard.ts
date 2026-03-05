@@ -5,7 +5,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   addRelatorioHeader,
   addRelatorioFooters,
@@ -114,7 +114,7 @@ export function exportarDashboardPDF(dados: DadosExportacao): void {
       tableLineWidth: 0.2
     });
 
-    y = (doc as any).lastAutoTable.finalY + 12;
+    y = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable!.finalY + 12;
   }
 
   // --- Benchmarking (tabela) ---
@@ -161,8 +161,8 @@ export function exportarDashboardPDF(dados: DadosExportacao): void {
 }
 
 /** Gera Excel com dados detalhados */
-export function exportarDashboardExcel(dados: DadosExportacao): void {
-  const wb = XLSX.utils.book_new();
+export async function exportarDashboardExcel(dados: DadosExportacao): Promise<void> {
+  const workbook = new ExcelJS.Workbook();
 
   const resumo = [
     ['Métrica', 'Valor'],
@@ -175,8 +175,8 @@ export function exportarDashboardExcel(dados: DadosExportacao): void {
     ['Taxa de desmama (%)', dados.taxaDesmama.toFixed(1)],
     ['Taxa de mortalidade (%)', dados.taxaMortalidade.toFixed(1)],
   ];
-  const wsResumo = XLSX.utils.aoa_to_sheet(resumo);
-  XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
+  const wsResumo = workbook.addWorksheet('Resumo');
+  wsResumo.addRows(resumo);
 
   if (dados.distribuicaoPorFazenda.length > 0) {
     const rows = [
@@ -185,8 +185,8 @@ export function exportarDashboardExcel(dados: DadosExportacao): void {
         f.nome, f.total, f.vivos, f.mortos, f.vacas, f.bezerros, f.novilhas, f.outros, `${f.percentual.toFixed(1)}%`
       ]),
     ];
-    const wsDist = XLSX.utils.aoa_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, wsDist, 'Por Fazenda');
+    const wsDist = workbook.addWorksheet('Por Fazenda');
+    wsDist.addRows(rows);
   }
 
   if (dados.benchmarkingFazendas.length > 0) {
@@ -198,9 +198,18 @@ export function exportarDashboardExcel(dados: DadosExportacao): void {
         f.taxaDesmama > 0 ? f.taxaDesmama.toFixed(1) : '-'
       ]),
     ];
-    const wsBench = XLSX.utils.aoa_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, wsBench, 'Benchmarking');
+    const wsBench = workbook.addWorksheet('Benchmarking');
+    wsBench.addRows(rows);
   }
 
-  XLSX.writeFile(wb, `dashboard-gestor-fazenda-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `dashboard-gestor-fazenda-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
 }

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -18,6 +19,7 @@ import ConfinamentoPesagemModal from "../components/ConfinamentoPesagemModal";
 import OcorrenciaAnimalModal from "../components/OcorrenciaAnimalModal";
 import PdfViewer from "../components/PdfViewer";
 import ConfirmDialog from "../components/ConfirmDialog";
+import PaginationBar from "../components/PaginationBar";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { usePermissions } from "../hooks/usePermissions";
 import { ColorPaletteKey } from "../hooks/useThemeColors";
@@ -31,10 +33,9 @@ import { calcularGMD, calcularGMDParcial } from "../utils/confinamentoRules";
 import { estadoConfinamentoDerivado } from "../utils/confinamentoEstado";
 import { createSyncEvent } from "../utils/syncEvents";
 import {
-  exportarConfinamentoPDF,
-  exportarConfinamentoExcel,
+  exportarConfinamentoPDF as _exportarConfinamentoPDF,
+  exportarConfinamentoExcel as _exportarConfinamentoExcel,
   exportarConfinamentoDetalhePDF,
-  type DadosConfinamentoExportacao,
   type DadosConfinamentoDetalhePDF,
 } from "../utils/exportarConfinamento";
 
@@ -46,8 +47,7 @@ type TabType =
   | "ocorrencias"
   | "historico";
 
-const ARROBA_KG = 15;
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 export default function DetalheConfinamento() {
   const { confinamentoId } = useParams<{ confinamentoId: string }>();
@@ -59,6 +59,7 @@ export default function DetalheConfinamento() {
   const podeGerenciarConfinamentos = hasPermission("gerenciar_confinamentos");
 
   const [activeTab, setActiveTab] = useState<TabType>("animais");
+  const [pageSizeDetalhe, setPageSizeDetalhe] = useState(10);
 
   // Abrir aba Indicadores quando ?aba=indicadores (ex.: vindo do "Ver relatório" na lista)
   const abaParam = searchParams.get("aba");
@@ -92,6 +93,9 @@ export default function DetalheConfinamento() {
   >("brinco_az");
 
   const [buscaAnimaisPesagens, setBuscaAnimaisPesagens] = useState("");
+  const [buscaAlimentacao, setBuscaAlimentacao] = useState("");
+  const [buscaOcorrencias, setBuscaOcorrencias] = useState("");
+  const [buscaHistorico, setBuscaHistorico] = useState("");
   const [modalOcorrenciaOpen, setModalOcorrenciaOpen] = useState(false);
   const [ocorrenciaEditando, setOcorrenciaEditando] =
     useState<OcorrenciaAnimal | null>(null);
@@ -270,18 +274,6 @@ export default function DetalheConfinamento() {
       };
     }, [vinculoAnimalConfinamento, confinamento]);
 
-  const ativosPagination = usePagination(
-    vinculosAtivos,
-    PAGE_SIZE,
-    activeTab === "animais",
-  );
-
-  const encerradosPagination = usePagination(
-    vinculosEncerrados,
-    PAGE_SIZE,
-    activeTab === "animais",
-  );
-
   const termoBusca = buscaAnimaisPesagens.trim().toLowerCase();
 
   const animalIdsFiltrados = useMemo(() => {
@@ -311,48 +303,75 @@ export default function DetalheConfinamento() {
     return pesagensRaw.filter((p) => animalIdsFiltrados.has(p.animalId));
   }, [pesagensRaw, animalIdsFiltrados]);
 
-  const historicoPesagensPagination = usePagination(
-    pesagensFiltradas,
-    PAGE_SIZE,
+  const vinculosAtivosFiltrados = useMemo(() => {
+    if (!animalIdsFiltrados) return vinculosAtivos;
+    return vinculosAtivos.filter((v) => animalIdsFiltrados.has(v.animalId));
+  }, [vinculosAtivos, animalIdsFiltrados]);
+
+  const vinculosEncerradosFiltrados = useMemo(() => {
+    if (!animalIdsFiltrados) return vinculosEncerrados;
+    return vinculosEncerrados.filter((v) =>
+      animalIdsFiltrados.has(v.animalId),
+    );
+  }, [vinculosEncerrados, animalIdsFiltrados]);
+
+  const ativosPagination = usePagination(
+    vinculosAtivosFiltrados,
+    pageSizeDetalhe,
+    activeTab === "animais" ? `animais-${buscaAnimaisPesagens}` : undefined,
   );
 
-  type PaginationProps = {
-    page: number;
-    setPage: (p: number) => void;
-    total: number;
-    pageSize: number;
-  };
+  const encerradosPagination = usePagination(
+    vinculosEncerradosFiltrados,
+    pageSizeDetalhe,
+    activeTab === "animais" ? `animais-${buscaAnimaisPesagens}` : undefined,
+  );
 
-  function Pagination({ page, setPage, total, pageSize }: PaginationProps) {
-    const totalPages = Math.ceil(total / pageSize);
-    if (totalPages <= 1) return null;
+  const historicoPesagensPagination = usePagination(
+    pesagensFiltradas,
+    pageSizeDetalhe,
+    activeTab === "pesagens" ? `pesagens-${buscaAnimaisPesagens}` : undefined,
+  );
 
-    return (
-      <div className="flex items-center justify-between mt-3 gap-3 text-sm">
-        <span className="text-gray-500">
-          Página {page} de {totalPages}
-        </span>
+  const alimentacaoFiltrada = useMemo(() => {
+    const t = buscaAlimentacao.trim().toLowerCase();
+    if (!t) return alimentacaoOrdenada;
+    return alimentacaoOrdenada.filter((reg) => {
+      const tipo = (reg.tipoDieta ?? "").toLowerCase();
+      const obs = (reg.observacoes ?? "").toLowerCase();
+      const dataStr = formatDateBR(reg.data).toLowerCase();
+      return tipo.includes(t) || obs.includes(t) || dataStr.includes(t);
+    });
+  }, [alimentacaoOrdenada, buscaAlimentacao]);
 
-        <div className="flex gap-2">
-          <button
-            disabled={page === 1}
-            onClick={() => setPage(page - 1)}
-            className="px-3 py-1 rounded border disabled:opacity-50"
-          >
-            Anterior
-          </button>
+  const alimentacaoPagination = usePagination(
+    alimentacaoFiltrada,
+    pageSizeDetalhe,
+    activeTab === "alimentacao" ? `alimentacao-${buscaAlimentacao}` : undefined,
+  );
 
-          <button
-            disabled={page === totalPages}
-            onClick={() => setPage(page + 1)}
-            className="px-3 py-1 rounded border disabled:opacity-50"
-          >
-            Próxima
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const historicoFiltrado = useMemo(() => {
+    const t = buscaHistorico.trim().toLowerCase();
+    if (!t) return historicoRaw;
+    return historicoRaw.filter((audit) => {
+      const user = (audit.userNome ?? "").toLowerCase();
+      const entity = (audit.entity ?? "").toLowerCase();
+      const action = (audit.action ?? "").toLowerCase();
+      const ts = (audit.timestamp ?? "").toLowerCase();
+      return (
+        user.includes(t) ||
+        entity.includes(t) ||
+        action.includes(t) ||
+        ts.includes(t)
+      );
+    });
+  }, [historicoRaw, buscaHistorico]);
+
+  const historicoPagination = usePagination(
+    historicoFiltrado,
+    pageSizeDetalhe,
+    activeTab === "historico" ? `historico-${buscaHistorico}` : undefined,
+  );
 
   // Calcular indicadores do confinamento (incl. economia)
   const indicadores = useMemo(() => {
@@ -395,11 +414,11 @@ export default function DetalheConfinamento() {
     // --- Cálculos de Médias de Peso ---
     const entradas = vinculoAnimalConfinamento
       .map((v) => v.pesoEntrada)
-      .filter((p): p is number => p !== null && p > 0);
+      .filter((p): p is number => p != null && p > 0);
 
     const saidas = vinculoAnimalConfinamento
       .map((v) => v.pesoSaida)
-      .filter((p): p is number => p !== null && p > 0);
+      .filter((p): p is number => p != null && p > 0);
 
     const pesoMedioEntrada =
       entradas.length > 0
@@ -531,6 +550,42 @@ export default function DetalheConfinamento() {
       );
     }, [vinculoIdsKey]) || [];
 
+  const ocorrenciasFiltradas = useMemo(() => {
+    const t = buscaOcorrencias.trim().toLowerCase();
+    if (!t) return ocorrenciasRaw;
+    return ocorrenciasRaw.filter((oc) => {
+      const vinculo = vinculoAnimalConfinamento.find(
+        (v) => v.id === oc.confinamentoAnimalId,
+      );
+      const animal = vinculo
+        ? animaisMap.get(vinculo.animalId)
+        : animaisMap.get(oc.animalId);
+      const brinco = (animal?.brinco ?? "").toLowerCase();
+      const nome = (animal?.nome ?? "").toLowerCase();
+      const tipo = oc.tipo.toLowerCase();
+      const obs = (oc.observacoes ?? "").toLowerCase();
+      const dataStr = formatDateBR(oc.data).toLowerCase();
+      return (
+        brinco.includes(t) ||
+        nome.includes(t) ||
+        tipo.includes(t) ||
+        obs.includes(t) ||
+        dataStr.includes(t)
+      );
+    });
+  }, [
+    ocorrenciasRaw,
+    buscaOcorrencias,
+    vinculoAnimalConfinamento,
+    animaisMap,
+  ]);
+
+  const ocorrenciasPagination = usePagination(
+    ocorrenciasFiltradas,
+    pageSizeDetalhe,
+    activeTab === "ocorrencias" ? `ocorrencias-${buscaOcorrencias}` : undefined,
+  );
+
   if (!confinamentoId || !confinamento) {
     return (
       <div className="p-4 text-center">
@@ -619,8 +674,9 @@ export default function DetalheConfinamento() {
         type: "success",
         message: "Registro de alimentação removido.",
       });
-    } catch (error: any) {
-      showToast({ type: "error", message: error.message || "Erro ao excluir" });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao excluir";
+      showToast({ type: "error", message: msg });
     }
   };
 
@@ -655,60 +711,13 @@ export default function DetalheConfinamento() {
         type: "success",
         message: "Animal encerrado do confinamento",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : "Erro ao encerrar vinculo";
       console.error("Erro ao encerrar vinculo:", error);
-      showToast({
-        type: "error",
-        message: error.message || "Erro ao encerrar vinculo",
-      });
+      showToast({ type: "error", message: msg });
     }
   };
-
-  const montarDadosExportacao =
-    async (): Promise<DadosConfinamentoExportacao | null> => {
-      if (!confinamento) return null;
-      const statusDerivado = estadoConfinamentoDerivado(
-        confinamento,
-        vinculoAnimalConfinamento,
-      );
-      const fazenda = await db.fazendas.get(confinamento.fazendaId);
-      const custoTotal = alimentacaoRaw.reduce(
-        (s, a) => s + (a.custoTotal ?? 0),
-        0,
-      );
-      const kgGanho = vinculoAnimalConfinamento
-        .filter((v) => v.dataSaida && v.pesoSaida != null)
-        .reduce((s, v) => s + ((v.pesoSaida ?? 0) - (v.pesoEntrada ?? 0)), 0);
-      const arrobas = kgGanho / ARROBA_KG;
-      const custoPorArroba = arrobas > 0 ? custoTotal / arrobas : null;
-      return {
-        resumo: {
-          totalConfinamentos: 1,
-          ativos: statusDerivado === "ativo" ? 1 : 0,
-          totalAnimais: indicadores.totalAnimais,
-          gmdMedioGeral: indicadores.gmdMedio,
-          custoTotalGeral: custoTotal,
-          mortalidade: indicadores.mortalidade,
-          arrobasProducao: arrobas,
-          custoPorArroba,
-        },
-        porConfinamento: [
-          {
-            nome: confinamento.nome,
-            fazenda: fazenda?.nome ?? "N/A",
-            status: statusDerivado,
-            totalAnimais: indicadores.totalAnimais,
-            pesoMedioEntrada: indicadores.pesoMedioEntrada,
-            gmdMedio: indicadores.gmdMedio,
-            custoTotal,
-            arrobas,
-            custoPorArroba,
-            mortes: indicadores.mortalidade,
-            diasMedio: indicadores.diasMedio,
-          },
-        ],
-      };
-    };
 
   const montarDadosDetalhePDF =
     async (): Promise<DadosConfinamentoDetalhePDF | null> => {
@@ -783,7 +792,7 @@ export default function DetalheConfinamento() {
             onClick={() => navigate("/confinamentos")}
             className="mb-2 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
           >
-            <Icons.ArrowLeft className="w-4 h-4 flex-shrink-0" />
+            <Icons.ArrowLeft className="w-4 h-4 shrink-0" />
             Voltar
           </button>
           <h1
@@ -791,14 +800,14 @@ export default function DetalheConfinamento() {
           >
             {confinamento.nome}
           </h1>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 break-words hyphens-auto">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 wrap-break-word hyphens-auto">
             {fazenda?.nome} • Inicio: {formatDateBR(confinamento.dataInicio)}
             {confinamento.dataFimReal &&
               ` • Fim: ${formatDateBR(confinamento.dataFimReal)}`}
           </p>
         </div>
         {podeGerenciarConfinamentos && (
-          <div className="flex flex-shrink-0 justify-end">
+          <div className="flex shrink-0 justify-end">
             <button
               onClick={() => setModalConfinamentoOpen(true)}
               className="inline-flex items-center justify-center gap-2 px-3 py-2 sm:px-4 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
@@ -826,7 +835,7 @@ export default function DetalheConfinamento() {
                   : "text-gray-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700/60 hover:text-gray-900 dark:hover:text-slate-200"
               }`}
             >
-              <tab.icon className="w-4 h-4 flex-shrink-0" />
+              <tab.icon className="w-4 h-4 shrink-0" />
               <span>{tab.label}</span>
             </button>
           ))}
@@ -845,13 +854,25 @@ export default function DetalheConfinamento() {
                   statusConfinamentoDerivado === "ativo" && (
                     <button
                       onClick={handleAdicionarAnimal}
-                      className={`flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors ${getPrimaryButtonClass(primaryColor)} hover:opacity-90`}
+                      className={`shrink-0 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors ${getPrimaryButtonClass(primaryColor)} hover:opacity-90`}
                     >
                       <Icons.Plus className="w-4 h-4" />
                       Adicionar Animal
                     </button>
                   )}
               </div>
+
+              {vinculoAnimalConfinamento.length > 0 && (
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="Buscar por brinco ou nome"
+                    value={buscaAnimaisPesagens}
+                    onChange={(e) => setBuscaAnimaisPesagens(e.target.value)}
+                    className="w-full max-w-md px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder:text-gray-500"
+                  />
+                </div>
+              )}
 
               {vinculoAnimalConfinamento.length === 0 ? (
                 <p className="text-gray-500 dark:text-slate-400 text-center py-8">
@@ -1053,11 +1074,13 @@ export default function DetalheConfinamento() {
                           </tbody>
                         </table>
                       </div>
-                      <Pagination
+                      <PaginationBar
                         page={ativosPagination.page}
                         setPage={ativosPagination.setPage}
                         total={ativosPagination.total}
-                        pageSize={PAGE_SIZE}
+                        pageSize={pageSizeDetalhe}
+                        pageSizeOptions={PAGE_SIZE_OPTIONS}
+                        setPageSize={setPageSizeDetalhe}
                       />
                     </div>
                   )}
@@ -1159,11 +1182,13 @@ export default function DetalheConfinamento() {
                             </div>
                           );
                         })}
-                        <Pagination
+                        <PaginationBar
                           page={encerradosPagination.page}
                           setPage={encerradosPagination.setPage}
                           total={encerradosPagination.total}
-                          pageSize={PAGE_SIZE}
+                          pageSize={pageSizeDetalhe}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          setPageSize={setPageSizeDetalhe}
                         />
                       </div>
                       {/* Desktop: tabela */}
@@ -1253,11 +1278,13 @@ export default function DetalheConfinamento() {
                           </tbody>
                         </table>
                       </div>
-                      <Pagination
+                      <PaginationBar
                         page={encerradosPagination.page}
                         setPage={encerradosPagination.setPage}
                         total={encerradosPagination.total}
-                        pageSize={PAGE_SIZE}
+                        pageSize={pageSizeDetalhe}
+                        pageSizeOptions={PAGE_SIZE_OPTIONS}
+                        setPageSize={setPageSizeDetalhe}
                       />
                     </div>
                   )}
@@ -1387,11 +1414,13 @@ export default function DetalheConfinamento() {
                       </tbody>
                     </table>
                   </div>
-                  <Pagination
+                  <PaginationBar
                     page={historicoPesagensPagination.page}
                     setPage={historicoPesagensPagination.setPage}
                     total={historicoPesagensPagination.total}
-                    pageSize={PAGE_SIZE}
+                    pageSize={pageSizeDetalhe}
+                    pageSizeOptions={PAGE_SIZE_OPTIONS}
+                    setPageSize={setPageSizeDetalhe}
                   />
                 </>
               )}
@@ -1401,7 +1430,7 @@ export default function DetalheConfinamento() {
           {/* Aba Alimentação */}
           {activeTab === "alimentacao" && (
             <div>
-              <div className="mb-4 flex justify-between items-center">
+              <div className="mb-4 flex flex-wrap justify-between items-center gap-3">
                 <h2 className="text-lg font-semibold">Alimentação</h2>
                 {podeGerenciarConfinamentos &&
                   statusConfinamentoDerivado === "ativo" && (
@@ -1421,8 +1450,17 @@ export default function DetalheConfinamento() {
                 </p>
               ) : (
                 <>
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="Buscar por data, tipo de dieta ou observações"
+                      value={buscaAlimentacao}
+                      onChange={(e) => setBuscaAlimentacao(e.target.value)}
+                      className="w-full max-w-md px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder:text-gray-500"
+                    />
+                  </div>
                   <div className="md:hidden space-y-3">
-                    {alimentacaoOrdenada.map((reg) => (
+                    {alimentacaoPagination.paginated.map((reg) => (
                       <div
                         key={reg.id}
                         className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm"
@@ -1473,7 +1511,7 @@ export default function DetalheConfinamento() {
                             <span className="text-gray-500 dark:text-slate-400">
                               Observações
                             </span>
-                            <span className="break-words text-right">
+                            <span className="wrap-break-word text-right">
                               {reg.observacoes || "-"}
                             </span>
                           </div>
@@ -1505,7 +1543,7 @@ export default function DetalheConfinamento() {
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-                        {alimentacaoOrdenada.map((reg) => (
+                        {alimentacaoPagination.paginated.map((reg) => (
                           <tr key={reg.id}>
                             <td className="px-3 sm:px-4 py-2">
                               {formatDateBR(reg.data)}
@@ -1551,6 +1589,14 @@ export default function DetalheConfinamento() {
                       </tbody>
                     </table>
                   </div>
+                  <PaginationBar
+                    page={alimentacaoPagination.page}
+                    setPage={alimentacaoPagination.setPage}
+                    total={alimentacaoPagination.total}
+                    pageSize={pageSizeDetalhe}
+                    pageSizeOptions={PAGE_SIZE_OPTIONS}
+                    setPageSize={setPageSizeDetalhe}
+                  />
                 </>
               )}
             </div>
@@ -1580,7 +1626,7 @@ export default function DetalheConfinamento() {
                     type="button"
                     onClick={async () => {
                       const dados = await montarDadosExportacao();
-                      if (dados) exportarConfinamentoPDF(dados);
+                      if (dados) _exportarConfinamentoPDF(dados);
                     }}
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/50"
                   >
@@ -1591,7 +1637,7 @@ export default function DetalheConfinamento() {
                     type="button"
                     onClick={async () => {
                       const dados = await montarDadosExportacao();
-                      if (dados) exportarConfinamentoExcel(dados);
+                      if (dados) _exportarConfinamentoExcel(dados);
                     }}
                     className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/50"
                   >
@@ -1603,7 +1649,7 @@ export default function DetalheConfinamento() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-orange-50/70 dark:bg-orange-950/30 p-4 rounded-xl border-l-4 border-orange-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center text-orange-600 dark:text-orange-400">
                     <Icons.Calendar className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1617,7 +1663,7 @@ export default function DetalheConfinamento() {
                 </div>
 
                 <div className="bg-blue-50/70 dark:bg-blue-950/30 p-4 rounded-xl border-l-4 border-blue-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
                     <Icons.Cow className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1631,7 +1677,7 @@ export default function DetalheConfinamento() {
                 </div>
 
                 <div className="bg-green-50/70 dark:bg-green-950/30 p-4 rounded-xl border-l-4 border-green-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400">
                     <Icons.CheckCircle className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1644,7 +1690,7 @@ export default function DetalheConfinamento() {
                   </div>
                 </div>
                 <div className="bg-amber-50/70 dark:bg-amber-950/30 p-4 rounded-xl border-l-4 border-amber-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
                     <Icons.Scale className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1662,7 +1708,7 @@ export default function DetalheConfinamento() {
                 </div>
 
                 <div className="bg-emerald-50/70 dark:bg-emerald-950/30 p-4 rounded-xl border-l-4 border-emerald-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                     <Icons.BarChart className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1680,7 +1726,7 @@ export default function DetalheConfinamento() {
                   </div>
                 </div>
                 <div className="bg-indigo-50/70 dark:bg-indigo-950/30 p-4 rounded-xl border-l-4 border-indigo-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                     <Icons.Clock className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1698,7 +1744,7 @@ export default function DetalheConfinamento() {
                   </div>
                 </div>
                 <div className="bg-red-50/70 dark:bg-red-950/30 p-4 rounded-xl border-l-4 border-red-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-red-600 dark:text-red-400">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-red-600 dark:text-red-400">
                     <Icons.AlertTriangle className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1715,7 +1761,7 @@ export default function DetalheConfinamento() {
                 </div>
                 {/* Economia */}
                 <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
                     <Icons.DollarSign className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1730,7 +1776,7 @@ export default function DetalheConfinamento() {
                   </div>
                 </div>
                 <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
                     <Icons.DollarSign className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1748,7 +1794,7 @@ export default function DetalheConfinamento() {
                   </div>
                 </div>
                 <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
                     <Icons.DollarSign className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1766,7 +1812,7 @@ export default function DetalheConfinamento() {
                   </div>
                 </div>
                 <div className="bg-slate-50/70 dark:bg-slate-800/70 p-4 rounded-xl border-l-4 border-slate-500 flex gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
                     <Icons.DollarSign className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
@@ -1789,7 +1835,7 @@ export default function DetalheConfinamento() {
                       className={`p-4 rounded-xl border-l-4 flex gap-3 ${(indicadores.margemEstimada ?? 0) >= 0 ? "bg-green-50/70 dark:bg-green-950/30 border-green-500" : "bg-red-50/70 dark:bg-red-950/30 border-red-500"}`}
                     >
                       <div
-                        className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${(indicadores.margemEstimada ?? 0) >= 0 ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400" : "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400"}`}
+                        className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${(indicadores.margemEstimada ?? 0) >= 0 ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400" : "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400"}`}
                       >
                         <Icons.DollarSign className="w-5 h-5" />
                       </div>
@@ -1887,8 +1933,17 @@ export default function DetalheConfinamento() {
                 </p>
               ) : (
                 <>
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="Buscar por brinco, nome, tipo ou observações"
+                      value={buscaOcorrencias}
+                      onChange={(e) => setBuscaOcorrencias(e.target.value)}
+                      className="w-full max-w-md px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder:text-gray-500"
+                    />
+                  </div>
                   <div className="md:hidden space-y-3">
-                    {ocorrenciasRaw.map((oc) => {
+                    {ocorrenciasPagination.paginated.map((oc) => {
                       const vinculo = vinculoAnimalConfinamento.find(
                         (v) => v.id === oc.confinamentoAnimalId,
                       );
@@ -1958,7 +2013,7 @@ export default function DetalheConfinamento() {
                               <span className="text-gray-500 dark:text-slate-400">
                                 Observações
                               </span>
-                              <span className="break-words text-right">
+                              <span className="wrap-break-word text-right">
                                 {oc.observacoes || "-"}
                               </span>
                             </div>
@@ -1994,7 +2049,7 @@ export default function DetalheConfinamento() {
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-                        {ocorrenciasRaw.map((oc) => {
+                        {ocorrenciasPagination.paginated.map((oc) => {
                           const vinculo = vinculoAnimalConfinamento.find(
                             (v) => v.id === oc.confinamentoAnimalId,
                           );
@@ -2060,6 +2115,14 @@ export default function DetalheConfinamento() {
                       </tbody>
                     </table>
                   </div>
+                  <PaginationBar
+                    page={ocorrenciasPagination.page}
+                    setPage={ocorrenciasPagination.setPage}
+                    total={ocorrenciasPagination.total}
+                    pageSize={pageSizeDetalhe}
+                    pageSizeOptions={PAGE_SIZE_OPTIONS}
+                    setPageSize={setPageSizeDetalhe}
+                  />
                 </>
               )}
             </div>
@@ -2077,8 +2140,17 @@ export default function DetalheConfinamento() {
                 </p>
               ) : (
                 <>
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="Buscar por usuário, contexto ou ação"
+                      value={buscaHistorico}
+                      onChange={(e) => setBuscaHistorico(e.target.value)}
+                      className="w-full max-w-md px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder:text-gray-500"
+                    />
+                  </div>
                   <div className="md:hidden space-y-3">
-                    {historicoRaw.map((audit) => (
+                    {historicoPagination.paginated.map((audit) => (
                       <div
                         key={audit.id}
                         className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm"
@@ -2145,7 +2217,7 @@ export default function DetalheConfinamento() {
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-                        {historicoRaw.map((audit) => (
+                        {historicoPagination.paginated.map((audit) => (
                           <tr key={audit.id}>
                             <td className="px-3 sm:px-4 py-2 text-gray-600 dark:text-slate-400">
                               {formatDateBR(audit.timestamp.split("T")[0])}{" "}
@@ -2179,6 +2251,14 @@ export default function DetalheConfinamento() {
                       </tbody>
                     </table>
                   </div>
+                  <PaginationBar
+                    page={historicoPagination.page}
+                    setPage={historicoPagination.setPage}
+                    total={historicoPagination.total}
+                    pageSize={pageSizeDetalhe}
+                    pageSizeOptions={PAGE_SIZE_OPTIONS}
+                    setPageSize={setPageSizeDetalhe}
+                  />
                 </>
               )}
             </div>
@@ -2239,7 +2319,7 @@ export default function DetalheConfinamento() {
 
       {/* Modal: Ordenação do PDF com pesagens → Visualizar na tela ou baixar */}
       {modalPdfDetalheOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50">
           <div
             className={`bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-slate-600 flex flex-col ${
               pdfDetalheBlob
@@ -2338,7 +2418,7 @@ export default function DetalheConfinamento() {
                         setModalPdfDetalheOpen(false);
                         return;
                       }
-                      let animais = [...dados.animais];
+                      const animais = [...dados.animais];
                       if (pdfDetalheOrdenarPor === "brinco_az") {
                         animais.sort((a, b) => {
                           const na = Number(a.brinco);

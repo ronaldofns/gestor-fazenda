@@ -146,11 +146,12 @@ export async function encerrarConfinamento(
     }
 
     return { sucesso: true, animaisEncerrados };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Erro desconhecido";
     console.error("Erro ao encerrar confinamento:", error);
     return {
       sucesso: false,
-      erro: error.message || "Erro desconhecido",
+      erro: msg,
       animaisEncerrados: 0,
     };
   }
@@ -214,9 +215,10 @@ export async function encerrarVinculoPorStatusAnimal(
     }
 
     return { sucesso: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Erro desconhecido";
     console.error("Erro ao encerrar vínculo por status do animal:", error);
-    return { sucesso: false, erro: error.message || "Erro desconhecido" };
+    return { sucesso: false, erro: msg };
   }
 }
 

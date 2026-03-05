@@ -93,8 +93,8 @@ export default function MatrizSearchCombobox({
         if (a.deletedAt) return false;
         if (a.sexo !== 'F') return false;
         const fazendaMatch = !fazendaId || a.fazendaId === fazendaId;
-        const brincoMatch = a.brinco?.toLowerCase().includes(term);
-        const nomeMatch = a.nome?.toLowerCase().includes(term);
+        const brincoMatch = a.brinco?.toLowerCase().includes(term) ?? false;
+        const nomeMatch = a.nome?.toLowerCase().includes(term) ?? false;
         return fazendaMatch && (brincoMatch || nomeMatch);
       })
       .limit(20)

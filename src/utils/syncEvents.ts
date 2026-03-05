@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- tipos dinâmicos de eventos e payloads de sync */
+import { getSupabaseForSync } from "../api/supabaseSyncClient";
 import { db } from "./../db/dexieDB";
 import { SyncEvent, SyncEventType, SyncEntity } from "../db/models";
 import { uuid } from "./uuid";
@@ -340,12 +342,30 @@ function payloadToServerGenealogiaWithMaps(
   if (!maps.animais.has(payload.animalId)) return null;
 
   // FKs de animais: enviar o UUID local (é o mesmo uuid no servidor para animais já sincronizados)
-  const matrizId = payload.matrizId && maps.animais.has(payload.matrizId) ? payload.matrizId : null;
-  const reprodutorId = payload.reprodutorId && maps.animais.has(payload.reprodutorId) ? payload.reprodutorId : null;
-  const avoMaterna = payload.avoMaterna && maps.animais.has(payload.avoMaterna) ? payload.avoMaterna : null;
-  const avoPaterna = payload.avoPaterna && maps.animais.has(payload.avoPaterna) ? payload.avoPaterna : null;
-  const avoPaternoMaterno = payload.avoPaternoMaterno && maps.animais.has(payload.avoPaternoMaterno) ? payload.avoPaternoMaterno : null;
-  const avoPaternoPatro = payload.avoPaternoPatro && maps.animais.has(payload.avoPaternoPatro) ? payload.avoPaternoPatro : null;
+  const matrizId =
+    payload.matrizId && maps.animais.has(payload.matrizId)
+      ? payload.matrizId
+      : null;
+  const reprodutorId =
+    payload.reprodutorId && maps.animais.has(payload.reprodutorId)
+      ? payload.reprodutorId
+      : null;
+  const avoMaterna =
+    payload.avoMaterna && maps.animais.has(payload.avoMaterna)
+      ? payload.avoMaterna
+      : null;
+  const avoPaterna =
+    payload.avoPaterna && maps.animais.has(payload.avoPaterna)
+      ? payload.avoPaterna
+      : null;
+  const avoPaternoMaterno =
+    payload.avoPaternoMaterno && maps.animais.has(payload.avoPaternoMaterno)
+      ? payload.avoPaternoMaterno
+      : null;
+  const avoPaternoPatro =
+    payload.avoPaternoPatro && maps.animais.has(payload.avoPaternoPatro)
+      ? payload.avoPaternoPatro
+      : null;
   // tipo_matriz_id é INTEGER no servidor (FK para tipos_animal_online.id)
   const tipoMatrizId = fk(maps.tiposAnimal, payload.tipoMatrizId);
 
@@ -507,7 +527,6 @@ async function processDeleteBatch(
     return resultados;
   }
 
-  const { getSupabaseForSync } = await import("../api/supabaseSyncClient");
   const supabase = await getSupabaseForSync();
   if (!supabase) {
     const msg =
@@ -691,7 +710,7 @@ async function processUpsertBatch(
 
     for (const { event, payload } of parsed) {
       const serverPayload = payloadToServerGenealogiaWithMaps(
-        payload as Record<string, unknown>,
+        payload as unknown as Genealogia,
         maps,
       );
 
@@ -777,7 +796,6 @@ async function processUpsertBatch(
     return resultados;
   }
 
-  const { getSupabaseForSync } = await import("../api/supabaseSyncClient");
   const supabase = await getSupabaseForSync();
   if (!supabase) {
     const msg =
@@ -1375,7 +1393,7 @@ export async function createSyncEventsForPendingRecords(): Promise<{
       for (const g of genealogias.filter(
         (r: any) => !r.deletedAt && r.synced === false,
       )) {
-        await addEvent("genealogia", g.uuid, g);
+        await addEvent("genealogia", g.animalId, g);
 
         console.log({
           animal: await db.animais.get(g.animalId),

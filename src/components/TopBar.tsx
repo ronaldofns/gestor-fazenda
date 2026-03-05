@@ -13,6 +13,8 @@ import { useAppSettings } from "../hooks/useAppSettings";
 import { ColorPaletteKey } from "../hooks/useThemeColors";
 import { getThemeClasses, getTitleTextClass } from "../utils/themeHelpers";
 import ConfirmDialog from "./ConfirmDialog";
+import { syncAll } from "../api/syncService";
+import { exportarBackupCompleto, importarBackup } from "../utils/exportarDados";
 
 // Mapeamento de rotas para títulos e subtítulos
 const routeMetadata: Record<
@@ -112,6 +114,13 @@ export default function TopBar() {
     top: number;
     right: number;
   } | null>(null);
+  const [_sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sidebarCollapsed");
+      return saved !== null ? saved === "true" : true;
+    }
+    return true;
+  });
   const [userDropdownPosition, setUserDropdownPosition] = useState<{
     top: number;
     right: number;
@@ -265,9 +274,13 @@ export default function TopBar() {
     const listener = (isSyncing: boolean) => {
       setSyncing(isSyncing);
     };
-    const syncListeners = (window as any).__syncListeners || new Set();
+    const win = window as Window & {
+      __syncListeners?: Set<(v: boolean) => void>;
+    };
+    const syncListeners =
+      win.__syncListeners ?? new Set<(v: boolean) => void>();
     syncListeners.add(listener);
-    (window as any).__syncListeners = syncListeners;
+    win.__syncListeners = syncListeners;
 
     // Escutar eventos customizados de mudança de estado
     const handleSyncStateChange = (e: Event) => {
@@ -284,11 +297,21 @@ export default function TopBar() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleSidebarToggle = (e: Event) => {
+      const customEvent = e as CustomEvent<{ collapsed: boolean }>;
+      setSidebarCollapsed(customEvent.detail.collapsed);
+    };
+
+    window.addEventListener("sidebarToggle", handleSidebarToggle);
+    return () =>
+      window.removeEventListener("sidebarToggle", handleSidebarToggle);
+  }, []);
+
   const handleManualSync = async () => {
     try {
       setUserMenuOpen(false);
       setGlobalSyncing(true);
-      const { syncAll } = await import("../api/syncService");
       const { ran } = await syncAll();
       if (ran) {
         showToast({
@@ -335,38 +358,8 @@ export default function TopBar() {
     : Icons.LayoutDashboard;
   const primaryColor = (appSettings?.primaryColor || "gray") as ColorPaletteKey;
 
-  // Verificar se sidebar está recolhida em telas menores
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sidebarCollapsed");
-      return saved !== null ? saved === "true" : true;
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    const handleSidebarToggle = (e: Event) => {
-      const customEvent = e as CustomEvent<{ collapsed: boolean }>;
-      setSidebarCollapsed(customEvent.detail.collapsed);
-    };
-
-    window.addEventListener("sidebarToggle", handleSidebarToggle);
-    return () =>
-      window.removeEventListener("sidebarToggle", handleSidebarToggle);
-  }, []);
-
-  async function limparCacheMantendoUsuarios() {
-    await db.transaction("rw", db.tables, async () => {
-      for (const table of db.tables) {
-        if (table.name !== "usuarios") {
-          await table.clear();
-        }
-      }
-    });
-  }
-
   return (
-    <header className="sticky top-0 z-[60] bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-slate-700 shadow-sm overflow-x-hidden">
+    <header className="sticky top-0 z-60 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-slate-700 shadow-sm overflow-x-hidden">
       <div
         className={`flex items-center justify-between pr-2 sm:pr-4 md:px-6 lg:px-8 h-16 w-full min-w-0 overflow-x-hidden pl-14 md:pl-16 lg:pl-0`}
       >
@@ -374,7 +367,7 @@ export default function TopBar() {
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {IconComponent && (
             <div
-              className={`hidden sm:flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br ${getThemeClasses(primaryColor, "gradient-from")} ${getThemeClasses(primaryColor, "text")} flex-shrink-0 shadow-sm`}
+              className={`hidden sm:flex items-center justify-center w-10 h-10 rounded-lg bg-linear-to-br ${getThemeClasses(primaryColor, "gradient-from")} ${getThemeClasses(primaryColor, "text")} flex shrink-0 shadow-sm`}
             >
               <IconComponent className="w-5 h-5" />
             </div>
@@ -394,27 +387,27 @@ export default function TopBar() {
         </div>
 
         {/* Informações do Usuário (Direita) */}
-        <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0 min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0 min-w-0">
           {/* Seletor de Fazenda */}
           <div
-            className="relative flex-shrink-0"
+            className="relative flex shrink-0"
             ref={fazendaMenuRef}
             style={{ zIndex: 9999 }}
           >
             <button
               ref={fazendaButtonRef}
               onClick={() => setFazendaMenuOpen(!fazendaMenuOpen)}
-              className={`flex items-center gap-1 sm:gap-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl px-2 sm:px-3 py-2 transition-all ${getThemeClasses(primaryColor, "hover-bg-light")} min-w-0`}
+              className={`flex items-center gap-1 sm:gap-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl px-2 sm:px-3 py-2 transition-all ${getThemeClasses(primaryColor, "bg-light")} min-w-0`}
               title="Selecionar fazenda"
             >
               <Icons.Building2
-                className={`w-4 h-4 flex-shrink-0 ${getThemeClasses(primaryColor, "text")}`}
+                className={`w-4 h-4 flex shrink-0 ${getThemeClasses(primaryColor, "text")}`}
               />
               <span className="hidden md:block text-sm font-medium text-gray-700 dark:text-slate-300 truncate max-w-[120px] lg:max-w-[200px]">
                 {fazendaAtiva ? fazendaAtiva.nome : "Todas"}
               </span>
               <Icons.ChevronDown
-                className={`w-3.5 h-3.5 flex-shrink-0 text-gray-500 dark:text-slate-400 transition-transform ${fazendaMenuOpen ? "rotate-180" : ""}`}
+                className={`w-3.5 h-3.5 flex shrink-0 text-gray-500 dark:text-slate-400 transition-transform ${fazendaMenuOpen ? "rotate-180" : ""}`}
               />
             </button>
 
@@ -424,7 +417,7 @@ export default function TopBar() {
               createPortal(
                 <div data-portal="fazenda-menu">
                   <div
-                    className="fixed inset-0 z-[9998]"
+                    className="fixed inset-0 z-9998"
                     onClick={() => setFazendaMenuOpen(false)}
                     aria-hidden="true"
                   />
@@ -461,12 +454,12 @@ export default function TopBar() {
                           : "text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50"
                       }`}
                     >
-                      <Icons.Building2 className="w-4 h-4 flex-shrink-0" />
+                      <Icons.Building2 className="w-4 h-4 flex shrink-0" />
                       <span className="flex-1 text-left truncate min-w-0">
                         Todas as Fazendas
                       </span>
                       {!fazendaAtivaId && (
-                        <Icons.Check className="w-4 h-4 flex-shrink-0" />
+                        <Icons.Check className="w-4 h-4 flex shrink-0" />
                       )}
                     </button>
 
@@ -496,13 +489,13 @@ export default function TopBar() {
                           }`}
                         >
                           <Icons.MapPin
-                            className={`w-4 h-4 flex-shrink-0 ${fazendaAtivaId === fazenda.id ? "" : "text-gray-500 dark:text-slate-400"}`}
+                            className={`w-4 h-4 flex shrink-0 ${fazendaAtivaId === fazenda.id ? "" : "text-gray-500 dark:text-slate-400"}`}
                           />
                           <span className="flex-1 text-left truncate min-w-0">
                             {fazenda.nome}
                           </span>
                           {fazendaAtivaId === fazenda.id && (
-                            <Icons.Check className="w-4 h-4 flex-shrink-0" />
+                            <Icons.Check className="w-4 h-4 flex shrink-0" />
                           )}
                         </button>
                       ))
@@ -518,7 +511,7 @@ export default function TopBar() {
             onClick={() =>
               saveSettings({ modoCurral: !appSettings.modoCurral })
             }
-            className={`flex items-center gap-1 sm:gap-2 rounded-xl px-2 sm:px-3 py-2 transition-all border flex-shrink-0 ${
+            className={`flex items-center gap-1 sm:gap-2 rounded-xl px-2 sm:px-3 py-2 transition-all border shrink-0 ${
               appSettings.modoCurral
                 ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
                 : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
@@ -534,7 +527,7 @@ export default function TopBar() {
                 : "Ativar modo Curral"
             }
           >
-            <Icons.Sun className="w-4 h-4 flex-shrink-0" />
+            <Icons.Sun className="w-4 h-4 flex shrink-0" />
             <span className="hidden sm:inline text-sm font-medium">
               {appSettings.modoCurral ? "Curral" : "Escritório"}
             </span>
@@ -542,7 +535,7 @@ export default function TopBar() {
 
           {/* Avatar e Menu do Usuário */}
           <div
-            className="relative flex-shrink-0"
+            className="relative flex shrink-0"
             ref={menuRef}
             style={{ zIndex: 9999 }}
           >
@@ -555,7 +548,7 @@ export default function TopBar() {
             >
               {/* Avatar */}
               <div
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${getAvatarColor(user.nome)} flex items-center justify-center text-white font-semibold text-xs sm:text-sm shadow-md ring-2 ring-white dark:ring-slate-800 flex-shrink-0`}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${getAvatarColor(user.nome)} items-center justify-center text-white font-semibold text-xs sm:text-sm shadow-md ring-2 ring-white dark:ring-slate-800 flex shrink-0`}
               >
                 {getUserInitials(user.nome)}
               </div>
@@ -572,7 +565,7 @@ export default function TopBar() {
 
               {/* Ícone de dropdown */}
               <Icons.ChevronDown
-                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-slate-400 ${getThemeClasses(primaryColor, "hover-text")} transition-transform flex-shrink-0 ${userMenuOpen ? "rotate-180" : ""}`}
+                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-slate-400 ${getThemeClasses(primaryColor, "hover-text")} transition-transform flex shrink-0 ${userMenuOpen ? "rotate-180" : ""}`}
               />
             </button>
 
@@ -582,7 +575,7 @@ export default function TopBar() {
               createPortal(
                 <div data-portal="user-menu">
                   <div
-                    className="fixed inset-0 z-[9998]"
+                    className="fixed inset-0 z-9998"
                     onClick={() => setUserMenuOpen(false)}
                     aria-hidden="true"
                   />
@@ -598,10 +591,10 @@ export default function TopBar() {
                     }}
                   >
                     {/* Header do Menu */}
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-800/50">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-linear-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-800/50">
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-10 h-10 rounded-full ${getAvatarColor(user.nome)} flex items-center justify-center text-white font-semibold text-sm shadow-md flex-shrink-0`}
+                          className={`w-10 h-10 rounded-full ${getAvatarColor(user.nome)} items-center justify-center text-white font-semibold text-sm shadow-md flex shrink-0`}
                         >
                           {getUserInitials(user.nome)}
                         </div>
@@ -633,7 +626,7 @@ export default function TopBar() {
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-lg mx-1 min-w-0"
                       >
-                        <Icons.User className="w-4 h-4 flex-shrink-0" />
+                        <Icons.User className="w-4 h-4 flex shrink-0" />
                         <span className="truncate min-w-0">Meu Perfil</span>
                       </button>
 
@@ -644,7 +637,7 @@ export default function TopBar() {
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-lg mx-1 min-w-0"
                       >
-                        <Icons.Settings className="w-4 h-4 flex-shrink-0" />
+                        <Icons.Settings className="w-4 h-4 flex shrink-0" />
                         <span className="truncate min-w-0">Configurações</span>
                       </button>
 
@@ -654,7 +647,7 @@ export default function TopBar() {
                         className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium ${getThemeClasses(primaryColor, "text")} ${getThemeClasses(primaryColor, "hover-text")} transition-colors rounded-lg mx-1 disabled:opacity-50 disabled:cursor-not-allowed relative min-w-0`}
                       >
                         <Icons.RefreshCw
-                          className={`w-4 h-4 flex-shrink-0 transition-transform duration-300 ${syncing ? "animate-spin" : ""}`}
+                          className={`w-4 h-4 flex shrink-0 transition-transform duration-300 ${syncing ? "animate-spin" : ""}`}
                         />
                         <span className="truncate min-w-0">
                           {syncing ? "Sincronizando..." : "Sincronizar"}
@@ -666,20 +659,28 @@ export default function TopBar() {
                           onClick={async () => {
                             setUserMenuOpen(false);
                             try {
-                              const { exportarBackupCompleto } =
-                                await import("../utils/exportarDados");
                               const resultado = await exportarBackupCompleto();
-                              const totais = resultado.totalRegistros;
+                              const totais = resultado.metadados;
                               const detalhes = [
                                 `Fazendas: ${totais.totalFazendas}`,
                                 `Raças: ${totais.totalRacas}`,
                                 `Categorias: ${totais.totalCategorias}`,
                                 `Matrizes: ${totais.totalMatrizes}`,
-                                `Nascimentos: ${totais.totalNascimentos}`,
                                 `Desmamas: ${totais.totalDesmamas}`,
                                 `Pesagens: ${totais.totalPesagens}`,
                                 `Vacinações: ${totais.totalVacinacoes}`,
                                 `Usuários: ${totais.totalUsuarios}`,
+                                `Role Permissions: ${totais.totalRolePermissions}`,
+                                `Alert Settings: ${totais.totalAlertSettings}`,
+                                `App Settings: ${totais.totalAppSettings}`,
+                                `Tipos Animal: ${totais.totalTiposAnimal}`,
+                                `Status Animal: ${totais.totalStatusAnimal}`,
+                                `Origens: ${totais.totalOrigens}`,
+                                `Animais: ${totais.totalAnimais}`,
+                                `Genealogias: ${totais.totalGenealogias}`,
+                                `Confinamentos: ${totais.totalConfinamentos}`,
+                                `Confinamento Animais: ${totais.totalConfinamentoAnimais}`,
+                                `Confinamento Alimentacao: ${totais.totalConfinamentoAlimentacao}`,
                               ].join("\n");
 
                               showToast({
@@ -699,7 +700,7 @@ export default function TopBar() {
                           }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors rounded-lg mx-1 min-w-0"
                         >
-                          <Icons.Download className="w-4 h-4 flex-shrink-0" />
+                          <Icons.Download className="w-4 h-4 flex shrink-0" />
                           <span className="truncate min-w-0">
                             Exportar Backup
                           </span>
@@ -719,8 +720,6 @@ export default function TopBar() {
                             if (!file) return;
 
                             try {
-                              const { importarBackup } =
-                                await import("../utils/exportarDados");
                               const resultado = await importarBackup(file);
 
                               if (resultado.sucesso) {
@@ -766,7 +765,7 @@ export default function TopBar() {
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors rounded-lg mx-1 min-w-0"
                       >
-                        <Icons.Upload className="w-4 h-4 flex-shrink-0" />
+                        <Icons.Upload className="w-4 h-4 flex shrink-0" />
                         <span className="truncate min-w-0">
                           Importar Backup
                         </span>
@@ -827,7 +826,7 @@ export default function TopBar() {
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-lg mx-1 min-w-0"
                       >
-                        <Icons.Trash2 className="w-4 h-4 flex-shrink-0" />
+                        <Icons.Trash2 className="w-4 h-4 flex shrink-0" />
                         <span className="truncate min-w-0">Limpar Cache</span>
                       </button>
 
@@ -840,7 +839,7 @@ export default function TopBar() {
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-lg mx-1 min-w-0"
                       >
-                        <Icons.LogOut className="w-4 h-4 flex-shrink-0" />
+                        <Icons.LogOut className="w-4 h-4 flex shrink-0" />
                         <span className="truncate min-w-0">Sair</span>
                       </button>
                     </div>

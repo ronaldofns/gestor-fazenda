@@ -32,7 +32,11 @@ async function fetchWithSession(input: RequestInfo | URL, options?: RequestInit)
   return fetch(input, options);
 }
 
-// sessionStorage: sessão termina ao fechar aba/janela (usuário precisa logar de novo)
+// Em dev, lock no-op evita aviso "Lock was not released within 5000ms" com React Strict Mode (double mount).
+async function devLockNoOp<R>(_name: string, _acquireTimeout: number, fn: () => Promise<R>): Promise<R> {
+  return fn();
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     persistSession: true,
@@ -40,6 +44,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     detectSessionInUrl: true,
     storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
     storageKey: 'gestor-fazenda-auth',
+    ...(import.meta.env?.DEV === true && { lock: devLockNoOp }),
   },
   global: {
     fetch: fetchWithSession,

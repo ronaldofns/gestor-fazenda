@@ -168,9 +168,10 @@ export default function ConfinamentoAlimentacaoModal({
       }
       onSaved?.();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao salvar";
       console.error("Erro ao salvar alimentação:", error);
-      showToast({ type: "error", message: error.message || "Erro ao salvar" });
+      showToast({ type: "error", message: msg });
     } finally {
       setIsSubmitting(false);
     }

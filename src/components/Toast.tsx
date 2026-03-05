@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useRef, useState } from "react";
 import { Icons } from "../utils/iconMapping";
 
@@ -72,15 +73,16 @@ export function ToastContainer() {
     window.addEventListener("app:toast", handler as EventListener);
     return () => {
       window.removeEventListener("app:toast", handler as EventListener);
-      timers.current.forEach((t) => clearTimeout(t));
-      timers.current.clear();
+      const t = timers.current;
+      t.forEach((id) => clearTimeout(id));
+      t.clear();
     };
   }, []);
 
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed z-[9999] top-4 right-4 flex flex-col gap-3 max-w-sm w-full">
+    <div className="fixed z-9999 top-4 right-4 flex flex-col gap-3 max-w-sm w-full">
       {toasts.map((toast) => {
         const styles = typeStyles[toast.type];
         return (
@@ -90,7 +92,7 @@ export function ToastContainer() {
             onMouseEnter={() => clearTimer(toast.id)}
             onMouseLeave={() => scheduleRemoval(toast)}
           >
-            <div className="mt-0.5 flex-shrink-0">{styles.icon}</div>
+            <div className="mt-0.5 shrink-0">{styles.icon}</div>
             <div className="flex-1 min-w-0">
               {toast.title && (
                 <div className="font-semibold text-sm text-white">
@@ -103,7 +105,7 @@ export function ToastContainer() {
             </div>
             <button
               onClick={() => removeToast(toast.id)}
-              className="flex-shrink-0 ml-2 p-1 hover:bg-white/20 rounded transition-colors"
+              className="shrink-0 ml-2 p-1 hover:bg-white/20 rounded transition-colors"
               aria-label="Fechar"
             >
               <Icons.X className="w-4 h-4 text-white" />

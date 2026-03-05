@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- arquivo exporta FazendaProvider e useFazendaContext */
 import {
   createContext,
   useContext,

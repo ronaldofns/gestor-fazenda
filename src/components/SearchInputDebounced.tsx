@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import Input from './Input';
 
 export interface SearchInputDebouncedProps {

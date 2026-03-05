@@ -5,6 +5,7 @@ import {
   Raca,
   Categoria,
   Usuario,
+  Tag,
   Matriz,
   AuditLog,
   NotificacaoLida,
@@ -26,12 +27,10 @@ import {
   ConfinamentoAlimentacao,
   OcorrenciaAnimal,
 } from "./models";
+import { uuid } from "../utils/uuid";
 
 /** Tipo de entidade para exclusão (define qual tabela do Supabase atualizar). */
-export type DeletedRecordEntity =
-  | "animal"
-  | "pesagem"
-  | "vacina";
+export type DeletedRecordEntity = "animal" | "pesagem" | "vacina";
 
 interface DeletedRecord {
   id: string;
@@ -41,21 +40,6 @@ interface DeletedRecord {
   synced: boolean; // Se a exclusão foi sincronizada com o servidor
   /** Tipo da entidade: garante que a exclusão seja aplicada apenas na tabela correta. */
   entity?: DeletedRecordEntity;
-}
-
-export interface Tag {
-  id: string;
-  name: string;
-  color: string;
-  description?: string;
-  category?: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string | null;
-  usageCount: number;
-  synced: boolean;
-  remoteId?: string | null;
 }
 
 export interface TagAssignment {
@@ -246,12 +230,12 @@ class AppDB extends Dexie {
         const matrizes = await tx.table("matrizes").toArray();
         for (const matriz of matrizes) {
           const categoriaId =
-            (matriz as any).categoria === "novilha"
+            (matriz as { categoria?: string }).categoria === "novilha"
               ? categoriaNovilhaId
               : categoriaVacaId;
           await tx.table("matrizes").update(matriz.id, {
             categoriaId: categoriaId,
-          } as any);
+          } as Record<string, unknown>);
         }
       });
 
@@ -293,7 +277,7 @@ class AppDB extends Dexie {
           await tx.table("notificacoesLidas").update(notif.id, {
             synced: false,
             remoteId: null,
-          } as any);
+          } as Record<string, unknown>);
         }
       });
 
@@ -452,7 +436,7 @@ class AppDB extends Dexie {
 
         // Criar permissões para cada role
         // IMPORTANTE: Fazer todas as operações dentro da transação sem await de imports
-        const promises: Promise<any>[] = [];
+        const promises: Promise<void>[] = [];
         for (const role of roles) {
           const rolePerms = defaultPermissions[role];
           for (const permission of permissions) {
@@ -541,7 +525,7 @@ class AppDB extends Dexie {
           .table("appSettings")
           .get("app-settings-global");
         if (existing) {
-          const updateData: any = {};
+          const updateData: Record<string, unknown> = {};
           if (
             existing.intervaloSincronizacao === undefined ||
             existing.intervaloSincronizacao === null
@@ -818,8 +802,6 @@ class AppDB extends Dexie {
           },
         ];
 
-        const { uuid } = await import("../utils/uuid");
-
         // Verificar se já existem dados (evitar duplicação)
         const tiposExistentes = await tx.table("tiposAnimal").count();
 
@@ -1095,25 +1077,25 @@ class AppDB extends Dexie {
         }
 
         // Atualizar pesagens com animalId
-        let pesagensAtualizadas = 0;
+        let _pesagensAtualizadas = 0;
         for (const pesagem of pesagens) {
           if (pesagem.nascimentoId) {
             const animalId = nascimentoToAnimalMap.get(pesagem.nascimentoId);
             if (animalId) {
               await tx.table("pesagens").update(pesagem.id, { animalId });
-              pesagensAtualizadas++;
+              _pesagensAtualizadas++;
             }
           }
         }
 
         // Atualizar vacinas com animalId
-        let vacinasAtualizadas = 0;
+        let _vacinasAtualizadas = 0;
         for (const vacina of vacinacoes) {
           if (vacina.nascimentoId) {
             const animalId = nascimentoToAnimalMap.get(vacina.nascimentoId);
             if (animalId) {
               await tx.table("vacinacoes").update(vacina.id, { animalId });
-              vacinasAtualizadas++;
+              _vacinasAtualizadas++;
             }
           }
         }

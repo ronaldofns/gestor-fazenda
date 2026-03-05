@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- useLiveQuery retorna referências estáveis */
 import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db/dexieDB";
@@ -25,7 +26,7 @@ export interface Alerta {
   icone: string;
   cor: string;
   lido: boolean; // Se o alerta foi marcado como lido
-  detalhes?: any;
+  detalhes?: undefined | unknown;
 }
 
 export interface AlertasMetrics {
@@ -39,10 +40,7 @@ export interface AlertasMetrics {
   isLoading: boolean;
 }
 
-export function useAlertas(
-  fazendaId?: string,
-  usuarioId?: string,
-): AlertasMetrics {
+export function useAlertas(fazendaId?: string): AlertasMetrics {
   // Carregar dados necessários
   const animaisRaw = useLiveQuery(() => db.animais.toArray(), []) || [];
   const tiposRaw =
@@ -77,12 +75,6 @@ export function useAlertas(
   const notificacoesLidasRaw =
     useLiveQuery(() => db.notificacoesLidas.toArray(), []) || [];
 
-  // Filtrar por usuário em memória
-  const notificacoesLidasDoUsuario = useMemo(() => {
-    if (!usuarioId) return notificacoesLidasRaw;
-    return notificacoesLidasRaw.filter((n) => n.usuarioId === usuarioId);
-  }, [notificacoesLidasRaw, usuarioId]);
-
   const isLoading = animaisRaw === undefined;
 
   const alertas = useMemo<Alerta[]>(() => {
@@ -95,9 +87,6 @@ export function useAlertas(
       statusRaw.map((s) => [s.id, s.nome || "Desconhecido"]),
     );
     const tipoMap = new Map(tiposRaw.map((t) => [t.id, t.nome || "Sem tipo"]));
-    const fazendaMap = new Map(
-      fazendasRaw.map((f) => [f.id, f.nome || "Sem fazenda"]),
-    );
 
     // Criar set de IDs de alertas lidos
     const alertasLidosSet = new Set(notificacoesLidasRaw.map((n) => n.id));

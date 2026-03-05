@@ -21,6 +21,7 @@ import {
 import { createSyncEvent } from "../utils/syncEvents";
 import { registrarAudit } from "../utils/audit";
 import { msg } from "../utils/validationMessages";
+import { validarPesagemUnica } from "../utils/unicidadeValidation";
 
 const schema = z.object({
   confinamentoAnimalId: z.string().min(1, msg.obrigatorio),
@@ -45,7 +46,6 @@ export default function ConfinamentoPesagemModal({
   open,
   vinculosAtivos,
   animaisMap,
-  dataInicioConfinamento,
   onClose,
   onSaved,
 }: ConfinamentoPesagemModalProps) {
@@ -147,8 +147,6 @@ export default function ConfinamentoPesagemModal({
       }
       const animalId = vinculo.animalId;
 
-      const { validarPesagemUnica } =
-        await import("../utils/unicidadeValidation");
       const unico = await validarPesagemUnica(animalId, dataBanco);
       if (!unico.valido) {
         showToast({
@@ -187,9 +185,10 @@ export default function ConfinamentoPesagemModal({
       showToast({ type: "success", message: "Pesagem registrada." });
       onSaved?.();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao salvar";
       console.error("Erro ao registrar pesagem:", error);
-      showToast({ type: "error", message: error.message || "Erro ao salvar" });
+      showToast({ type: "error", message: msg });
     } finally {
       setIsSubmitting(false);
     }

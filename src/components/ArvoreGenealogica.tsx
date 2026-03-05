@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useMemo, useEffect, JSX } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db/dexieDB";

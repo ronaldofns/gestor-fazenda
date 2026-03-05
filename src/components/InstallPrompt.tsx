@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Icons } from '../utils/iconMapping';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses } from '../utils/themeHelpers';
+import { useState, useEffect } from "react";
+import { Icons } from "../utils/iconMapping";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass, getThemeClasses } from "../utils/themeHelpers";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
 declare global {
@@ -18,20 +18,21 @@ declare global {
 
 export default function InstallPrompt() {
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
     // Verificar se já está instalado
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true);
       return;
     }
 
     // Verificar se já foi instalado anteriormente
-    if (localStorage.getItem('pwa-installed') === 'true') {
+    if (localStorage.getItem("pwa-installed") === "true") {
       setIsInstalled(true);
       return;
     }
@@ -40,7 +41,7 @@ export default function InstallPrompt() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      
+
       // Mostrar prompt após 3 segundos
       setTimeout(() => {
         setShowPrompt(true);
@@ -51,15 +52,18 @@ export default function InstallPrompt() {
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setShowPrompt(false);
-      localStorage.setItem('pwa-installed', 'true');
+      localStorage.setItem("pwa-installed", "true");
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
@@ -72,9 +76,9 @@ export default function InstallPrompt() {
     // Aguardar resposta do usuário
     const { outcome } = await deferredPrompt.userChoice;
 
-    if (outcome === 'accepted') {
+    if (outcome === "accepted") {
       setShowPrompt(false);
-      localStorage.setItem('pwa-installed', 'true');
+      localStorage.setItem("pwa-installed", "true");
     }
 
     setDeferredPrompt(null);
@@ -85,12 +89,12 @@ export default function InstallPrompt() {
     // Não mostrar novamente por 7 dias
     const dismissUntil = new Date();
     dismissUntil.setDate(dismissUntil.getDate() + 7);
-    localStorage.setItem('pwa-dismissed-until', dismissUntil.toISOString());
+    localStorage.setItem("pwa-dismissed-until", dismissUntil.toISOString());
   };
 
   // Verificar se foi dispensado recentemente
   useEffect(() => {
-    const dismissedUntil = localStorage.getItem('pwa-dismissed-until');
+    const dismissedUntil = localStorage.getItem("pwa-dismissed-until");
     if (dismissedUntil) {
       const dismissDate = new Date(dismissedUntil);
       if (dismissDate > new Date()) {
@@ -107,17 +111,20 @@ export default function InstallPrompt() {
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-slide-up">
       <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-4">
         <div className="flex items-start gap-3">
-          <div className="flex-shrink-0">
-            <div className={`w-12 h-12 bg-gradient-to-br ${getThemeClasses(primaryColor, 'gradient-to')} rounded-lg flex items-center justify-center`}>
+          <div className="flex shrink-0">
+            <div
+              className={`w-12 h-12 bg-linear-to-br ${getThemeClasses(primaryColor, "gradient-to")} rounded-lg flex items-center justify-center`}
+            >
               <Icons.Download className="w-6 h-6 text-white" />
             </div>
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-gray-900 mb-1">
-              Instalar Gestor Fazenda
+              Instalar Gesrenciador de Fazendas
             </h3>
             <p className="text-xs text-gray-600 mb-3">
-              Instale nosso app para acesso rápido e uso offline. Funciona como um aplicativo nativo!
+              Instale nosso app para acesso rápido e uso offline. Funciona como
+              um aplicativo nativo!
             </p>
             <div className="flex gap-2">
               <button
@@ -146,4 +153,3 @@ export default function InstallPrompt() {
     </div>
   );
 }
-

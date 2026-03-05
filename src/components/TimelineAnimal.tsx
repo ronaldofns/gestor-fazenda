@@ -1,4 +1,4 @@
-import React, { useMemo, memo } from 'react';
+import { useMemo, memo } from 'react';
 import { Icons } from '../utils/iconMapping';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
@@ -39,7 +39,7 @@ interface TimelineEvent {
   descricao?: string;
   observacao?: string;
   meta?: Array<{ label: string; value: string }>;
-  dados?: any;
+  dados?: unknown;
 }
 
 // Memoizar o componente para evitar re-renders desnecessários
@@ -169,7 +169,7 @@ const TimelineAnimal = memo(function TimelineAnimal({
             })()
           : false;
 
-        let descricao = vacina.vacina || 'Vacinação';
+        const descricao = vacina.vacina || 'Vacinação';
         const meta: Array<{ label: string; value: string }> = [];
         if (vacina.dataVencimento) {
           meta.push({ label: 'Vencimento', value: formatarData(vacina.dataVencimento) });
@@ -299,7 +299,7 @@ const TimelineAnimal = memo(function TimelineAnimal({
   return (
     <div className="relative">
       {/* Linha vertical da timeline */}
-      <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-gray-300 via-gray-300 to-transparent dark:from-gray-600 dark:via-gray-600"></div>
+      <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-linear-to-b from-gray-300 via-gray-300 to-transparent dark:from-gray-600 dark:via-gray-600"></div>
 
       <div className="space-y-5">
         {eventos.map((evento, index) => {
@@ -326,12 +326,12 @@ const TimelineAnimal = memo(function TimelineAnimal({
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded">
                           {formatarData(evento.data)}
                         </span>
-                        {evento.tipo === 'vacina' && evento.dados?.vencida && (
+                        {evento.tipo === 'vacina' && (evento.dados as { vencida?: boolean } | undefined)?.vencida && (
                           <span className="text-xs px-2.5 py-1 rounded-full bg-red-600 text-white font-semibold">
                             Vencida
                           </span>
                         )}
-                        {evento.tipo === 'vacina' && evento.dados?.proximaVencimento && !evento.dados?.vencida && (
+                        {evento.tipo === 'vacina' && (evento.dados as { proximaVencimento?: boolean; vencida?: boolean } | undefined)?.proximaVencimento && !(evento.dados as { vencida?: boolean } | undefined)?.vencida && (
                           <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500 text-white font-semibold">
                             Vence em breve
                           </span>
@@ -361,7 +361,7 @@ const TimelineAnimal = memo(function TimelineAnimal({
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       {evento.tipo === 'nascimento' && onEditAnimal && (
                         <button
                           onClick={() => onEditAnimal(animal.id)}
@@ -373,7 +373,7 @@ const TimelineAnimal = memo(function TimelineAnimal({
                       )}
                       {evento.tipo === 'pesagem' && onEditPesagem && (
                         <button
-                          onClick={() => onEditPesagem(evento.dados as Pesagem)}
+                          onClick={() => onEditPesagem(evento.dados as unknown as Pesagem)}
                           className={`p-2 ${getPrimaryActionButtonLightClass(primaryColor)} rounded-lg transition-all hover:scale-110`}
                           title="Editar pesagem"
                         >
@@ -382,7 +382,7 @@ const TimelineAnimal = memo(function TimelineAnimal({
                       )}
                       {evento.tipo === 'vacina' && onEditVacina && (
                         <button
-                          onClick={() => onEditVacina(evento.dados as Vacina)}
+                          onClick={() => onEditVacina(evento.dados as unknown as Vacina)}
                           className={`p-2 ${getPrimaryActionButtonLightClass(primaryColor)} rounded-lg transition-all hover:scale-110`}
                           title="Editar vacinação"
                         >

@@ -12,10 +12,18 @@ import { getThemeClasses, getPrimaryButtonClass } from '../utils/themeHelpers';
 import { showToast } from '../utils/toast';
 import AutoBackupManager from '../components/AutoBackupManager';
 import TagsManager from '../components/TagsManager';
+import { pushPending } from '../api/syncService';
+import { supabase } from '../api/supabaseClient';
 import { exportarBackupCompleto, importarBackup } from '../utils/exportarDados';
 import Input from '../components/Input';
 import ModalRaca from '../components/ModalRaca';
 import ModalCategoria from '../components/ModalCategoria';
+
+type NavBluetooth = {
+  requestDevice(opts: { filters: { services: number[] }[]; optionalServices?: (number | string)[] }): Promise<{
+    gatt?: { connect(): Promise<{ getPrimaryService(n: number): Promise<{ getCharacteristic(n: number): Promise<{ startNotifications(): Promise<void>; addEventListener(n: string, f: (e: Event) => void): void }> }> }> };
+  }>;
+};
 
 export default function Configuracoes() {
   const { draftSettings: draftAppSettings, setDraftSettings: setDraftAppSettings, saveSettings: saveAppSettings, resetSettings: resetAppSettings } = useAppSettings();
@@ -42,11 +50,12 @@ export default function Configuracoes() {
       return;
     }
     try {
-      const backup = await exportarBackupCompleto();
+      const resultado = await exportarBackupCompleto();
+      const m = resultado.metadados;
       showToast({
         type: 'success',
         title: 'Backup exportado',
-        message: `Backup completo: ${backup.totais.fazendas} fazendas, ${backup.totais.matrizes} matrizes, ${backup.totais.nascimentos} nascimentos, ${backup.totais.desmamas} desmamas, ${backup.totais.pesagens} pesagens, ${backup.totais.vacinacoes} vacinações, ${backup.totais.usuarios} usuários.`
+        message: `Backup completo: ${m.totalFazendas} fazendas, ${m.totalMatrizes} matrizes, ${m.totalAnimais} animais, ${m.totalDesmamas} desmamas, ${m.totalPesagens} pesagens, ${m.totalVacinacoes} vacinações, ${m.totalUsuarios} usuários.`
       });
     } catch (error) {
       console.error('Erro ao exportar backup:', error);
@@ -63,8 +72,8 @@ export default function Configuracoes() {
     input.type = 'file';
     input.accept = '.json';
     
-    input.onchange = async (e: any) => {
-      const arquivo = e.target?.files?.[0];
+    input.onchange = async (e: Event) => {
+      const arquivo = (e.target as HTMLInputElement)?.files?.[0];
       if (!arquivo) return;
 
       try {
@@ -83,12 +92,13 @@ export default function Configuracoes() {
             message: resultado.mensagem
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Erro ao processar arquivo de backup.';
         console.error('Erro ao importar backup:', error);
         showToast({
           type: 'error',
           title: 'Erro ao importar',
-          message: error.message || 'Erro ao processar arquivo de backup.'
+          message: msg,
         });
       }
     };
@@ -101,7 +111,6 @@ export default function Configuracoes() {
     await saveAppSettings();
     
     try {
-      const { pushPending } = await import('../api/syncService');
       await pushPending();
       showToast({
         type: 'success',
@@ -123,7 +132,6 @@ export default function Configuracoes() {
     await resetAppSettings();
     
     try {
-      const { pushPending } = await import('../api/syncService');
       await pushPending();
       showToast({
         type: 'info',
@@ -154,14 +162,16 @@ export default function Configuracoes() {
   const racas = useLiveQuery(() => db.racas.toArray(), [activeTab === 'racas_categorias']) ?? [];
   const categorias = useLiveQuery(() => db.categorias.toArray(), [activeTab === 'racas_categorias']) ?? [];
 
+  const navBluetooth = typeof navigator !== 'undefined' ? (navigator as unknown as { bluetooth?: NavBluetooth }).bluetooth : undefined;
+
   const handleConectarBalança = async () => {
     setBalancaErro(null);
-    if (typeof navigator === 'undefined' || !navigator.bluetooth) {
+    if (typeof navigator === 'undefined' || !navBluetooth) {
       setBalancaErro('Bluetooth não disponível neste navegador. Use Chrome/Edge em HTTPS.');
       return;
     }
     try {
-      const device = await navigator.bluetooth.requestDevice({
+      const device = await navBluetooth.requestDevice({
         filters: [{ services: [0x181D] }],
         optionalServices: [0x181D, 'weight_scale', '0000181d-0000-1000-8000-00805f9b34fb']
       });
@@ -174,7 +184,7 @@ export default function Configuracoes() {
       const char = await service.getCharacteristic(0x2A9D);
       await char.startNotifications();
       char.addEventListener('characteristicvaluechanged', (event: Event) => {
-        const target = event.target as BluetoothRemoteGATTCharacteristic;
+        const target = event.target as { value?: DataView };
         const value = target?.value;
         if (value && value.byteLength >= 3) {
           const flags = value.getUint8(0);
@@ -210,9 +220,23 @@ export default function Configuracoes() {
       const perm = await Notification.requestPermission();
       setNotificationPermission(perm);
       if (perm === 'granted') {
-        const subscription = await subscribePush();
+        let subscription: PushSubscription | null = null;
+        try {
+          const reg = await navigator.serviceWorker?.ready;
+          const key = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+          if (reg?.pushManager && key) {
+            subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+          }
+        } catch {
+          subscription = null;
+        }
         if (subscription && user?.id) {
-          const payload = subscriptionToPayload(subscription);
+          const getKey = (name: 'p256dh' | 'auth'): string => {
+            const buf = subscription!.getKey(name);
+            if (!buf) return '';
+            return btoa(String.fromCharCode(...new Uint8Array(buf)));
+          };
+          const payload = { endpoint: subscription.endpoint, p256dh: getKey('p256dh'), auth: getKey('auth') };
           const { error } = await supabase.from('push_subscriptions').upsert(
             { user_id: user.id, endpoint: payload.endpoint, p256dh: payload.p256dh, auth: payload.auth },
             { onConflict: 'endpoint' }
@@ -229,7 +253,7 @@ export default function Configuracoes() {
       } else if (perm === 'denied') {
         showToast({ type: 'info', title: 'Notificações negadas', message: 'Você pode ativar depois nas configurações do navegador.' });
       }
-    } catch (e) {
+    } catch {
       showToast({ type: 'error', title: 'Erro', message: 'Não foi possível solicitar permissão.' });
     }
   };
@@ -261,7 +285,7 @@ export default function Configuracoes() {
                     : 'text-gray-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700/60 hover:text-gray-900 dark:hover:text-slate-200'
                 }`}
               >
-                <tab.icon className="w-4 h-4 flex-shrink-0" />
+                <tab.icon className="w-4 h-4 shrink-0" />
                 <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}
@@ -504,7 +528,7 @@ export default function Configuracoes() {
 
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
                   <div className="flex items-start gap-3">
-                    <Icons.Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <Icons.Info className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">O que são Tags?</h4>
                       <p className="text-xs text-blue-800 dark:text-blue-400 leading-relaxed">

@@ -5,6 +5,7 @@ import useOnline from "../hooks/useOnline";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { usePermissions } from "../hooks/usePermissions";
 import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { critical } from "../utils/logger";
 import {
   getPrimaryButtonClass,
   getPrimaryCardClass,
@@ -26,19 +27,18 @@ import {
 } from "../utils/syncEvents";
 import { exportarBackupCompleto, importarBackup } from "../utils/exportarDados";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { GiConsoleController } from "react-icons/gi";
 
 interface PendenciaTabela {
   nome: string;
   quantidade: number;
-  icone: any;
+  icone: React.ComponentType<{ className?: string }> | string;
   detalhes?: Array<{
     id: string;
     dataPesagem?: string;
     peso?: number;
     animalId?: string;
     observacao?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }>;
 }
 
@@ -63,7 +63,7 @@ export default function Sincronizacao() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
-  const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
+  const [_syncStats, setSyncStats] = useState<SyncStats | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title?: string;
@@ -823,15 +823,17 @@ export default function Sincronizacao() {
         title: "Sincronização concluída",
         message: mensagemToast,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const fim = new Date();
-      const erroMsg = error?.message || "Erro desconhecido";
+      const erroMsg =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      const stack = error instanceof Error ? error.stack : "";
 
       adicionarLog({
         timestamp: fim.toISOString(),
         sucesso: false,
         erro: erroMsg,
-        detalhes: error?.stack || "",
+        detalhes: stack,
       });
 
       showToast({
@@ -878,11 +880,12 @@ export default function Sincronizacao() {
           message: "Nenhuma pendência sem evento na fila.",
         });
       }
-    } catch (err: any) {
-      showToast({
-        type: "error",
-        message: err?.message || "Erro ao criar eventos para pendências.",
-      });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Erro ao criar eventos para pendências.";
+      showToast({ type: "error", message: msg });
     }
   };
 
@@ -900,11 +903,10 @@ export default function Sincronizacao() {
           message: "Nenhum evento com erro para reenviar.",
         });
       }
-    } catch (err: any) {
-      showToast({
-        type: "error",
-        message: err?.message || "Erro ao resetar eventos.",
-      });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao resetar eventos.";
+      showToast({ type: "error", message: msg });
     }
   };
 
@@ -919,19 +921,17 @@ export default function Sincronizacao() {
     }
     try {
       const resultado = await exportarBackupCompleto();
-      if (resultado && resultado.sucesso) {
-        showToast({
-          type: "success",
-          title: "Backup exportado",
-          message: `Arquivo: ${resultado.nomeArquivo}`,
-        });
-      }
-    } catch (error: any) {
-      console.error("Erro ao exportar backup:", error);
+      showToast({
+        type: "success",
+        title: "Backup exportado",
+        message: `Arquivo: ${resultado.nomeArquivo}`,
+      });
+    } catch (error: unknown) {
+      critical("Erro ao exportar backup:", error);
       showToast({
         type: "error",
         title: "Erro ao exportar backup",
-        message: error.message,
+        message: (error as Error).message,
       });
     }
   };
@@ -983,12 +983,12 @@ export default function Sincronizacao() {
           message: resultado.mensagem,
         });
       }
-    } catch (error: any) {
-      console.error("Erro ao importar backup:", error);
+    } catch (error: unknown) {
+      critical("Erro ao importar backup:", error);
       showToast({
         type: "error",
         title: "Erro ao importar backup",
-        message: error.message,
+        message: (error as Error).message,
       });
     } finally {
       setImporting(false);
@@ -1004,9 +1004,13 @@ export default function Sincronizacao() {
     const listener = (isSyncing: boolean) => {
       setSyncing(isSyncing);
     };
-    const syncListeners = (window as any).__syncListeners || new Set();
+    const win = window as Window & {
+      __syncListeners?: Set<(v: boolean) => void>;
+    };
+    const syncListeners =
+      win.__syncListeners ?? new Set<(v: boolean) => void>();
     syncListeners.add(listener);
-    (window as any).__syncListeners = syncListeners;
+    win.__syncListeners = syncListeners;
 
     const handleSyncStateChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ syncing: boolean }>;
@@ -1155,8 +1159,9 @@ export default function Sincronizacao() {
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           A sincronização é automática enquanto você está online (a cada{" "}
           {appSettings.intervaloSincronizacao ?? 30}s). Pendências ganham evento
-          na fila e são enviadas sem precisar clicar em nada. Use &quot;Sincronizar
-          Agora&quot; apenas se quiser forçar uma execução imediata.
+          na fila e são enviadas sem precisar clicar em nada. Use
+          &quot;Sincronizar Agora&quot; apenas se quiser forçar uma execução
+          imediata.
         </p>
 
         {/* Botão de Sincronização e Backup */}
@@ -1434,7 +1439,8 @@ export default function Sincronizacao() {
                               (tabela.nome === "Pesagens" ||
                                 tabela.nome === "Vacinações") && (
                                 <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                  Animal: {String(detalhe.animalId).substring(0, 200)}
+                                  Animal:{" "}
+                                  {String(detalhe.animalId).substring(0, 200)}
                                   ...
                                 </p>
                               )}
@@ -1584,7 +1590,10 @@ export default function Sincronizacao() {
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            ID: {evento.entityId != null ? `${String(evento.entityId).substring(0, 200)}...` : "—"}
+                            ID:{" "}
+                            {evento.entityId != null
+                              ? `${String(evento.entityId).substring(0, 200)}...`
+                              : "—"}
                           </p>
                           {evento.erro && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1 truncate">

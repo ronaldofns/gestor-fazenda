@@ -19,7 +19,7 @@ const schemaStatusAnimal = z.object({
   nome: z.string().min(1, msg.obrigatorio),
   cor: z.string().optional(),
   descricao: z.string().optional(),
-  ordem: z.preprocess((v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v)) ? undefined : v), z.number().optional())
+  ordem: z.string().optional(),
 });
 
 type FormDataStatusAnimal = z.infer<typeof schemaStatusAnimal>;
@@ -61,7 +61,8 @@ export default function StatusAnimalModal({
     reset,
     setValue
   } = useForm<FormDataStatusAnimal>({
-    resolver: zodResolver(schemaStatusAnimal)
+    resolver: zodResolver(schemaStatusAnimal),
+    defaultValues: { nome: '', cor: '', descricao: '', ordem: '' }
   });
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function StatusAnimalModal({
       setValue('nome', initialData.nome);
       setValue('descricao', initialData.descricao || '');
       setValue('cor', initialData.cor || '#10b981');
-      setValue('ordem', initialData.ordem || 0);
+      setValue('ordem', initialData.ordem != null ? String(initialData.ordem) : '');
       setCorSelecionada(initialData.cor || '#10b981');
     } else if (open && mode === 'create') {
       reset();
@@ -81,6 +82,10 @@ export default function StatusAnimalModal({
     setSaving(true);
     try {
       const now = new Date().toISOString();
+      const ordemNum =
+        data.ordem != null && String(data.ordem).trim() !== ''
+          ? parseFloat(String(data.ordem).trim())
+          : undefined;
 
       if (mode === 'create') {
         const novoStatus: StatusAnimal = {
@@ -88,7 +93,7 @@ export default function StatusAnimalModal({
           nome: data.nome.trim(),
           cor: corSelecionada,
           descricao: data.descricao?.trim(),
-          ordem: data.ordem || 99,
+          ordem: ordemNum ?? 99,
           ativo: true,
           createdAt: now,
           updatedAt: now,
@@ -106,7 +111,7 @@ export default function StatusAnimalModal({
           nome: data.nome.trim(),
           cor: corSelecionada,
           descricao: data.descricao?.trim(),
-          ordem: data.ordem,
+          ordem: ordemNum ?? initialData.ordem ?? 99,
           updatedAt: now,
           synced: false
         });
@@ -116,9 +121,10 @@ export default function StatusAnimalModal({
 
       onClose();
       reset();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Tente novamente';
       console.error('Erro ao salvar status:', error);
-      showToast({ type: 'error', title: 'Erro ao salvar', message: error?.message || 'Tente novamente' });
+      showToast({ type: 'error', title: 'Erro ao salvar', message: msg });
     } finally {
       setSaving(false);
     }
@@ -186,10 +192,10 @@ export default function StatusAnimalModal({
 
           {/* Ordem */}
           <Input
-            {...register('ordem', { valueAsNumber: true })}
+            {...register('ordem')}
             label="Ordem de Exibição"
             type="number"
-            min="0"
+            min={0}
             placeholder="0"
           />
 

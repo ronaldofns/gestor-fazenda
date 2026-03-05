@@ -91,7 +91,8 @@ export default function AnimalSearchCombobox({
       setSelectedAnimal(null);
       setInputValue("");
     }
-  }, [value]); // Remover selectedAnimal das dependências para evitar loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedAnimal omitido para evitar loop
+  }, [value]);
 
   // Busca assíncrona quando o usuário digita
   useEffect(() => {

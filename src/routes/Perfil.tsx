@@ -1,49 +1,53 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass, getThemeClasses, getPrimaryBadgeClass } from '../utils/themeHelpers';
-import { updateUser, verifyPassword } from '../utils/auth';
-import { showToast } from '../utils/toast';
-import { Icons } from '../utils/iconMapping';
-import { FaSpinner, FaClock, FaSave, FaBuilding } from 'react-icons/fa';
-import { db } from '../db/dexieDB';
-import { Fazenda } from '../db/models';
-import { getPrimaryBgClass } from '../utils/themeHelpers';
-import Input from '../components/Input';
+import { useState, useEffect } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import {
+  getPrimaryButtonClass,
+  getThemeClasses,
+  getPrimaryBadgeClass,
+} from "../utils/themeHelpers";
+import { updateUser, verifyPassword } from "../utils/auth";
+import { showToast } from "../utils/toast";
+import { Icons } from "../utils/iconMapping";
+import { FaSpinner, FaClock, FaSave, FaBuilding } from "react-icons/fa";
+import { db } from "../db/dexieDB";
+import { Fazenda } from "../db/models";
+import { getPrimaryBgClass } from "../utils/themeHelpers";
+import Input from "../components/Input";
 
 const roleLabels: Record<string, string> = {
-  admin: 'Administrador',
-  gerente: 'Gerente',
-  peao: 'Peão',
-  visitante: 'Visitante'
+  admin: "Administrador",
+  gerente: "Gerente",
+  peao: "Peão",
+  visitante: "Visitante",
 };
 
 export default function Perfil() {
   const { user, refreshUser } = useAuth();
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [fazenda, setFazenda] = useState<Fazenda | null>(null);
-  
+
   const [formData, setFormData] = useState({
-    nome: '',
-    senhaAtual: '',
-    novaSenha: '',
-    confirmarSenha: ''
+    nome: "",
+    senhaAtual: "",
+    novaSenha: "",
+    confirmarSenha: "",
   });
 
   useEffect(() => {
     if (user) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        nome: user.nome
+        nome: user.nome,
       }));
 
       // Carregar fazenda se houver
       if (user.fazendaId) {
-        db.fazendas.get(user.fazendaId).then(f => {
+        db.fazendas.get(user.fazendaId).then((f) => {
           if (f) setFazenda(f);
         });
       }
@@ -56,9 +60,9 @@ export default function Perfil() {
     // Validações
     if (!formData.nome.trim()) {
       showToast({
-        type: 'error',
-        title: 'Nome obrigatório',
-        message: 'O nome não pode estar vazio.'
+        type: "error",
+        title: "Nome obrigatório",
+        message: "O nome não pode estar vazio.",
       });
       return;
     }
@@ -67,9 +71,9 @@ export default function Perfil() {
     if (formData.novaSenha || formData.senhaAtual || formData.confirmarSenha) {
       if (!formData.senhaAtual) {
         showToast({
-          type: 'error',
-          title: 'Senha atual obrigatória',
-          message: 'Informe sua senha atual para alterar a senha.'
+          type: "error",
+          title: "Senha atual obrigatória",
+          message: "Informe sua senha atual para alterar a senha.",
         });
         return;
       }
@@ -77,27 +81,27 @@ export default function Perfil() {
       // Verificar se a senha atual está correta
       if (!verifyPassword(formData.senhaAtual, user.senhaHash)) {
         showToast({
-          type: 'error',
-          title: 'Senha atual incorreta',
-          message: 'A senha atual informada está incorreta.'
+          type: "error",
+          title: "Senha atual incorreta",
+          message: "A senha atual informada está incorreta.",
         });
         return;
       }
 
       if (!formData.novaSenha || formData.novaSenha.length < 6) {
         showToast({
-          type: 'error',
-          title: 'Senha inválida',
-          message: 'A nova senha deve ter pelo menos 6 caracteres.'
+          type: "error",
+          title: "Senha inválida",
+          message: "A nova senha deve ter pelo menos 6 caracteres.",
         });
         return;
       }
 
       if (formData.novaSenha !== formData.confirmarSenha) {
         showToast({
-          type: 'error',
-          title: 'Senhas não coincidem',
-          message: 'A nova senha e a confirmação devem ser iguais.'
+          type: "error",
+          title: "Senhas não coincidem",
+          message: "A nova senha e a confirmação devem ser iguais.",
         });
         return;
       }
@@ -105,8 +109,8 @@ export default function Perfil() {
 
     setLoading(true);
     try {
-      const updateData: any = {
-        nome: formData.nome.trim()
+      const updateData: Record<string, unknown> = {
+        nome: formData.nome.trim(),
       };
 
       // Se está alterando senha, incluir no update
@@ -115,29 +119,33 @@ export default function Perfil() {
       }
 
       await updateUser(user.id, updateData);
-      
+
       // Atualizar dados do usuário no contexto
       await refreshUser();
 
       showToast({
-        type: 'success',
-        title: 'Perfil atualizado',
-        message: 'Suas informações foram atualizadas com sucesso.'
+        type: "success",
+        title: "Perfil atualizado",
+        message: "Suas informações foram atualizadas com sucesso.",
       });
 
       setEditing(false);
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        senhaAtual: '',
-        novaSenha: '',
-        confirmarSenha: ''
+        senhaAtual: "",
+        novaSenha: "",
+        confirmarSenha: "",
       }));
-    } catch (error: any) {
-      console.error('Erro ao atualizar perfil:', error);
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar o perfil. Tente novamente.";
+      console.error("Erro ao atualizar perfil:", error);
       showToast({
-        type: 'error',
-        title: 'Erro ao atualizar',
-        message: error?.message || 'Não foi possível atualizar o perfil. Tente novamente.'
+        type: "error",
+        title: "Erro ao atualizar",
+        message: msg,
       });
     } finally {
       setLoading(false);
@@ -148,9 +156,9 @@ export default function Perfil() {
     if (user) {
       setFormData({
         nome: user.nome,
-        senhaAtual: '',
-        novaSenha: '',
-        confirmarSenha: ''
+        senhaAtual: "",
+        novaSenha: "",
+        confirmarSenha: "",
       });
     }
     setEditing(false);
@@ -158,32 +166,32 @@ export default function Perfil() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const getAvatarColor = (name: string): string => {
     const colors = [
-      'bg-green-500',
-      'bg-green-500',
-      'bg-purple-500',
-      'bg-pink-500',
-      'bg-indigo-500',
-      'bg-teal-500',
-      'bg-orange-500',
-      'bg-red-500'
+      "bg-green-500",
+      "bg-green-500",
+      "bg-purple-500",
+      "bg-pink-500",
+      "bg-indigo-500",
+      "bg-teal-500",
+      "bg-orange-500",
+      "bg-red-500",
     ];
     const index = name.charCodeAt(0) % colors.length;
     return colors[index];
   };
 
   const getUserInitials = (name: string): string => {
-    const parts = name.trim().split(' ');
+    const parts = name.trim().split(" ");
     if (parts.length >= 2) {
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
@@ -194,15 +202,19 @@ export default function Perfil() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <FaSpinner className={`w-8 h-8 animate-spin ${getThemeClasses(primaryColor, 'text')} mx-auto mb-4`} />
-          <p className="text-gray-600 dark:text-slate-400">Carregando perfil...</p>
+          <FaSpinner
+            className={`w-8 h-8 animate-spin ${getThemeClasses(primaryColor, "text")} mx-auto mb-4`}
+          />
+          <p className="text-gray-600 dark:text-slate-400">
+            Carregando perfil...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-2 sm:p-4 md:p-6 lg:p-8 max-w-full overflow-x-hidden">
+    <div className="mx-auto p-2 sm:p-4 md:p-6 lg:p-8 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">
@@ -241,7 +253,9 @@ export default function Perfil() {
                     label="Nome"
                     type="text"
                     value={formData.nome}
-                    onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, nome: e.target.value }))
+                    }
                     placeholder="Seu nome completo"
                   />
                 ) : (
@@ -249,7 +263,9 @@ export default function Perfil() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                       Nome
                     </label>
-                    <p className="text-sm text-gray-900 dark:text-slate-100 py-2">{user.nome}</p>
+                    <p className="text-sm text-gray-900 dark:text-slate-100 py-2">
+                      {user.nome}
+                    </p>
                   </>
                 )}
               </div>
@@ -259,9 +275,12 @@ export default function Perfil() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                   Email
                 </label>
-                <p className="text-sm text-gray-900 dark:text-slate-100 py-2">{user.email}</p>
+                <p className="text-sm text-gray-900 dark:text-slate-100 py-2">
+                  {user.email}
+                </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                  O email não pode ser alterado. Entre em contato com o administrador se necessário.
+                  O email não pode ser alterado. Entre em contato com o
+                  administrador se necessário.
                 </p>
               </div>
 
@@ -271,7 +290,9 @@ export default function Perfil() {
                   Função
                 </label>
                 <div className="flex items-center gap-2 py-2">
-                  <Icons.Shield className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')}`} />
+                  <Icons.Shield
+                    className={`w-4 h-4 ${getThemeClasses(primaryColor, "text")}`}
+                  />
                   <span className="text-sm text-gray-900 dark:text-slate-100">
                     {roleLabels[user.role] || user.role}
                   </span>
@@ -289,7 +310,9 @@ export default function Perfil() {
                   </label>
                   <div className="flex items-center gap-2 py-2">
                     <FaBuilding className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                    <span className="text-sm text-gray-900 dark:text-slate-100">{fazenda.nome}</span>
+                    <span className="text-sm text-gray-900 dark:text-slate-100">
+                      {fazenda.nome}
+                    </span>
                   </div>
                 </div>
               )}
@@ -302,13 +325,19 @@ export default function Perfil() {
                 <div className="flex items-center gap-2 py-2">
                   {user.ativo ? (
                     <>
-                      <div className={`w-2 h-2 rounded-full ${getPrimaryBgClass(primaryColor)}`}></div>
-                      <span className="text-sm text-gray-900 dark:text-slate-100">Ativo</span>
+                      <div
+                        className={`w-2 h-2 rounded-full ${getPrimaryBgClass(primaryColor)}`}
+                      ></div>
+                      <span className="text-sm text-gray-900 dark:text-slate-100">
+                        Ativo
+                      </span>
                     </>
                   ) : (
                     <>
                       <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                      <span className="text-sm text-gray-900 dark:text-slate-100">Inativo</span>
+                      <span className="text-sm text-gray-900 dark:text-slate-100">
+                        Inativo
+                      </span>
                     </>
                   )}
                 </div>
@@ -360,7 +389,12 @@ export default function Perfil() {
                 label="Senha Atual"
                 type="password"
                 value={formData.senhaAtual}
-                onChange={(e) => setFormData(prev => ({ ...prev, senhaAtual: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    senhaAtual: e.target.value,
+                  }))
+                }
                 disabled={!editing}
                 placeholder="Digite sua senha atual"
               />
@@ -369,7 +403,12 @@ export default function Perfil() {
                 label="Nova Senha"
                 type="password"
                 value={formData.novaSenha}
-                onChange={(e) => setFormData(prev => ({ ...prev, novaSenha: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    novaSenha: e.target.value,
+                  }))
+                }
                 disabled={!editing}
                 placeholder="Mínimo 6 caracteres"
               />
@@ -378,7 +417,12 @@ export default function Perfil() {
                 label="Confirmar Nova Senha"
                 type="password"
                 value={formData.confirmarSenha}
-                onChange={(e) => setFormData(prev => ({ ...prev, confirmarSenha: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    confirmarSenha: e.target.value,
+                  }))
+                }
                 disabled={!editing}
                 placeholder="Confirme a nova senha"
               />
@@ -390,7 +434,9 @@ export default function Perfil() {
         <div className="space-y-6">
           {/* Avatar Card */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 p-6 text-center">
-            <div className={`w-24 h-24 rounded-full ${getAvatarColor(user.nome)} flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-lg`}>
+            <div
+              className={`w-24 h-24 rounded-full ${getAvatarColor(user.nome)} flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-lg`}
+            >
               {getUserInitials(user.nome)}
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-1">
@@ -399,7 +445,9 @@ export default function Perfil() {
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
               {user.email}
             </p>
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${getPrimaryBadgeClass(primaryColor)} text-xs font-medium`}>
+            <div
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${getPrimaryBadgeClass(primaryColor)} text-xs font-medium`}
+            >
               <Icons.Shield className="w-3 h-3" />
               {roleLabels[user.role] || user.role}
             </div>
@@ -412,29 +460,41 @@ export default function Perfil() {
             </h3>
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Conta criada em</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  Conta criada em
+                </p>
                 <p className="text-sm text-gray-900 dark:text-slate-100">
                   {formatDate(user.createdAt)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Última atualização</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  Última atualização
+                </p>
                 <p className="text-sm text-gray-900 dark:text-slate-100">
                   {formatDate(user.updatedAt)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Sincronização</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  Sincronização
+                </p>
                 <div className="flex items-center gap-2">
                   {user.synced ? (
                     <>
-                      <Icons.CheckCircle className={`w-4 h-4 ${getThemeClasses(primaryColor, 'text')}`} />
-                      <span className="text-sm text-gray-900 dark:text-slate-100">Sincronizado</span>
+                      <Icons.CheckCircle
+                        className={`w-4 h-4 ${getThemeClasses(primaryColor, "text")}`}
+                      />
+                      <span className="text-sm text-gray-900 dark:text-slate-100">
+                        Sincronizado
+                      </span>
                     </>
                   ) : (
                     <>
                       <FaClock className="w-4 h-4 text-amber-500" />
-                      <span className="text-sm text-gray-900 dark:text-slate-100">Pendente</span>
+                      <span className="text-sm text-gray-900 dark:text-slate-100">
+                        Pendente
+                      </span>
                     </>
                   )}
                 </div>

@@ -5,7 +5,7 @@
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import {
   addRelatorioHeader,
   addRelatorioFooters,
@@ -45,8 +45,9 @@ const THEME = {
  * voltem para o estado base após o desenho.
  */
 function withTextState(doc: jsPDF, fn: () => void) {
-  const currentFont = (doc as any).getFont?.();
-  const currentSize = (doc as any).getFontSize?.();
+  const d = doc as jsPDF & { getFont?: () => { fontName?: string; fontStyle?: string }; getFontSize?: () => number };
+  const currentFont = d.getFont?.();
+  const currentSize = d.getFontSize?.();
   const fontName = currentFont?.fontName ?? "helvetica";
   const fontStyle = currentFont?.fontStyle ?? "normal";
   const fontSize = typeof currentSize === "number" ? currentSize : undefined;
@@ -282,10 +283,10 @@ export function exportarConfinamentoPDF(
 }
 
 /** Gera Excel do relatório de confinamento */
-export function exportarConfinamentoExcel(
+export async function exportarConfinamentoExcel(
   dados: DadosConfinamentoExportacao,
-): void {
-  const wb = XLSX.utils.book_new();
+): Promise<void> {
+  const workbook = new ExcelJS.Workbook();
   const r = dados.resumo;
 
   const resumo = [
@@ -302,8 +303,8 @@ export function exportarConfinamentoExcel(
       r.custoPorArroba != null ? r.custoPorArroba.toFixed(2) : "-",
     ],
   ];
-  const wsResumo = XLSX.utils.aoa_to_sheet(resumo);
-  XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
+  const wsResumo = workbook.addWorksheet("Resumo");
+  wsResumo.addRows(resumo);
 
   if (dados.porConfinamento.length > 0) {
     const rows = [
@@ -334,14 +335,20 @@ export function exportarConfinamentoExcel(
         c.diasMedio > 0 ? c.diasMedio.toFixed(0) : "-",
       ]),
     ];
-    const wsDetalhe = XLSX.utils.aoa_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, wsDetalhe, "Por confinamento");
+    const wsDetalhe = workbook.addWorksheet("Por confinamento");
+    wsDetalhe.addRows(rows);
   }
 
-  XLSX.writeFile(
-    wb,
-    `relatorio-confinamento-${new Date().toISOString().slice(0, 10)}.xlsx`,
-  );
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `relatorio-confinamento-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -489,7 +496,7 @@ export function exportarConfinamentoDetalhePDF(
       const pct = Math.round((diff / anterior) * 100);
       let evolStr = "";
       let textColor: [number, number, number] = EVOLUCAO_TEXTO_IGUAL;
-      let fillColor: [number, number, number] = EVOLUCAO_NEUTRO;
+      const fillColor: [number, number, number] = EVOLUCAO_NEUTRO;
       if (diff > 0) {
         evolStr = ` (+${diff}kg ${pct}%)`;
         textColor = EVOLUCAO_TEXTO_GANHO;

@@ -1,31 +1,31 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { db } from '../db/dexieDB';
-import { TipoAnimal } from '../db/models';
-import { uuid } from '../utils/uuid';
-import { showToast } from '../utils/toast';
-import { Icons } from '../utils/iconMapping';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
-import Modal from './Modal';
-import Input from './Input';
-import Textarea from './Textarea';
-import { msg } from '../utils/validationMessages';
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { db } from "../db/dexieDB";
+import { TipoAnimal } from "../db/models";
+import { uuid } from "../utils/uuid";
+import { showToast } from "../utils/toast";
+import { Icons } from "../utils/iconMapping";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass } from "../utils/themeHelpers";
+import Modal from "./Modal";
+import Input from "./Input";
+import Textarea from "./Textarea";
+import { msg } from "../utils/validationMessages";
 
 const schemaTipoAnimal = z.object({
   nome: z.string().min(1, msg.obrigatorio),
   descricao: z.string().optional(),
-  ordem: z.preprocess((v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v)) ? undefined : v), z.number().optional())
+  ordem: z.number().optional(),
 });
 
 type FormDataTipoAnimal = z.infer<typeof schemaTipoAnimal>;
 
 interface TipoAnimalModalProps {
   open: boolean;
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   initialData?: TipoAnimal | null;
   onClose: () => void;
   onSuccess?: (tipoId: string) => void;
@@ -36,10 +36,10 @@ export default function TipoAnimalModal({
   mode,
   initialData,
   onClose,
-  onSuccess
+  onSuccess,
 }: TipoAnimalModalProps) {
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
   const [saving, setSaving] = useState(false);
 
   const {
@@ -47,17 +47,17 @@ export default function TipoAnimalModal({
     handleSubmit,
     formState: { errors },
     reset,
-    setValue
+    setValue,
   } = useForm<FormDataTipoAnimal>({
-    resolver: zodResolver(schemaTipoAnimal)
+    resolver: zodResolver(schemaTipoAnimal),
   });
 
   useEffect(() => {
-    if (open && mode === 'edit' && initialData) {
-      setValue('nome', initialData.nome);
-      setValue('descricao', initialData.descricao || '');
-      setValue('ordem', initialData.ordem || 0);
-    } else if (open && mode === 'create') {
+    if (open && mode === "edit" && initialData) {
+      setValue("nome", initialData.nome);
+      setValue("descricao", initialData.descricao || "");
+      setValue("ordem", initialData.ordem || 0);
+    } else if (open && mode === "create") {
       reset();
     }
   }, [open, mode, initialData, setValue, reset]);
@@ -67,7 +67,7 @@ export default function TipoAnimalModal({
     try {
       const now = new Date().toISOString();
 
-      if (mode === 'create') {
+      if (mode === "create") {
         const novoTipo: TipoAnimal = {
           id: uuid(),
           nome: data.nome.trim(),
@@ -76,32 +76,41 @@ export default function TipoAnimalModal({
           ativo: true,
           createdAt: now,
           updatedAt: now,
-          synced: false
+          synced: false,
         };
 
         await db.tiposAnimal.add(novoTipo);
-        showToast({ type: 'success', title: 'Tipo criado', message: novoTipo.nome });
-        
+        showToast({
+          type: "success",
+          title: "Tipo criado",
+          message: novoTipo.nome,
+        });
+
         if (onSuccess) {
           onSuccess(novoTipo.id);
         }
-      } else if (mode === 'edit' && initialData) {
+      } else if (mode === "edit" && initialData) {
         await db.tiposAnimal.update(initialData.id, {
           nome: data.nome.trim(),
           descricao: data.descricao?.trim(),
           ordem: data.ordem,
           updatedAt: now,
-          synced: false
+          synced: false,
         });
 
-        showToast({ type: 'success', title: 'Tipo atualizado', message: data.nome });
+        showToast({
+          type: "success",
+          title: "Tipo atualizado",
+          message: data.nome,
+        });
       }
 
       onClose();
       reset();
-    } catch (error: any) {
-      console.error('Erro ao salvar tipo:', error);
-      showToast({ type: 'error', title: 'Erro ao salvar', message: error?.message || 'Tente novamente' });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Tente novamente";
+      console.error("Erro ao salvar tipo:", error);
+      showToast({ type: "error", title: "Erro ao salvar", message: msg });
     } finally {
       setSaving(false);
     }
@@ -112,7 +121,7 @@ export default function TipoAnimalModal({
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
-            {mode === 'create' ? 'Novo Tipo de Animal' : 'Editar Tipo'}
+            {mode === "create" ? "Novo Tipo de Animal" : "Editar Tipo"}
           </h2>
           <button
             onClick={onClose}
@@ -122,10 +131,14 @@ export default function TipoAnimalModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4" noValidate>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="p-4 space-y-4"
+          noValidate
+        >
           {/* Nome */}
           <Input
-            {...register('nome')}
+            {...register("nome")}
             label="Nome do Tipo"
             type="text"
             required
@@ -135,7 +148,7 @@ export default function TipoAnimalModal({
 
           {/* Descrição */}
           <Textarea
-            {...register('descricao')}
+            {...register("descricao")}
             label="Descrição (opcional)"
             rows={2}
             placeholder="Ex: Macho até 12 meses..."
@@ -143,7 +156,7 @@ export default function TipoAnimalModal({
 
           {/* Ordem */}
           <Input
-            {...register('ordem', { valueAsNumber: true })}
+            {...register("ordem", { valueAsNumber: true })}
             label="Ordem de Exibição"
             type="number"
             min="0"
@@ -173,7 +186,7 @@ export default function TipoAnimalModal({
               ) : (
                 <>
                   <Icons.Check className="w-4 h-4" />
-                  {mode === 'create' ? 'Criar' : 'Salvar'}
+                  {mode === "create" ? "Criar" : "Salvar"}
                 </>
               )}
             </button>

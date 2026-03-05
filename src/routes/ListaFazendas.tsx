@@ -1,64 +1,70 @@
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/dexieDB';
-import { Icons } from '../utils/iconMapping';
-import { showToast } from '../utils/toast';
-import FazendaModal from '../components/FazendaModal';
-import HistoricoAlteracoes from '../components/HistoricoAlteracoes';
-import ConfirmDialog from '../components/ConfirmDialog';
-import { Fazenda } from '../db/models';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { usePermissions } from '../hooks/usePermissions';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
-import FazendaTags from '../components/FazendaTags';
-import { useAllEntityTags } from '../hooks/useAllEntityTags';
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useMemo, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "../db/dexieDB";
+import { Icons } from "../utils/iconMapping";
+import { showToast } from "../utils/toast";
+import FazendaModal from "../components/FazendaModal";
+import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { Fazenda } from "../db/models";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { usePermissions } from "../hooks/usePermissions";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass } from "../utils/themeHelpers";
+import FazendaTags from "../components/FazendaTags";
+import { useAllEntityTags } from "../hooks/useAllEntityTags";
+import { supabase } from "../api/supabaseClient";
 
 export default function ListaFazendas() {
   const { appSettings } = useAppSettings();
   const { hasPermission } = usePermissions();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
-  const podeGerenciarFazendas = hasPermission('gerenciar_fazendas');
-  
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
+  const podeGerenciarFazendas = hasPermission("gerenciar_fazendas");
+
   // Buscar tags de TODAS as fazendas uma única vez (otimização anti-OOM)
-  const fazendaTagsMap = useAllEntityTags('fazenda');
-  
+  const fazendaTagsMap = useAllEntityTags("fazenda");
+
   const fazendasRaw = useLiveQuery(() => db.fazendas.toArray(), []) || [];
   const fazendas = useMemo(() => {
-    return fazendasRaw.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    return fazendasRaw.sort((a, b) =>
+      (a.nome || "").localeCompare(b.nome || ""),
+    );
   }, [fazendasRaw]);
 
   // Estados do modal
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [fazendaEditando, setFazendaEditando] = useState<Fazenda | null>(null);
-  
+
   // Estados do histórico
   const [historicoOpen, setHistoricoOpen] = useState(false);
-  const [historicoEntityId, setHistoricoEntityId] = useState<string | null>(null);
-  
+  const [historicoEntityId, setHistoricoEntityId] = useState<string | null>(
+    null,
+  );
+
   // Estado do modal de confirmação
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title?: string;
     message: string;
     onConfirm: () => void;
-    variant?: 'danger' | 'warning' | 'info';
+    variant?: "danger" | "warning" | "info";
   }>({
     open: false,
-    message: '',
-    onConfirm: () => {}
+    message: "",
+    onConfirm: () => {},
   });
 
   const handleNovaFazenda = () => {
     setFazendaEditando(null);
-    setModalMode('create');
+    setModalMode("create");
     setModalOpen(true);
   };
 
   const handleEditarFazenda = (fazenda: Fazenda) => {
     setFazendaEditando(fazenda);
-    setModalMode('edit');
+    setModalMode("edit");
     setModalOpen(true);
   };
 
@@ -70,70 +76,87 @@ export default function ListaFazendas() {
   const handleDelete = async (fazendaId: string, fazendaNome: string) => {
     setConfirmDialog({
       open: true,
-      title: 'Excluir fazenda',
+      title: "Excluir fazenda",
       message: `Deseja realmente excluir a fazenda "${fazendaNome}"?`,
-      variant: 'danger',
+      variant: "danger",
       onConfirm: async () => {
-        setConfirmDialog(prev => ({ ...prev, open: false }));
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
         try {
-      // Verificar se há animais associados a esta fazenda
-      const animaisFazenda = await db.animais.where('fazendaId').equals(fazendaId).toArray();
-      if (animaisFazenda.length > 0) {
-        showToast({
-          type: 'warning',
-          title: 'Exclusão bloqueada',
-          message: `Existem ${animaisFazenda.length} animal(is) associados a "${fazendaNome}". Exclua ou transfira os animais antes de excluir a fazenda.`
-        });
-        return;
-      }
-
-      // Verificar se há matrizes associadas a esta fazenda
-      const matrizes = await db.matrizes.where('fazendaId').equals(fazendaId).toArray();
-      
-      if (matrizes.length > 0) {
-        showToast({
-          type: 'warning',
-          title: 'Exclusão bloqueada',
-          message: `Existem ${matrizes.length} matriz(es) associadas a "${fazendaNome}". Exclua as matrizes antes de excluir a fazenda.`
-        });
-        return;
-      }
-
-      // Excluir no servidor se tiver remoteId
-      const fazenda = await db.fazendas.get(fazendaId);
-      if (fazenda?.remoteId) {
-        try {
-          const { supabase } = await import('../api/supabaseClient');
-          const { error } = await supabase.from('fazendas_online').delete().eq('id', fazenda.remoteId);
-          if (error) {
-            // Se o erro for de foreign key constraint, informar melhor
-            if (error.code === '23503' || error.message?.includes('foreign key')) {
-              showToast({
-                type: 'warning',
-                title: 'Exclusão bloqueada no servidor',
-                message: 'Ainda existem registros associados a esta fazenda no servidor.'
-              });
-              return;
-            }
-            console.warn('Erro ao excluir fazenda no servidor:', error);
+          // Verificar se há animais associados a esta fazenda
+          const animaisFazenda = await db.animais
+            .where("fazendaId")
+            .equals(fazendaId)
+            .toArray();
+          if (animaisFazenda.length > 0) {
+            showToast({
+              type: "warning",
+              title: "Exclusão bloqueada",
+              message: `Existem ${animaisFazenda.length} animal(is) associados a "${fazendaNome}". Exclua ou transfira os animais antes de excluir a fazenda.`,
+            });
+            return;
           }
-        } catch (err) {
-          console.warn('Erro ao excluir fazenda no servidor:', err);
-        }
-      }
+
+          // Verificar se há matrizes associadas a esta fazenda
+          const matrizes = await db.matrizes
+            .where("fazendaId")
+            .equals(fazendaId)
+            .toArray();
+
+          if (matrizes.length > 0) {
+            showToast({
+              type: "warning",
+              title: "Exclusão bloqueada",
+              message: `Existem ${matrizes.length} matriz(es) associadas a "${fazendaNome}". Exclua as matrizes antes de excluir a fazenda.`,
+            });
+            return;
+          }
+
+          // Excluir no servidor se tiver remoteId
+          const fazenda = await db.fazendas.get(fazendaId);
+          if (fazenda?.remoteId) {
+            try {
+              const { error } = await supabase
+                .from("fazendas_online")
+                .delete()
+                .eq("id", fazenda.remoteId);
+              if (error) {
+                // Se o erro for de foreign key constraint, informar melhor
+                if (
+                  error.code === "23503" ||
+                  error.message?.includes("foreign key")
+                ) {
+                  showToast({
+                    type: "warning",
+                    title: "Exclusão bloqueada no servidor",
+                    message:
+                      "Ainda existem registros associados a esta fazenda no servidor.",
+                  });
+                  return;
+                }
+                console.warn("Erro ao excluir fazenda no servidor:", error);
+              }
+            } catch (err) {
+              console.warn("Erro ao excluir fazenda no servidor:", err);
+            }
+          }
 
           // Excluir localmente
           await db.fazendas.delete(fazendaId);
-          showToast({ type: 'success', title: 'Fazenda excluída', message: fazendaNome });
-        } catch (error) {
-          console.error('Erro ao excluir fazenda:', error);
           showToast({
-            type: 'error',
-            title: 'Erro ao excluir',
-            message: error instanceof Error ? error.message : 'Erro desconhecido'
+            type: "success",
+            title: "Fazenda excluída",
+            message: fazendaNome,
+          });
+        } catch (error) {
+          console.error("Erro ao excluir fazenda:", error);
+          showToast({
+            type: "error",
+            title: "Erro ao excluir",
+            message:
+              error instanceof Error ? error.message : "Erro desconhecido",
           });
         }
-      }
+      },
     });
   };
 
@@ -159,78 +182,85 @@ export default function ListaFazendas() {
             <div className="hidden md:block overflow-x-auto -mx-2 sm:mx-0 max-w-full">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-sm">
                 <thead className="bg-gray-100 dark:bg-slate-800">
-              <tr>
+                  <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
-                  Nome
-                </th>
+                      Nome
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
-                  Status
-                </th>
+                      Status
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
-                  Tags
-                </th>
+                      Tags
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider">
-                  Ações
-                </th>
-              </tr>
-            </thead>
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
-              {fazendas.map((fazenda) => (
-                    <tr key={fazenda.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center">
-                      {fazenda.logoUrl && (
-                        <img 
-                          src={fazenda.logoUrl} 
-                          alt={fazenda.nome}
-                          className="w-8 h-8 rounded-full mr-3 object-cover"
-                        />
-                      )}
-                          <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{fazenda.nome}</span>
-                    </div>
-                  </td>
+                  {fazendas.map((fazenda) => (
+                    <tr
+                      key={fazenda.id}
+                      className="hover:bg-gray-50 dark:hover:bg-slate-800"
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {fazenda.logoUrl && (
+                            <img
+                              src={fazenda.logoUrl}
+                              alt={fazenda.nome}
+                              className="w-8 h-8 rounded-full mr-3 object-cover"
+                            />
+                          )}
+                          <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                            {fazenda.nome}
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-slate-300">
-                    {fazenda.synced ? (
-                      <span className="text-green-600">Sincronizado</span>
-                    ) : (
-                      <span className="text-yellow-600">Pendente</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <FazendaTags tags={fazendaTagsMap.get(fazenda.id)} />
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      {podeGerenciarFazendas && (
-                        <button
-                          onClick={() => handleEditarFazenda(fazenda)}
-                          className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-900 transition-colors"
-                          title="Editar fazenda"
-                        >
-                          <Icons.Edit className="w-5 h-5" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          setHistoricoEntityId(fazenda.id);
-                          setHistoricoOpen(true);
-                        }}
-                        className="text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-900 transition-colors"
-                        title="Ver histórico de alterações"
-                      >
-                        <Icons.History className="w-5 h-5" />
-                      </button>
-                      {podeGerenciarFazendas && (
-                        <button
-                          onClick={() => handleDelete(fazenda.id, fazenda.nome)}
-                          className="text-red-600 hover:bg-red-50 hover:text-red-900 transition-colors"
-                          title="Excluir fazenda"
-                        >
-                          <Icons.Trash2 className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
+                        {fazenda.synced ? (
+                          <span className="text-green-600">Sincronizado</span>
+                        ) : (
+                          <span className="text-yellow-600">Pendente</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <FazendaTags tags={fazendaTagsMap.get(fazenda.id)} />
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          {podeGerenciarFazendas && (
+                            <button
+                              onClick={() => handleEditarFazenda(fazenda)}
+                              className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-900 transition-colors"
+                              title="Editar fazenda"
+                            >
+                              <Icons.Edit className="w-5 h-5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setHistoricoEntityId(fazenda.id);
+                              setHistoricoOpen(true);
+                            }}
+                            className="text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-900 transition-colors"
+                            title="Ver histórico de alterações"
+                          >
+                            <Icons.History className="w-5 h-5" />
+                          </button>
+                          {podeGerenciarFazendas && (
+                            <button
+                              onClick={() =>
+                                handleDelete(fazenda.id, fazenda.nome)
+                              }
+                              className="text-red-600 hover:bg-red-50 hover:text-red-900 transition-colors"
+                              title="Excluir fazenda"
+                            >
+                              <Icons.Trash2 className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -250,7 +280,7 @@ export default function ListaFazendas() {
                         <img
                           src={fazenda.logoUrl}
                           alt={fazenda.nome}
-                          className="w-8 h-8 rounded-full mr-3 object-cover flex-shrink-0"
+                          className="w-8 h-8 rounded-full mr-3 object-cover shrink-0"
                         />
                       )}
                       <div className="min-w-0">
@@ -258,11 +288,11 @@ export default function ListaFazendas() {
                           {fazenda.nome}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">
-                          {fazenda.synced ? 'Sincronizado' : 'Pendente'}
+                          {fazenda.synced ? "Sincronizado" : "Pendente"}
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-shrink-0 gap-2">
+                    <div className="flex shrink-0 gap-2">
                       {podeGerenciarFazendas && (
                         <button
                           onClick={() => handleEditarFazenda(fazenda)}
@@ -319,7 +349,7 @@ export default function ListaFazendas() {
           open={historicoOpen}
           entity="fazenda"
           entityId={historicoEntityId}
-          entityNome={fazendas.find(f => f.id === historicoEntityId)?.nome}
+          entityNome={fazendas.find((f) => f.id === historicoEntityId)?.nome}
           onClose={() => {
             setHistoricoOpen(false);
             setHistoricoEntityId(null);
@@ -337,7 +367,7 @@ export default function ListaFazendas() {
         message={confirmDialog.message}
         variant={confirmDialog.variant}
         onConfirm={confirmDialog.onConfirm}
-        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        onCancel={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
       />
       {podeGerenciarFazendas && (
         <button
@@ -348,7 +378,9 @@ export default function ListaFazendas() {
           aria-label="Nova Fazenda"
         >
           <Icons.Plus className="w-5 h-5" />
-          <span className="text-sm font-medium hidden sm:inline">Nova Fazenda</span>
+          <span className="text-sm font-medium hidden sm:inline">
+            Nova Fazenda
+          </span>
         </button>
       )}
     </div>

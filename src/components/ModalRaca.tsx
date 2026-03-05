@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
+
+type FormSubmitEvent = Parameters<NonNullable<ComponentProps<'form'>['onSubmit']>>[0];
 import { createPortal } from 'react-dom';
 import { db } from '../db/dexieDB';
 import { uuid } from '../utils/uuid';
@@ -22,7 +24,7 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
 
   if (!open) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormSubmitEvent) => {
     e.preventDefault();
     if (!nomeRaca.trim()) return;
 
@@ -51,10 +53,10 @@ export default function ModalRaca({ open, onClose, onRacaCadastrada }: ModalRaca
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-10000 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full">
         <div className="p-4 sm:p-6">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 wrap-break-word">
             Cadastro Rápido de Raça
           </h3>
           <form onSubmit={handleSubmit} noValidate>

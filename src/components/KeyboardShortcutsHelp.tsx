@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { Icons } from '../utils/iconMapping';
-import { useKeyboardShortcut, formatShortcut, KeyboardShortcut } from '../hooks/useKeyboardShortcut';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
-import Modal from './Modal';
+import { useState } from "react";
+import { Icons } from "../utils/iconMapping";
+import {
+  useKeyboardShortcut,
+  formatShortcut,
+} from "../hooks/useKeyboardShortcut";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass } from "../utils/themeHelpers";
+import Modal from "./Modal";
 
 interface ShortcutGroup {
   category: string;
@@ -22,43 +25,55 @@ interface ShortcutGroup {
 
 const SHORTCUTS: ShortcutGroup[] = [
   {
-    category: 'Navegação',
+    category: "Navegação",
     icon: <Icons.Navigation className="w-5 h-5" />,
     shortcuts: [
-      { keys: { key: 'd', ctrl: true }, description: 'Ir para Dashboard' },
-      { keys: { key: 'h', ctrl: true }, description: 'Ir para Animais' },
-      { keys: { key: 'm', ctrl: true }, description: 'Ir para Animais' },
-      { keys: { key: 'f', ctrl: true }, description: 'Ir para Fazendas' },
-      { keys: { key: 'u', ctrl: true }, description: 'Ir para Usuários' },
+      { keys: { key: "d", ctrl: true }, description: "Ir para Dashboard" },
+      { keys: { key: "h", ctrl: true }, description: "Ir para Animais" },
+      { keys: { key: "m", ctrl: true }, description: "Ir para Animais" },
+      { keys: { key: "f", ctrl: true }, description: "Ir para Fazendas" },
+      { keys: { key: "u", ctrl: true }, description: "Ir para Usuários" },
     ],
   },
   {
-    category: 'Ações',
+    category: "Ações",
     icon: <Icons.Zap className="w-5 h-5" />,
     shortcuts: [
-      { keys: { key: 'n', ctrl: true }, description: 'Notificações' },
-      { keys: { key: 's', ctrl: true }, description: 'Sincronizar' },
-      { keys: { key: 'p', ctrl: true }, description: 'Ver Perfil' },
-      { keys: { key: 'k', ctrl: true }, description: 'Busca Rápida (em breve)' },
+      { keys: { key: "n", ctrl: true }, description: "Notificações" },
+      { keys: { key: "s", ctrl: true }, description: "Sincronizar" },
+      { keys: { key: "p", ctrl: true }, description: "Ver Perfil" },
+      {
+        keys: { key: "k", ctrl: true },
+        description: "Busca Rápida (em breve)",
+      },
     ],
   },
   {
-    category: 'Interface',
+    category: "Interface",
     icon: <Icons.Monitor className="w-5 h-5" />,
     shortcuts: [
-      { keys: { key: '?', shift: true }, description: 'Mostrar/Ocultar Atalhos' },
-      { keys: { key: 't', ctrl: true, shift: true }, description: 'Alternar Tema (Claro/Escuro)' },
-      { keys: { key: 'b', ctrl: true }, description: 'Recolher/Expandir Sidebar' },
-      { keys: { key: 'Escape' }, description: 'Fechar Modal/Diálogo' },
+      {
+        keys: { key: "?", shift: true },
+        description: "Mostrar/Ocultar Atalhos",
+      },
+      {
+        keys: { key: "t", ctrl: true, shift: true },
+        description: "Alternar Tema (Claro/Escuro)",
+      },
+      {
+        keys: { key: "b", ctrl: true },
+        description: "Recolher/Expandir Sidebar",
+      },
+      { keys: { key: "Escape" }, description: "Fechar Modal/Diálogo" },
     ],
   },
   {
-    category: 'Sistema',
+    category: "Sistema",
     icon: <Icons.Settings className="w-5 h-5" />,
     shortcuts: [
-      { keys: { key: ',', ctrl: true }, description: 'Configurações' },
-      { keys: { key: 'e', ctrl: true }, description: 'Exportar Backup' },
-      { keys: { key: 'i', ctrl: true }, description: 'Importar Backup' },
+      { keys: { key: ",", ctrl: true }, description: "Configurações" },
+      { keys: { key: "e", ctrl: true }, description: "Exportar Backup" },
+      { keys: { key: "i", ctrl: true }, description: "Importar Backup" },
     ],
   },
 ];
@@ -66,11 +81,11 @@ const SHORTCUTS: ShortcutGroup[] = [
 export function KeyboardShortcutsHelp() {
   const [open, setOpen] = useState(false);
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
 
   // Atalho para abrir/fechar o modal de ajuda
   useKeyboardShortcut({
-    key: '?',
+    key: "?",
     shift: true,
     action: () => setOpen(!open),
   });
@@ -80,12 +95,12 @@ export function KeyboardShortcutsHelp() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Atalhos de Teclado"
-        maxWidth="max-w-4xl"
+        ariaLabel="Atalhos de Teclado"
       >
         <div className="space-y-6">
           <p className="text-sm text-gray-600 dark:text-slate-400">
-            Use esses atalhos para navegar e executar ações rapidamente no sistema.
+            Use esses atalhos para navegar e executar ações rapidamente no
+            sistema.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -123,9 +138,12 @@ export function KeyboardShortcutsHelp() {
           </div>
 
           <div className="flex items-start gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <Icons.Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <Icons.Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex shrink-0 mt-0.5" />
             <div className="text-sm text-blue-900 dark:text-blue-200">
-              <strong>Dica:</strong> Pressione <kbd className="px-1.5 py-0.5 mx-1 text-xs font-mono bg-white dark:bg-blue-950 border border-blue-300 dark:border-blue-700 rounded">Shift + ?</kbd> 
+              <strong>Dica:</strong> Pressione{" "}
+              <kbd className="px-1.5 py-0.5 mx-1 text-xs font-mono bg-white dark:bg-blue-950 border border-blue-300 dark:border-blue-700 rounded">
+                Shift + ?
+              </kbd>
               a qualquer momento para ver esta lista de atalhos.
             </div>
           </div>

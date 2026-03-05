@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db/dexieDB";
-import { AuditLog, AuditEntity } from "../db/models";
+import { AuditEntity } from "../db/models";
 import Modal from "./Modal";
 import { Icons } from "../utils/iconMapping";
 import { useAppSettings } from "../hooks/useAppSettings";
@@ -63,14 +64,12 @@ export default function HistoricoAlteracoes({
           entityId,
           totalAudits: todos.length,
           filtrados: filtrados.length,
-          sample: filtrados
-            .slice(0, 2)
-            .map((f) => ({
-              id: f.id,
-              entity: f.entity,
-              entityId: f.entityId,
-              action: f.action,
-            })),
+          sample: filtrados.slice(0, 2).map((f) => ({
+            id: f.id,
+            entity: f.entity,
+            entityId: f.entityId,
+            action: f.action,
+          })),
         });
         return filtrados;
       } catch (error) {
@@ -153,7 +152,7 @@ export default function HistoricoAlteracoes({
     return null;
   };
 
-  const normalizeValue = (key: string, value: any) => {
+  const normalizeValue = (key: string, value: unknown) => {
     if (value === null || value === undefined) return null;
     if (typeof value === "string") {
       const trimmed = value.trim();
@@ -171,12 +170,21 @@ export default function HistoricoAlteracoes({
     return value;
   };
 
-  const getDiff = (before: any, after: any) => {
-    if (!before || !after) return null;
+  const getDiff = (before: unknown, after: unknown) => {
+    if (
+      !before ||
+      !after ||
+      typeof before !== "object" ||
+      typeof after !== "object"
+    )
+      return null;
 
-    const diff: Array<{ campo: string; antes: any; depois: any }> = [];
+    const diff: Array<{ campo: string; antes: unknown; depois: unknown }> = [];
 
-    const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    const allKeys = new Set([
+      ...Object.keys(before as Record<string, unknown>),
+      ...Object.keys(after as Record<string, unknown>),
+    ]);
 
     allKeys.forEach((key) => {
       // Ignorar campos internos
@@ -186,8 +194,14 @@ export default function HistoricoAlteracoes({
         return;
       }
 
-      const valorAntes = normalizeValue(key, before[key]);
-      const valorDepois = normalizeValue(key, after[key]);
+      const valorAntes = normalizeValue(
+        key,
+        (before as Record<string, unknown>)[key],
+      );
+      const valorDepois = normalizeValue(
+        key,
+        (after as Record<string, unknown>)[key],
+      );
 
       if (JSON.stringify(valorAntes) !== JSON.stringify(valorDepois)) {
         diff.push({
@@ -222,13 +236,15 @@ export default function HistoricoAlteracoes({
         setConfirmDialog((prev) => ({ ...prev, open: false }));
         setRestaurandoId(auditId);
         try {
-          const snapshot = parseSnapshot(audit.before);
+          const snapshot = parseSnapshot(
+            audit.before as string | null,
+          ) as Record<string, unknown> | null;
           if (!snapshot) {
             throw new Error("Snapshot inválido");
           }
 
           // Buscar estado atual ANTES de restaurar para registrar na auditoria
-          let estadoAtual: any = null;
+          let estadoAtual: unknown = null;
           try {
             switch (entity) {
               case "fazenda":
@@ -255,10 +271,6 @@ export default function HistoricoAlteracoes({
               case "confinamentoAnimal":
                 estadoAtual = await db.confinamentoAnimais.get(entityId);
                 break;
-              case "confinamentoPesagem":
-                // Migrated: procurar em `pesagens` por id
-                estadoAtual = await db.pesagens.get(entityId);
-                break;
               case "confinamentoAlimentacao":
                 estadoAtual = await db.confinamentoAlimentacao.get(entityId);
                 break;
@@ -272,13 +284,13 @@ export default function HistoricoAlteracoes({
 
           // Remover campos que não devem ser restaurados
           const {
-            id,
-            createdAt,
-            updatedAt,
-            synced,
-            remoteId,
+            id: _id,
+            createdAt: _createdAt,
+            updatedAt: _updatedAt,
+            synced: _synced,
+            remoteId: _remoteId,
             ...dadosRestaurar
-          } = snapshot;
+          } = snapshot as Record<string, unknown>;
 
           // Atualizar o registro
           const now = new Date().toISOString();
@@ -343,14 +355,6 @@ export default function HistoricoAlteracoes({
                 synced: false,
               });
               break;
-            case "confinamentoPesagem":
-              // Restaurar em `pesagens` (id corresponde)
-              await db.pesagens.update(entityId, {
-                ...dadosRestaurar,
-                updatedAt: now,
-                synced: false,
-              });
-              break;
             case "confinamentoAlimentacao":
               await db.confinamentoAlimentacao.update(entityId, {
                 ...dadosRestaurar,
@@ -386,12 +390,14 @@ export default function HistoricoAlteracoes({
             message: "Os dados foram restaurados com sucesso.",
           });
           onRestored?.();
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const msg =
+            error instanceof Error ? error.message : "Tente novamente.";
           console.error("Erro ao restaurar:", error);
           showToast({
             type: "error",
             title: "Erro ao restaurar",
-            message: error?.message || "Tente novamente.",
+            message: msg,
           });
         } finally {
           setRestaurandoId(null);
@@ -400,7 +406,7 @@ export default function HistoricoAlteracoes({
     });
   };
 
-  const formatarValor = (valor: any): string => {
+  const formatarValor = (valor: unknown): string => {
     if (valor === null || valor === undefined || valor === "") return "-";
     if (typeof valor === "boolean") return valor ? "Sim" : "Não";
     if (typeof valor === "string") {
@@ -475,8 +481,8 @@ export default function HistoricoAlteracoes({
           ) : (
             <div className="space-y-4">
               {historicoOrdenado.map((audit, index) => {
-                const before = parseSnapshot(audit.before);
-                const after = parseSnapshot(audit.after);
+                const before = parseSnapshot(audit.before as string | null);
+                const after = parseSnapshot(audit.after as string | null);
                 const diff =
                   audit.action === "update" ? getDiff(before, after) : null;
                 const isMostrandoDiff = mostrarDiff === audit.id;

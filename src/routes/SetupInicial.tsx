@@ -11,11 +11,12 @@ import { useAppSettings } from "../hooks/useAppSettings";
 import { ColorPaletteKey } from "../hooks/useThemeColors";
 import { getThemeClasses, getPrimaryButtonClass } from "../utils/themeHelpers";
 import { msg } from "../utils/validationMessages";
+import { pullUsuarios } from "../api/syncService";
 
 const schema = z
   .object({
     nome: z.string().min(1, msg.obrigatorio),
-    email: z.string().min(1, msg.obrigatorio).email(msg.emailInvalido),
+    email: z.string().min(1, msg.obrigatorio).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, msg.emailInvalido),
     senha: z.string().min(6, msg.senhaMinima),
     confirmarSenha: z.string().min(1, msg.confirmeSenha),
   })
@@ -45,7 +46,6 @@ export default function SetupInicial() {
         setSincronizando(true);
         try {
           // Fazer pull apenas de usuários do Supabase (mais rápido)
-          const { pullUsuarios } = await import("../api/syncService");
           await pullUsuarios();
           // Verificar novamente após sincronização
           usuarios = await db.usuarios.toArray();
@@ -148,12 +148,13 @@ export default function SetupInicial() {
         message: "Redirecionando para login...",
       });
       navigate("/login");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Tente novamente.";
       console.error("Erro ao criar usuário:", error);
       showToast({
         type: "error",
         title: "Erro ao criar usuário",
-        message: error?.message || "Tente novamente.",
+        message: msg,
       });
     } finally {
       setLoading(false);

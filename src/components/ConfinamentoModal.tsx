@@ -32,15 +32,7 @@ const schema = z.object({
   dataInicio: z.string().min(1, msg.obrigatorio),
   dataFimPrevista: z.string().optional(),
   status: z.enum(["ativo", "finalizado", "cancelado"]),
-  precoVendaKg: z
-    .string()
-    .optional()
-    .transform((s) => {
-      if (s == null || String(s).trim() === "") return undefined;
-      const normalized = String(s).trim().replace(",", ".");
-      const n = parseFloat(normalized);
-      return isNaN(n) ? undefined : n;
-    }),
+  precoVendaKg: z.string().optional(),
   observacoes: z.string().optional(),
 });
 
@@ -157,13 +149,22 @@ export default function ConfinamentoModal({
         ? converterDataParaFormatoBanco(values.dataFimPrevista)
         : undefined;
 
+      const precoVendaKgNum =
+        values.precoVendaKg != null && String(values.precoVendaKg).trim() !== ""
+          ? (() => {
+              const normalized = String(values.precoVendaKg).trim().replace(",", ".");
+              const n = parseFloat(normalized);
+              return isNaN(n) ? undefined : n;
+            })()
+          : undefined;
+
       const confinamentoData: Partial<Confinamento> = {
         nome: values.nome,
         fazendaId: values.fazendaId,
         dataInicio: dataInicioBanco,
         dataFimPrevista: dataFimPrevistaBanco,
         status: values.status,
-        precoVendaKg: values.precoVendaKg,
+        precoVendaKg: precoVendaKgNum,
         observacoes: values.observacoes || undefined,
         updatedAt: new Date().toISOString(),
         synced: false,
@@ -255,12 +256,10 @@ export default function ConfinamentoModal({
 
       onSaved?.();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao salvar confinamento";
       console.error("Erro ao salvar confinamento:", error);
-      showToast({
-        type: "error",
-        message: error.message || "Erro ao salvar confinamento",
-      });
+      showToast({ type: "error", message: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -323,7 +322,7 @@ export default function ConfinamentoModal({
                 value={status}
                 checked={statusSelecionado === status}
                 onChange={(e) =>
-                  setValue("status", e.target.value as any, {
+                  setValue("status", e.target.value as "ativo" | "finalizado" | "cancelado", {
                     shouldValidate: true,
                   })
                 }

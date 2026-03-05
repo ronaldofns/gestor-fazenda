@@ -1,11 +1,13 @@
-import React, { memo } from 'react';
-import useOnline from '../hooks/useOnline';
+import { memo } from "react";
+import useOnline from "../hooks/useOnline";
 
 interface SyncStatusProps {
   collapsed?: boolean;
 }
 
-const SyncStatus = memo(function SyncStatus({ collapsed = false }: SyncStatusProps) {
+const SyncStatus = memo(function SyncStatus({
+  collapsed = false,
+}: SyncStatusProps) {
   const online = useOnline();
   return (
     <div className="flex items-center gap-2 text-xs sm:text-sm whitespace-nowrap">
@@ -13,9 +15,13 @@ const SyncStatus = memo(function SyncStatus({ collapsed = false }: SyncStatusPro
         className={`inline-block w-2 h-2 rounded-full ${
           online ? `${`bg-green-500`}` : `${`bg-red-500`}`
         }`}
-        title={online ? 'Online' : 'Offline'}
+        title={online ? "Online" : "Offline"}
       />
-      {!collapsed && <span className={`${online ? 'text-green-700' : 'text-red-600'}`}>{online ? 'Online' : 'Offline'}</span>}
+      {!collapsed && (
+        <span className={`${online ? "text-green-700" : "text-red-600"}`}>
+          {online ? "Online" : "Offline"}
+        </span>
+      )}
     </div>
   );
 });

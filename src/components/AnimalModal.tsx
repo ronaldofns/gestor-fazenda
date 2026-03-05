@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useForm, Controller, FieldErrors } from "react-hook-form";
+import { useForm, Controller, FieldErrors, type Resolver } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLiveQuery } from "dexie-react-hooks";
+import { supabase } from "../api/supabaseClient";
 import { db } from "../db/dexieDB";
 import {
   Animal,
@@ -98,10 +99,7 @@ const numeroOpcional = z.preprocess((val) => {
 }, z.number().optional());
 
 // Função para criar schema com validação de brinco único por fazenda
-const createSchemaAnimal = (
-  mode: "create" | "edit",
-  animalIdExcluir?: string,
-) => {
+const createSchemaAnimal = (animalIdExcluir?: string) => {
   return z
     .object({
       brinco: z.string().min(1, msg.obrigatorio),
@@ -109,7 +107,7 @@ const createSchemaAnimal = (
       tipoId: z.string().min(1, msg.selecione),
       tipoMatrizId: z.string().optional(), // Será salvo na Genealogia
       racaId: z.string().optional(),
-      sexo: z.enum(["M", "F"], { required_error: msg.selecione }),
+      sexo: z.enum(["M", "F"], { message: msg.selecione }),
       statusId: z.string().min(1, msg.selecione),
       dataNascimento: z
         .string()
@@ -164,14 +162,14 @@ const createSchemaAnimal = (
     );
 };
 
-// Schema padrão (será sobrescrito no componente)
-const schemaAnimal = z.object({
+// Schema padrão (será sobrescrito no componente) — usado em FormDataAnimal
+const _schemaAnimal = z.object({
   brinco: z.string().min(1, msg.obrigatorio),
   nome: z.string().optional(),
   tipoId: z.string().min(1, msg.selecione),
   tipoMatrizId: z.string().optional(),
   racaId: z.string().optional(),
-  sexo: z.enum(["M", "F"], { required_error: msg.selecione }),
+  sexo: z.enum(["M", "F"], { message: msg.selecione }),
   statusId: z.string().min(1, msg.selecione),
   dataNascimento: z
     .string()
@@ -194,7 +192,7 @@ const schemaAnimal = z.object({
   obs: z.string().optional(),
 });
 
-type FormDataAnimal = z.infer<typeof schemaAnimal>;
+type FormDataAnimal = z.infer<typeof _schemaAnimal>;
 
 interface AnimalModalProps {
   open: boolean;
@@ -284,6 +282,7 @@ export default function AnimalModal({
       setInternalMode(mode);
       setInternalInitialData(initialData);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional: só reavaliar quando open/mode/initialData mudarem
   }, [mode, initialData, open]);
 
   // Modais de cadastro rápido
@@ -300,7 +299,7 @@ export default function AnimalModal({
 
   // Estado para brinco temporário
   const [brincoTemporario, setBrincoTemporario] = useState(false);
-  const [brincoTemporarioGerado, setBrincoTemporarioGerado] = useState<
+  const [_brincoTemporarioGerado, setBrincoTemporarioGerado] = useState<
     string | null
   >(null);
 
@@ -326,8 +325,8 @@ export default function AnimalModal({
 
   // Criar schema dinâmico com validação de brinco único por fazenda
   const schemaAnimalDinamico = useMemo(() => {
-    return createSchemaAnimal(internalMode, internalInitialData?.id);
-  }, [internalMode, internalInitialData?.id]);
+    return createSchemaAnimal(internalInitialData?.id);
+  }, [internalInitialData?.id]);
 
   const refetchRacas = useCallback(() => {
     db.racas.toArray().then(setRacas);
@@ -378,7 +377,7 @@ export default function AnimalModal({
     watch,
     getValues,
   } = useForm<FormDataAnimal>({
-    resolver: zodResolver(schemaAnimalDinamico),
+    resolver: zodResolver(schemaAnimalDinamico) as Resolver<FormDataAnimal>,
     defaultValues: {
       brinco: "",
       nome: "",
@@ -523,10 +522,10 @@ export default function AnimalModal({
   const tipoIdWatch = watch("tipoId");
   const statusIdWatch = watch("statusId");
   const sexoWatch = watch("sexo");
-  const racaIdWatch = watch("racaId");
+  watch("racaId");
   const origemIdWatch = watch("origemId");
   const fazendaIdWatch = watch("fazendaId");
-  const fazendaOrigemIdWatch = watch("fazendaOrigemId");
+  watch("fazendaOrigemId");
   const matrizIdWatch = watch("matrizId");
   const tipoMatrizIdWatch = watch("tipoMatrizId");
   const reprodutorIdWatch = watch("reprodutorId");
@@ -658,19 +657,27 @@ export default function AnimalModal({
             key === "pesoAtual"
           ) {
             if (currentValue !== value) {
-              setValue(fieldKey, value as any, {
-                shouldValidate: false,
-                shouldDirty: false,
-              });
+              setValue(
+                fieldKey,
+                value as FormDataAnimal[typeof fieldKey],
+                {
+                  shouldValidate: false,
+                  shouldDirty: false,
+                },
+              );
             }
           }
           // Campos de string - aplicar mesmo se vazio
           else if (typeof value === "string") {
             if (currentValue !== value) {
-              setValue(fieldKey, value as any, {
-                shouldValidate: false,
-                shouldDirty: false,
-              });
+              setValue(
+                fieldKey,
+                value as FormDataAnimal[typeof fieldKey],
+                {
+                  shouldValidate: false,
+                  shouldDirty: false,
+                },
+              );
             }
           }
           // Outros campos
@@ -679,10 +686,14 @@ export default function AnimalModal({
             value !== null &&
             currentValue !== value
           ) {
-            setValue(fieldKey, value as any, {
-              shouldValidate: false,
-              shouldDirty: false,
-            });
+            setValue(
+              fieldKey,
+              value as FormDataAnimal[typeof fieldKey],
+              {
+                shouldValidate: false,
+                shouldDirty: false,
+              },
+            );
           }
         });
 
@@ -794,6 +805,7 @@ export default function AnimalModal({
 
       return () => clearTimeout(timeoutId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialData omitido para evitar reaplicar a cada mudança de referência
   }, [
     open,
     mode,
@@ -988,27 +1000,39 @@ export default function AnimalModal({
               key === "valorVenda" ||
               key === "pesoAtual"
             ) {
-              setValue(fieldKey, value as any, {
-                shouldValidate: false,
-                shouldDirty: false,
-                shouldTouch: false,
-              });
+              setValue(
+                fieldKey,
+                value as FormDataAnimal[typeof fieldKey],
+                {
+                  shouldValidate: false,
+                  shouldDirty: false,
+                  shouldTouch: false,
+                },
+              );
             }
             // Campos de string - aplicar sempre, mesmo se vazio
             else if (typeof value === "string") {
-              setValue(fieldKey, value as any, {
-                shouldValidate: false,
-                shouldDirty: false,
-                shouldTouch: false,
-              });
+              setValue(
+                fieldKey,
+                value as FormDataAnimal[typeof fieldKey],
+                {
+                  shouldValidate: false,
+                  shouldDirty: false,
+                  shouldTouch: false,
+                },
+              );
             }
             // Outros campos - aplicar se não for undefined/null
             else if (value !== undefined && value !== null) {
-              setValue(fieldKey, value as any, {
-                shouldValidate: false,
-                shouldDirty: false,
-                shouldTouch: false,
-              });
+              setValue(
+                fieldKey,
+                value as FormDataAnimal[typeof fieldKey],
+                {
+                  shouldValidate: false,
+                  shouldDirty: false,
+                  shouldTouch: false,
+                },
+              );
             }
           });
 
@@ -1151,7 +1175,8 @@ export default function AnimalModal({
         setBrincoTemporarioGerado(null);
       }
     }
-  }, [open, mode, initialData?.id, setValue, reset]); // Removido getValues das dependências para evitar loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialData/internalMode omitidos para evitar reset em toda edição
+  }, [open, mode, initialData?.id, setValue, reset]);
 
   // REMOVIDO: useEffect que causava loop infinito
   // A lógica de sincronização do checkbox agora está apenas no onChange e onBlur do campo brinco
@@ -1255,7 +1280,7 @@ export default function AnimalModal({
             showToast({
               type: "error",
               title: "Brinco duplicado",
-              message: unico.erro,
+              message: unico.erro ?? "Brinco duplicado",
             });
             setSaving(false);
             return;
@@ -1445,7 +1470,7 @@ export default function AnimalModal({
           showToast({
             type: "error",
             title: "Brinco duplicado",
-            message: unico.erro,
+            message: unico.erro ?? "Brinco duplicado",
           });
           setSaving(false);
           return;
@@ -1484,8 +1509,12 @@ export default function AnimalModal({
           synced: false,
         };
 
+        if (!internalInitialData) {
+          setSaving(false);
+          return;
+        }
         const updated = await db.animais.update(
-          initialData.id,
+          internalInitialData.id,
           animalAtualizado,
         );
         if (updated === 0) {
@@ -1493,23 +1522,23 @@ export default function AnimalModal({
             "Animal não encontrado ou não foi possível atualizar",
           );
         }
-        console.log("✅ Animal atualizado no banco local:", initialData.id);
+        console.log("✅ Animal atualizado no banco local:", internalInitialData.id);
 
         // Encerrar vínculo de confinamento se status for vendido/morto/abate
         const status = await db.statusAnimal.get(data.statusId);
         const nomeStatus = (status?.nome || "").toLowerCase();
         if (/vendido|venda/.test(nomeStatus)) {
-          await encerrarVinculoPorStatusAnimal(initialData.id, "venda");
+          await encerrarVinculoPorStatusAnimal(internalInitialData.id, "venda");
         } else if (/morto|morte/.test(nomeStatus)) {
-          await encerrarVinculoPorStatusAnimal(initialData.id, "morte");
+          await encerrarVinculoPorStatusAnimal(internalInitialData.id, "morte");
         } else if (/abate/.test(nomeStatus)) {
-          await encerrarVinculoPorStatusAnimal(initialData.id, "abate");
+          await encerrarVinculoPorStatusAnimal(internalInitialData.id, "abate");
         }
 
         // Criar/atualizar genealogia com tipoMatrizId
         const genealogiaExistente = await db.genealogias
           .where("animalId")
-          .equals(initialData.id)
+          .equals(internalInitialData.id)
           .first();
 
         if (genealogiaExistente) {
@@ -1523,7 +1552,7 @@ export default function AnimalModal({
         } else if (data.tipoMatrizId || data.matrizId || data.reprodutorId) {
           await db.genealogias.add({
             id: uuid(),
-            animalId: initialData.id,
+            animalId: internalInitialData.id,
             tipoMatrizId: data.tipoMatrizId || undefined,
             matrizId: data.matrizId || undefined,
             reprodutorId: data.reprodutorId || undefined,
@@ -1588,10 +1617,10 @@ export default function AnimalModal({
         // Auditoria
         await registrarAudit({
           entity: "animal",
-          entityId: initialData.id,
+          entityId: internalInitialData.id,
           action: "update",
-          before: initialData,
-          after: { ...initialData, ...animalAtualizado },
+          before: internalInitialData,
+          after: { ...internalInitialData, ...animalAtualizado },
           user: user ? { id: user.id, nome: user.nome } : null,
           description: `Animal ${data.brinco} atualizado`,
         });
@@ -1634,18 +1663,21 @@ export default function AnimalModal({
       });
       setSelectedTagIds([]);
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
       console.error("❌ Erro ao salvar animal:", error);
       console.error("Detalhes do erro:", {
-        message: error?.message,
-        stack: error?.stack,
+        message,
+        stack,
         mode,
         animalId: initialData?.id,
       });
       showToast({
         type: "error",
         title: "Erro ao salvar",
-        message: error?.message || "Tente novamente",
+        message: message || "Tente novamente",
       });
     } finally {
       setSaving(false);
@@ -1656,7 +1688,7 @@ export default function AnimalModal({
     <>
       <Modal open={open} onClose={onClose}>
         <div className="bg-white dark:bg-slate-900 rounded-none sm:rounded-lg shadow-xl w-full h-full sm:w-[80vw] sm:h-[80vh] flex flex-col overflow-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
-          <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-3 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 flex items-center justify-between z-10">
+          <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-3 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 flex items-center justify-between z-10">
             <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-slate-100 truncate pr-2">
               {internalMode === "create"
                 ? "Cadastrar Novo Animal"
@@ -1664,7 +1696,7 @@ export default function AnimalModal({
             </h2>
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors shrink-0"
             >
               <Icons.X className="w-5 h-5" />
             </button>
@@ -1672,7 +1704,7 @@ export default function AnimalModal({
 
           {/* Confinamento ativo (quando o animal está em um confinamento) */}
           {confinamentoAtivo && internalMode === "edit" && (
-            <div className="flex-shrink-0 mx-3 sm:mx-6 mt-2 mb-1 p-3 rounded-lg border-2 border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20">
+            <div className="shrink-0 mx-3 sm:mx-6 mt-2 mb-1 p-3 rounded-lg border-2 border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20">
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-medium mb-2">
                 <Icons.Warehouse className="w-5 h-5" />
                 Confinado em: {confinamentoAtivo.confinamento.nome}
@@ -1706,7 +1738,7 @@ export default function AnimalModal({
           )}
 
           {/* Abas */}
-          <div className="flex-shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 sm:px-6">
+          <div className="shrink-0 border-b border-gray-200 dark:border-slate-700 px-2 sm:px-6">
             <nav
               className="flex -mb-px flex-wrap gap-1 overflow-x-auto"
               aria-label="Tabs"
@@ -1783,10 +1815,10 @@ export default function AnimalModal({
                     `}
                     title={tab.label}
                   >
-                    <Icon className="w-4 h-4 md:w-4 md:h-4 flex-shrink-0" />
+                    <Icon className="w-4 h-4 md:w-4 md:h-4 shrink-0" />
                     <span className="hidden md:inline">{tab.label}</span>
                     {temErro && (
-                      <Icons.AlertCircle className="w-3 h-3 md:w-4 md:h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                      <Icons.AlertCircle className="w-3 h-3 md:w-4 md:h-4 text-red-600 dark:text-red-400 shrink-0" />
                     )}
                   </button>
                 );
@@ -2916,27 +2948,27 @@ export default function AnimalModal({
 
                                         if (user) {
                                           await registrarAudit({
-                                            entidade: "desmama",
-                                            entidadeId: desmama.id,
-                                            operacao: "delete",
-                                            usuarioId: user.id,
-                                            detalhes: `Desmama excluída`,
+                                            entity: "desmama",
+                                            entityId: desmama.id,
+                                            action: "delete",
+                                            user: { id: user.id, nome: user.nome },
+                                            description: "Desmama excluída",
                                           });
                                         }
 
-                                        showToast(
-                                          "Desmama excluída com sucesso!",
-                                          "success",
-                                        );
+                                        showToast({
+                                          message: "Desmama excluída com sucesso!",
+                                          type: "success",
+                                        });
                                       } catch (error) {
                                         console.error(
                                           "Erro ao excluir desmama:",
                                           error,
                                         );
-                                        showToast(
-                                          "Erro ao excluir desmama",
-                                          "error",
-                                        );
+                                        showToast({
+                                          message: "Erro ao excluir desmama",
+                                          type: "error",
+                                        });
                                       }
                                     }
                                   }}
@@ -3027,7 +3059,7 @@ export default function AnimalModal({
                                     domain={["auto", "auto"]}
                                   />
                                   <Tooltip
-                                    formatter={(value: number) => [`${value.toFixed(2)} kg`, "Peso"]}
+                                    formatter={(value: number | undefined) => [value != null ? `${Number(value).toFixed(2)} kg` : "", "Peso"]}
                                     labelFormatter={(label) => `Data: ${label}`}
                                     contentStyle={{
                                       fontSize: 12,
@@ -3132,7 +3164,7 @@ export default function AnimalModal({
                                         </p>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                    <div className="flex items-center gap-1 shrink-0">
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -3149,7 +3181,6 @@ export default function AnimalModal({
                                         onClick={async () => {
                                           if (confirm(`Deseja realmente excluir a pesagem de ${dataFormatada} (${pesagem.peso.toFixed(2)} kg)?`)) {
                                             try {
-                                              const { uuid } = await import("../utils/uuid");
                                               const deletedId = uuid();
                                               await db.deletedRecords.add({
                                                 id: deletedId,
@@ -3161,7 +3192,6 @@ export default function AnimalModal({
                                               });
                                               if (pesagem.remoteId) {
                                                 try {
-                                                  const { supabase } = await import("../api/supabaseClient");
                                                   const { error } = await supabase.from("pesagens_online").delete().eq("id", pesagem.remoteId);
                                                   if (!error) await db.deletedRecords.update(deletedId, { synced: true });
                                                 } catch (err) {
@@ -3322,8 +3352,6 @@ export default function AnimalModal({
                                         )
                                       ) {
                                         try {
-                                          const { uuid } =
-                                            await import("../utils/uuid");
                                           const deletedId = uuid();
                                           await db.deletedRecords.add({
                                             id: deletedId,
@@ -3336,8 +3364,6 @@ export default function AnimalModal({
 
                                           if (vacina.remoteId) {
                                             try {
-                                              const { supabase } =
-                                                await import("../api/supabaseClient");
                                               const { error } = await supabase
                                                 .from("vacinacoes_online")
                                                 .delete()
@@ -3461,7 +3487,7 @@ export default function AnimalModal({
           </form>
 
           {/* Footer com Botões */}
-          <div className="flex-shrink-0 flex gap-2 md:gap-3 px-3 sm:px-6 py-3 md:py-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="shrink-0 flex gap-2 md:gap-3 px-3 sm:px-6 py-3 md:py-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <button
               type="button"
               onClick={onClose}

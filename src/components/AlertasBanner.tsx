@@ -1,15 +1,13 @@
 import { Link } from "react-router-dom";
 import { Icons } from "../utils/iconMapping";
 import { useAlertas, Alerta } from "../hooks/useAlertas";
-import { useAuth } from "../hooks/useAuth";
 
 interface AlertasBannerProps {
   fazendaId?: string;
 }
 
 export default function AlertasBanner({ fazendaId }: AlertasBannerProps) {
-  const { user } = useAuth();
-  const { alertasNaoLidos, totalNaoLidos } = useAlertas(fazendaId, user?.id);
+  const { alertasNaoLidos, totalNaoLidos } = useAlertas(fazendaId);
 
   // Contar alertas de alta prioridade não lidos
   const alertasAltaNaoLidos = alertasNaoLidos.filter(
@@ -20,7 +18,7 @@ export default function AlertasBanner({ fazendaId }: AlertasBannerProps) {
     return (
       <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-6">
         <div className="flex items-center gap-3">
-          <div className="flex-shrink-0">
+          <div className="flex shrink-0">
             <Icons.CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
           </div>
           <div className="flex-1">
@@ -37,10 +35,10 @@ export default function AlertasBanner({ fazendaId }: AlertasBannerProps) {
   }
 
   return (
-    <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 border border-orange-200 dark:border-orange-800 rounded-xl p-5 mb-6">
+    <div className="bg-linear-to-r from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 border border-orange-200 dark:border-orange-800 rounded-xl p-5 mb-6">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
-          <div className="flex-shrink-0">
+          <div className="flex shrink-0">
             <div className="relative">
               <Icons.AlertTriangle className="w-7 h-7 text-orange-600 dark:text-orange-400" />
               {alertasAltaNaoLidos > 0 && (
@@ -68,7 +66,7 @@ export default function AlertasBanner({ fazendaId }: AlertasBannerProps) {
         <Link
           to="/notificacoes"
           title="Ver Todos"
-          className="flex-shrink-0 p-2 sm:px-4 sm:py-2 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 transition-colors flex items-center gap-2"
+          className="flex shrink-0 p-2 sm:px-4 sm:py-2 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 transition-colors items-center gap-2"
         >
           <span className="hidden sm:inline">Ver Todos</span>
           <Icons.ChevronRight className="w-4 h-4" />
@@ -152,7 +150,7 @@ function AlertaItem({ alerta }: { alerta: Alerta }) {
       className={`${getBgColor(alerta.cor)} border rounded-lg p-3 hover:shadow-sm transition-shadow`}
     >
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0">
+        <div className="flex shrink-0">
           <IconComponent className={`w-5 h-5 ${getIconColor(alerta.cor)}`} />
         </div>
         <div className="flex-1 min-w-0">

@@ -7,7 +7,7 @@ let globalSyncing = false;
 export function setGlobalSyncing(syncing: boolean) {
   globalSyncing = syncing;
   if (typeof window !== 'undefined') {
-    (window as any).__globalSyncing = syncing;
+    (window as Window & { __globalSyncing?: boolean }).__globalSyncing = syncing;
     window.dispatchEvent(new CustomEvent('syncStateChange', { detail: { syncing } }));
   }
 }

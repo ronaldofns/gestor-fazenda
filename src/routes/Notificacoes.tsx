@@ -7,15 +7,14 @@ import { useAppSettings } from '../hooks/useAppSettings';
 import { ColorPaletteKey } from '../hooks/useThemeColors';
 import { getPrimaryBgClass } from '../utils/themeHelpers';
 import { useAuth } from '../hooks/useAuth';
-import { marcarAlertaComoLido, marcarAlertaComoNaoLido, marcarTodosAlertasComoLidos } from '../utils/alertasLidos';
+import { marcarAlertaComoLido, marcarAlertaComoNaoLido } from '../utils/alertasLidos';
 import { NotificacaoLida } from '../db/models';
 
 export default function Notificacoes() {
   const { fazendaAtivaId } = useFazendaContext();
   const { user } = useAuth();
   const { alertas, totalAlertas, totalNaoLidos, alertasAlta, alertasMedia } = useAlertas(
-    fazendaAtivaId || undefined,
-    user?.id
+    fazendaAtivaId || undefined
   );
   const { appSettings } = useAppSettings();
   const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
@@ -86,7 +85,7 @@ export default function Notificacoes() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900">
       <div className="p-2 sm:p-4 md:p-6 text-gray-900 dark:text-slate-100 max-w-full overflow-x-hidden">
         
         {/* Header */}
@@ -313,7 +312,7 @@ export default function Notificacoes() {
 
 function AlertaCard({ 
   alerta, 
-  primaryColor, 
+  primaryColor: _primaryColor, 
   onToggleLido 
 }: { 
   alerta: Alerta; 
@@ -357,7 +356,7 @@ function AlertaCard({
     <div className={`${getBgColor(alerta.cor)} border-2 rounded-xl shadow-sm hover:shadow-md transition-all`}>
       <div className="p-4">
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             <div className={`p-3 rounded-lg ${
               alerta.severidade === 'alta' 
                 ? 'bg-red-100 dark:bg-red-900/30' 
@@ -399,7 +398,7 @@ function AlertaCard({
               {/* Botão Marcar como Lido/Não Lido */}
               <button
                 onClick={() => onToggleLido(alerta)}
-                className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
+                className={`shrink-0 p-2 rounded-lg transition-colors ${
                   alerta.lido
                     ? 'bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300'
                     : 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400'
@@ -414,7 +413,7 @@ function AlertaCard({
               </button>
             </div>
 
-            {alerta.detalhes && alerta.detalhes.length > 0 && (
+            {Array.isArray(alerta.detalhes) && alerta.detalhes.length > 0 && (
               <div className="mt-3">
                 <button
                   onClick={() => setExpandido(!expandido)}
@@ -428,31 +427,31 @@ function AlertaCard({
                   ) : (
                     <>
                       <Icons.ChevronDown className="w-4 h-4" />
-                      Ver detalhes ({alerta.detalhes.length})
+                      Ver detalhes ({(alerta.detalhes as unknown[]).length})
                     </>
                   )}
                 </button>
 
                 {expandido && (
                   <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
-                    {alerta.detalhes.map((detalhe: any, index: number) => (
+                    {(alerta.detalhes as Array<Record<string, unknown>>).map((detalhe, index) => (
                       <div
                         key={index}
                         className="bg-white dark:bg-slate-800/50 rounded-lg p-3 border border-gray-200 dark:border-slate-700"
                       >
-                        {detalhe.brinco && (
+                        {detalhe.brinco != null && String(detalhe.brinco) !== '' && (
                           <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                            🏷️ Brinco: {detalhe.brinco}
+                            🏷️ Brinco: {String(detalhe.brinco)}
                           </p>
                         )}
-                        {detalhe.nome && (
+                        {detalhe.nome != null && String(detalhe.nome) !== '' && (
                           <p className="text-xs text-gray-600 dark:text-slate-400">
-                            Nome: {detalhe.nome}
+                            Nome: {String(detalhe.nome)}
                           </p>
                         )}
-                        {detalhe.dataNascimento && (
+                        {detalhe.dataNascimento != null && (
                           <p className="text-xs text-gray-600 dark:text-slate-400">
-                            Nascimento: {new Date(detalhe.dataNascimento).toLocaleDateString('pt-BR')}
+                            Nascimento: {new Date(String(detalhe.dataNascimento)).toLocaleDateString('pt-BR')}
                           </p>
                         )}
                       </div>

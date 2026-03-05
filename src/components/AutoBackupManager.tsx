@@ -85,7 +85,7 @@ const AutoBackupManager = memo(function AutoBackupManager({
       {/* Status e Configurações */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Card de Status */}
-        <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-700">
+        <div className="p-4 bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-700">
           <div className="flex items-center gap-3 mb-4">
             <div
               className={`p-2 rounded-lg ${getPrimaryBadgeClass(primaryColor)}`}
@@ -137,7 +137,7 @@ const AutoBackupManager = memo(function AutoBackupManager({
         </div>
 
         {/* Card de Estatísticas */}
-        <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-700">
+        <div className="p-4 bg-linear-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-700">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
               <Icons.BarChart className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -178,7 +178,7 @@ const AutoBackupManager = memo(function AutoBackupManager({
       {/* Diretório de Salvamento */}
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl">
         <div className="flex items-start gap-3">
-          <Icons.Folder className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <Icons.Folder className="w-5 h-5 text-blue-600 dark:text-blue-400 flex shrink-0 mt-0.5" />
           <div className="flex-1">
             <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">
               Diretório de Salvamento

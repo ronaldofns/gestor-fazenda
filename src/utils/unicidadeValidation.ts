@@ -72,9 +72,7 @@ export async function validarPesagemUnica(
  * Ao editar, informe excludePesagemId para ignorar o próprio registro.
  */
 export async function validarConfinamentoPesagemUnica(
-  confinamentoAnimalId: string,
   data: string,
-  excludePesagemId?: string,
 ): Promise<ResultadoUnicidade> {
   const dataNorm = (data ?? "").trim();
   if (!dataNorm) {

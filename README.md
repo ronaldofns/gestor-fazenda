@@ -9,11 +9,11 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - ✅ Pode ser instalado como app no celular/tablet
 - ✅ Sincronização automática quando online
 - ✅ Service Worker para cache inteligente (precache + runtime cache)
-- ✅ **Notificações push** no navegador (inscrição + exibição em segundo plano; ver `docs/NOTIFICACOES_PUSH_SERVIDOR.md`)
+- ✅ **Notificações push** no navegador (inscrição + exibição em segundo plano; ver `docs/DOCUMENTACAO.md` § Notificações push)
 
 ### 🔄 Sincronização Offline-First
 - ✅ Sincronização bidirecional IndexedDB ↔ Supabase
-- ✅ Múltiplas tabelas sincronizadas (fazendas, animais, matrizes, nascimentos, desmamas, pesagens, vacinações, usuários, etc.)
+- ✅ Múltiplas tabelas sincronizadas (fazendas, animais, desmamas, pesagens, vacinações, confinamentos, usuários, tags, etc.)
 - ✅ Intervalo configurável (padrão 30 s)
 - ✅ Tela dedicada de **Sincronização** (fila de pendências, envio manual)
 - ✅ Indicador de status online/offline e toast "Conexão restaurada"
@@ -29,17 +29,19 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 ### 🎨 Personalização
 - ✅ Tema dinâmico com 7 cores (verde, azul, esmeralda, teal, índigo, roxo, cinza)
 - ✅ Modo escuro/claro
+- ✅ **Modo Curral / Escritório** (toggle na barra; UI simplificada e fonte maior no curral)
 - ✅ Configurações persistentes
 - ✅ Timeout de inatividade configurável
 
 ### 🐄 Gestão de Rebanho
 - ✅ **Fazendas**: Múltiplas fazendas, histórico, tags
-- ✅ **Animais**: Cadastro completo (brinco, tipo, status, origem, genealogia, datas, valor compra/venda). Listagem com filtros e virtualização para listas grandes
+- ✅ **Animais**: Cadastro completo (brinco, tipo, status, origem, genealogia, datas, valor compra/venda). Listagem com filtros e virtualização para listas grandes. Data de nascimento e origem (ex.: nascido na fazenda) na ficha do animal
 - ✅ **Matrizes**: Integradas ao cadastro de animais e à genealogia (mãe/pai)
-- ✅ **Nascimentos**: Registro histórico; animais nascidos na fazenda via origem/tipo
 - ✅ **Desmamas**: Peso e data de desmama (por animal)
 - ✅ **Pesagens**: Data e peso por animal (com opção de **balança** Web Bluetooth em Configurações)
 - ✅ **Vacinações**: Vacina, data de aplicação e vencimento por animal
+- ✅ **Confinamentos**: Lotes/ciclos de confinamento, entrada/saída de animais, peso entrada/saída, alimentação e custos; tela de lista e detalhe por confinamento
+- ✅ **Pendências do Curral**: Tela dedicada (bezerros sem desmama, vacinas vencidas, etc.)
 - ✅ **Raças e Categorias**: Gestão em Configurações → Raças e Categorias (e cadastro rápido de raça no modal do animal)
 - ✅ **Tipos / Status / Origens**: Editáveis (Bezerro, Vaca, Ativo, Vendido, Nascido na Fazenda, etc.)
 - ✅ **Histórico**: Histórico de alterações por entidade (fazenda, animal)
@@ -78,12 +80,10 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - ✅ Lock de registro (evitar edição simultânea)
 - ✅ Snapshot antes/depois das alterações
 
-### ⚡ Performance e UX (v0.3.0)
-- ✅ **Atalhos de teclado globais** (Ctrl+D, Ctrl+H, Ctrl+B, etc.; ver `docs/KEYBOARD_SHORTCUTS.md`)
+### ⚡ Performance e UX
+- ✅ **Atalhos de teclado globais** (Ctrl+D, Ctrl+H, Ctrl+B, etc.; ver `docs/DOCUMENTACAO.md` § Atalhos)
 - ✅ **Lazy loading** de rotas e modais pesados (AnimalModal, Histórico, Árvore Genealógica)
-- ✅ **Virtualização** da lista de animais (react-window) para 100+ itens
-- ✅ **Filtros avançados** com salvamento e reutilização
-- ✅ **Backup automático agendado** com histórico
+- ✅ **Virtualização** da lista de animais (react-window) para listas grandes
 - ✅ **Sistema de tags** customizáveis (fazendas, animais)
 - ✅ **i18n** preparado (estrutura pt-BR e hook `t()`; Login já traduzido)
 - ✅ **Testes** com Vitest (usePermissions, useAuth, Login, Modal, utils)
@@ -91,6 +91,29 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - ✅ Loading/Empty/Error states padronizados
 - ✅ Feedback visual (toasts)
 - ✅ Responsivo (mobile, tablet, desktop)
+
+## ✅ Scripts de verificação e manutenção
+
+Use estes comandos para manter o projeto seguro e atualizado:
+
+| Comando | Descrição |
+|--------|-----------|
+| `npm run audit` | Verifica vulnerabilidades nas dependências (recomendado antes de cada deploy). |
+| `npm run outdated` | Lista pacotes desatualizados (versão instalada vs. última dentro do range do `package.json`). |
+| `npm run deps:check` | Mostra quais dependências têm versões mais novas (usa `npm-check-updates`). |
+| `npm run deps:update` | Atualiza os ranges no `package.json` para a última versão; depois rode `npm install`. |
+| `npm run lint` | Roda o ESLint em `src/` (TypeScript + React). |
+| `npm run lint:fix` | Corrige automaticamente o que o ESLint conseguir (formatação, alguns erros). |
+| `npm run check` | Roda **audit** + **lint** + **testes** (verificação completa). |
+| `npm run check:fast` | Roda só **audit** + **testes** (útil em CI ou quando o lint ainda tem avisos). |
+
+**Sugestão de fluxo para manter dependências atualizadas:**
+
+1. `npm run deps:check` — ver o que pode ser atualizado.
+2. `npm run deps:update` — atualizar as versões no `package.json`.
+3. `npm install` — instalar as novas versões.
+4. `npm run audit` — conferir se não surgiram vulnerabilidades.
+5. `npm run test:run` e `npm run build` — garantir que tudo continua funcionando.
 
 ## 🛠️ Stack Tecnológica
 
@@ -102,7 +125,7 @@ Sistema de gestão para fazendas de gado, desenvolvido como PWA (Progressive Web
 - **Formulários**: React Hook Form + Zod
 - **Gráficos**: Recharts
 - **PDF**: jsPDF + jsPDF-AutoTable
-- **Planilhas**: XLSX
+- **Planilhas**: ExcelJS
 - **PWA**: vite-plugin-pwa (Workbox injectManifest; Service Worker com push)
 - **Testes**: Vitest + Testing Library
 
@@ -113,18 +136,16 @@ npm install
 npm run dev
 ```
 
-Variáveis de ambiente (`.env`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Para notificações push: `VITE_VAPID_PUBLIC_KEY` (e no servidor `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`). Ver `docs/NOTIFICACOES_PUSH_SERVIDOR.md`.
+Variáveis de ambiente (`.env`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Para notificações push: `VITE_VAPID_PUBLIC_KEY` (e no servidor `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`). Ver `docs/DOCUMENTACAO.md`.
 
 ## 📋 Funcionalidades – Referência
 
-O sistema está **completo** para gestão de fazendas (cadastros, operações por animal, relatórios, usuários, alertas, sincronização, configurações). Para a lista detalhada de funcionalidades e permissões, consulte **[`docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md`](./docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md)**.
+O sistema está **completo** para gestão de fazendas (cadastros, operações por animal, relatórios, usuários, alertas, sincronização, configurações). Lista detalhada de funcionalidades e permissões em **[`docs/DOCUMENTACAO.md`](./docs/DOCUMENTACAO.md)**.
 
-O documento [`docs/ROADMAP_FUNCIONALIDADES.md`](./docs/ROADMAP_FUNCIONALIDADES.md) contém o histórico do roadmap já implementado.
 
 ## 📚 Documentação
 
-- **Funcionalidades**: [`docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md`](./docs/FUNCIONALIDADES_GESTAO_FAZENDAS.md)
-- **Documentação técnica**: pasta [`docs/`](./docs/) (estrutura, sincronização, tags, atalhos, backup, notificações push, etc.)
+Toda a documentação técnica e de uso está em **[`docs/DOCUMENTACAO.md`](./docs/DOCUMENTACAO.md)** (instalação, funcionalidades, sincronização, notificações push, deploy, atalhos, backup, tags, scripts). Histórico de versões: [`docs/CHANGELOG.md`](./docs/CHANGELOG.md).
 
 ## 📄 Licença
 

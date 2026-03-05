@@ -1,7 +1,9 @@
+/* eslint-disable react-refresh/only-export-components -- arquivo exporta AuthProvider e useAuth, não só componentes */
 import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
 import { Usuario, UserRole } from '../db/models';
 import { db } from '../db/dexieDB';
 import { authenticateUser, getUserById, getUserByEmail } from '../utils/auth';
+import { pullUsuarios } from '../api/syncService';
 import { supabase } from '../api/supabaseClient';
 import { showToast } from '../utils/toast';
 
@@ -87,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               sessionStorage.removeItem(OFFLINE_LOGIN_FLAG);
               try {
                 await db.usuarios.put(usuario);
-              } catch (_) { /* ignora */ }
+              } catch { /* ignora */ }
               console.info('[Auth] Sessão restaurada (Supabase Auth). RLS usa auth.uid().');
               setLoading(false);
               return;
@@ -118,10 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           if (!usuario && online) {
             try {
-              const { pullUsuarios } = await import('../api/syncService');
               await pullUsuarios();
               usuario = await getUserById(savedUserId);
-            } catch (_) { /* ignora */ }
+            } catch { /* ignora */ }
           }
           if (usuario && usuario.ativo) {
             setUser(usuario);
@@ -176,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       title: 'Conexão restabelecida',
       message: 'Faça login novamente para sincronizar com o servidor.',
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- user?.id suficiente; user completo causaria re-runs desnecessários
   }, [isOnline, user?.id]);
 
   const login = async (email: string, password: string) => {
@@ -245,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem(OFFLINE_LOGIN_FLAG);
         try {
           await db.usuarios.put(usuario);
-        } catch (_) { /* ignora */ }
+        } catch { /* ignora */ }
         console.info('[Auth] Login OK (Supabase Auth). RLS usa auth.uid().');
         return;
       }
@@ -278,7 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem(OFFLINE_LOGIN_FLAG);
             try {
               await db.usuarios.put(u);
-            } catch (_) { /* ignora */ }
+            } catch { /* ignora */ }
             console.info('[Auth] Login OK (migração para Supabase Auth).');
             return;
           }

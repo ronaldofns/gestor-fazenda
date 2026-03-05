@@ -9,13 +9,11 @@ import SplashScreen from "./components/SplashScreen";
 import PWAUpdatePrompt from "./components/PWAUpdatePrompt";
 import { ToastContainer } from "./components/Toast";
 import { useInactivityTimeout } from "./hooks/useInactivityTimeout";
-import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
 import useOnline from "./hooks/useOnline";
 import { useAppSettings } from "./hooks/useAppSettings";
 import TopBar from "./components/TopBar";
 import { cleanupExpiredLocks } from "./utils/recordLock";
 import { FazendaContextProvider } from "./hooks/useFazendaContext";
-import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
 import ErrorPage from "./components/ErrorPage";
 
 // Lazy loading das rotas para melhorar performance inicial
@@ -61,8 +59,6 @@ export default function App() {
   // Hook para detectar inatividade e fazer logout automático
   useInactivityTimeout();
 
-  // Hook para atalhos globais de teclado
-  useGlobalShortcuts();
   const online = useOnline();
   const { appSettings } = useAppSettings();
 

@@ -144,6 +144,21 @@ export interface Usuario {
   remoteId?: number | null; // ID remoto no Supabase
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+  category?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+  usageCount: number;
+  synced: boolean;
+  remoteId?: string | null;
+}
+
 export type AuditEntity =
   | "fazenda"
   | "raca"

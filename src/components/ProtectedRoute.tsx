@@ -18,7 +18,7 @@ export default function ProtectedRoute({
   requiredPermission,
 }: ProtectedRouteProps) {
   const { user, loading, hasRole } = useAuth();
-  const { hasPermission, hasAnyPermission } = usePermissions();
+  const { hasPermission: _hasPermission, hasAnyPermission } = usePermissions();
   const location = useLocation();
 
   if (loading) {

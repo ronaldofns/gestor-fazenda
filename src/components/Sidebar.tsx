@@ -1,17 +1,15 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Icons } from "../utils/iconMapping";
 import SyncStatus from "./SyncStatus";
 import useSync from "../hooks/useSync";
 import { useAuth } from "../hooks/useAuth";
 import { usePermissions } from "../hooks/usePermissions";
-import { showToast } from "../utils/toast";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { ColorPaletteKey } from "../hooks/useThemeColors";
 import {
   getThemeClasses,
   getTitleTextClass,
-  getPrimaryButtonClass,
   getThemeToggleButtonClass,
   getSeparatorBorderClass,
 } from "../utils/themeHelpers";
@@ -19,19 +17,21 @@ import { useNotifications } from "../hooks/useNotifications";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import ConfirmDialog from "./ConfirmDialog";
 import { applyTheme, getInitialTheme, Theme } from "../utils/theme";
-import { APP_VERSION } from "../utils/version";
 import { setGlobalSyncing, getGlobalSyncing } from "../utils/syncState";
 
+import packageJson from "../../package.json";
 // Re-exportar para compatibilidade com TopBar e Sincronizacao
+/* eslint-disable react-refresh/only-export-components */
 export { setGlobalSyncing, getGlobalSyncing };
 
 export default function Sidebar() {
+  const APP_VERSION = packageJson.version;
+
   const location = useLocation();
-  const navigate = useNavigate();
-  const { logout, isAdmin } = useAuth();
+  const { logout: _logout, isAdmin } = useAuth();
   const { hasPermission } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [_syncing, setSyncing] = useState(false);
 
   // Estado para sidebar recolhida (inicia recolhida)
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -105,29 +105,6 @@ export default function Sidebar() {
     return () =>
       window.removeEventListener("syncStateChange", handleSyncStateChange);
   }, []);
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login", { replace: true });
-  };
-
-  const handleManualSync = async () => {
-    setSyncing(true);
-    setGlobalSyncing(true);
-    try {
-      const { syncAll } = await import("../api/syncService");
-      await syncAll();
-      // Se retornou { ran: false }, outra sync já estava em andamento
-    } catch (error) {
-      console.error("Erro na sincronização manual:", error);
-    } finally {
-      // Pequeno delay para mostrar feedback visual
-      setTimeout(() => {
-        setSyncing(false);
-        setGlobalSyncing(false);
-      }, 300);
-    }
-  };
 
   const menuItems = [
     ...(hasPermission("ver_dashboard")
@@ -334,7 +311,7 @@ export default function Sidebar() {
             setSidebarCollapsed(false);
           }
         }}
-        className="fixed top-3 left-3 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden z-[70] touch-manipulation"
+        className="fixed top-3 left-3 p-2 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 lg:hidden z-70 touch-manipulation"
         aria-label={sidebarOpen ? "Fechar menu" : "Abrir menu"}
       >
         {sidebarOpen ? (
@@ -358,14 +335,14 @@ export default function Sidebar() {
           fixed top-0 left-0 h-screen bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm
           transform transition-all duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0 w-64 z-50" : "-translate-x-full z-40"}
-          lg:translate-x-0 lg:z-[30]
+          lg:translate-x-0 lg:z-30
           ${sidebarCollapsed ? "lg:w-16" : "lg:w-64"}
         `}
       >
         <div className="flex flex-col h-full">
           {/* Header Completo e Profissional */}
           <div
-            className={`border-b border-gray-200 dark:border-slate-700 bg-gradient-to-br ${getHeaderGradient()} relative ${sidebarCollapsed && !sidebarOpen ? "p-3" : "p-4"}`}
+            className={`border-b border-gray-200 dark:border-slate-700 bg-linear-to-br ${getHeaderGradient()} relative ${sidebarCollapsed && !sidebarOpen ? "p-3" : "p-4"}`}
           >
             {sidebarCollapsed && !sidebarOpen ? (
               <div className="flex flex-col items-center gap-3">
@@ -395,7 +372,7 @@ export default function Sidebar() {
                           purple: "from-purple-500 to-pink-600",
                           gray: "from-gray-500 to-gray-600",
                         };
-                        target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br ${colorMap[primaryColor] || colorMap.green}"><svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>`;
+                        target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-linear-to-br ${colorMap[primaryColor] || colorMap.green}"><svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>`;
                       }
                     }}
                   />
@@ -417,7 +394,7 @@ export default function Sidebar() {
                 {/* Conteúdo do header */}
                 <div>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-lg overflow-hidden shrink-0">
                       <img
                         src="/logo.png"
                         alt="Logo"
@@ -436,7 +413,7 @@ export default function Sidebar() {
                               purple: "from-purple-500 to-purple-600",
                               gray: "from-gray-500 to-gray-600",
                             };
-                            target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br ${colorMap[primaryColor] || colorMap.green}"><svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>`;
+                            target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-linear-to-br ${colorMap[primaryColor] || colorMap.green}"><svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/></svg></div>`;
                           }
                         }}
                       />
@@ -463,7 +440,7 @@ export default function Sidebar() {
                     <div className="flex-1"></div>
                     <button
                       onClick={toggleTheme}
-                      className={`inline-flex items-center justify-center rounded-lg border ${getThemeToggleButtonClass(primaryColor)} backdrop-blur-sm px-2.5 py-1.5 text-xs font-medium transition-all shadow-sm flex-shrink-0`}
+                      className={`inline-flex items-center justify-center rounded-lg border ${getThemeToggleButtonClass(primaryColor)} backdrop-blur-sm px-2.5 py-1.5 text-xs font-medium transition-all shadow-sm shrink-0`}
                       title={
                         theme === "dark"
                           ? "Alternar para modo claro"
@@ -541,7 +518,7 @@ export default function Sidebar() {
           </nav>
 
           {/* Footer Profissional */}
-          <div className="border-t border-gray-200 dark:border-slate-700 bg-gradient-to-b from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+          <div className="border-t border-gray-200 dark:border-slate-700 bg-linear-to-b from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
             <div className="px-3 py-2.5">
               {/* Versão da aplicação */}
               <div

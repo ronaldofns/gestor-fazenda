@@ -1,17 +1,16 @@
-import { useState, useMemo } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/dexieDB';
-import { Icons } from '../utils/iconMapping';
-import { Tag } from '../db/models';
+import { useState, useMemo } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "../db/dexieDB";
+import { Icons } from "../utils/iconMapping";
 
-export type TagFilterMode = 'any' | 'all';
+export type TagFilterMode = "any" | "all";
 
 interface TagFilterProps {
   selectedTags: string[];
   onTagsChange: (tagIds: string[]) => void;
   filterMode: TagFilterMode;
   onFilterModeChange: (mode: TagFilterMode) => void;
-  category?: 'nascimento' | 'matriz' | 'fazenda';
+  category?: "nascimento" | "matriz" | "fazenda";
   className?: string;
 }
 
@@ -30,15 +29,15 @@ export default function TagFilter({
   filterMode,
   onFilterModeChange,
   category,
-  className = '',
+  className = "",
 }: TagFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // Buscar todas as tags disponíveis
   const allTags = useLiveQuery(() => {
-    let query = db.tags.filter(t => !t.deletedAt);
+    let query = db.tags.filter((t) => !t.deletedAt);
     if (category) {
-      query = query.filter(t => t.category === category);
+      query = query.filter((t) => t.category === category);
     }
     return query.toArray();
   }, [category]);
@@ -47,7 +46,7 @@ export default function TagFilter({
 
   const handleToggleTag = (tagId: string) => {
     if (selectedTags.includes(tagId)) {
-      onTagsChange(selectedTags.filter(id => id !== tagId));
+      onTagsChange(selectedTags.filter((id) => id !== tagId));
     } else {
       onTagsChange([...selectedTags, tagId]);
     }
@@ -68,15 +67,18 @@ export default function TagFilter({
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
           selectedTags.length > 0
-            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-            : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300"
+            : "bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
         }`}
       >
         <Icons.Tag className="w-4 h-4" />
         <span className="text-sm font-medium">
-          Filtrar por tags {selectedTags.length > 0 && `(${selectedTags.length})`}
+          Filtrar por tags{" "}
+          {selectedTags.length > 0 && `(${selectedTags.length})`}
         </span>
-        <Icons.ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <Icons.ChevronDown
+          className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (
@@ -106,21 +108,21 @@ export default function TagFilter({
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => onFilterModeChange('any')}
+                  onClick={() => onFilterModeChange("any")}
                   className={`flex-1 px-2 py-1.5 text-xs rounded transition-colors ${
-                    filterMode === 'any'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    filterMode === "any"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"
                   }`}
                 >
                   Qualquer tag
                 </button>
                 <button
-                  onClick={() => onFilterModeChange('all')}
+                  onClick={() => onFilterModeChange("all")}
                   className={`flex-1 px-2 py-1.5 text-xs rounded transition-colors ${
-                    filterMode === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    filterMode === "all"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"
                   }`}
                 >
                   Todas as tags
@@ -138,8 +140,8 @@ export default function TagFilter({
                       key={tag.id}
                       className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700'
-                          : 'hover:bg-gray-50 dark:hover:bg-slate-700 border border-transparent'
+                          ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700"
+                          : "hover:bg-gray-50 dark:hover:bg-slate-700 border border-transparent"
                       }`}
                     >
                       <input
@@ -149,7 +151,7 @@ export default function TagFilter({
                         className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                       />
                       <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: tag.color }}
                       />
                       <div className="flex-1 min-w-0">

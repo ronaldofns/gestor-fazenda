@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import {
   useState,
   useMemo,
@@ -22,7 +23,6 @@ import { ColorPaletteKey } from "../hooks/useThemeColors";
 import {
   getPrimaryButtonClass,
   getTitleTextClass,
-  getPrimaryActionButtonLightClass,
   getPrimaryCardClass,
 } from "../utils/themeHelpers";
 import { useAllEntityTags } from "../hooks/useAllEntityTags";
@@ -32,7 +32,9 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import Modal from "../components/Modal";
 import Combobox from "../components/Combobox";
 import { TagFilterMode } from "../components/TagFilter";
-import { exportarParaExcel, exportarParaCSV } from "../utils/exportarDados";
+import PaginationBar from "../components/PaginationBar";
+import { exportarParaCSV as _exportarParaCSV } from "../utils/exportarDados";
+import { uuid } from "../utils/uuid";
 
 // Lazy load de modais pesados (item 13 - otimizações de performance)
 const AnimalModal = lazy(() => import("../components/AnimalModal"));
@@ -110,7 +112,6 @@ export default function Animais() {
   const podeCadastrarAnimal = hasPermission("cadastrar_animal");
   const podeEditarAnimal = hasPermission("editar_animal");
   const podeExcluirAnimal = hasPermission("excluir_animal");
-  const podeExportarDados = hasPermission("exportar_dados");
 
   // Estados — buscaParaFiltro: valor debounced (vem do SearchInputDebounced), evita re-render do componente inteiro a cada tecla
   const [buscaParaFiltro, setBuscaParaFiltro] = useState("");
@@ -124,7 +125,7 @@ export default function Animais() {
   const [menuMesesAberto, setMenuMesesAberto] = useState(false); // Controle do dropdown de meses
   const [filtroAno, setFiltroAno] = useState(""); // Ano de nascimento
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [tagFilterMode, setTagFilterMode] = useState<TagFilterMode>("any");
+  const [tagFilterMode, _setTagFilterMode] = useState<TagFilterMode>("any");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortAsc, setSortAsc] = useState(false);
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -200,41 +201,6 @@ export default function Animais() {
   const handleFiltroRacaChange = useCallback((value: string) => {
     startTransition(() => {
       setFiltroRacaId(value);
-      setPaginaAtual(1);
-    });
-  }, []);
-
-  const handleFiltroAnoChange = useCallback((value: string) => {
-    startTransition(() => {
-      setFiltroAno(value);
-      setPaginaAtual(1);
-    });
-  }, []);
-
-  const handleFiltroMesesChange = useCallback((meses: number[]) => {
-    startTransition(() => {
-      setFiltroMesesNascimento(meses);
-      setPaginaAtual(1);
-    });
-  }, []);
-
-  const handleSelectedTagsChange = useCallback((tags: string[]) => {
-    startTransition(() => {
-      setSelectedTags(tags);
-      setPaginaAtual(1);
-    });
-  }, []);
-
-  const handleTagFilterModeChange = useCallback((mode: TagFilterMode) => {
-    startTransition(() => {
-      setTagFilterMode(mode);
-      setPaginaAtual(1);
-    });
-  }, []);
-
-  const handleFiltroSomenteBezerrosChange = useCallback((value: boolean) => {
-    startTransition(() => {
-      setFiltroSomenteBezerros(value);
       setPaginaAtual(1);
     });
   }, []);
@@ -433,20 +399,6 @@ export default function Animais() {
     return cache;
   }, [animaisRaw]);
 
-  // 🚀 OTIMIZAÇÃO: Memoizar anos disponíveis
-  const anosDisponiveis = useMemo(() => {
-    const anos = new Set<number>();
-    animaisRaw
-      .filter((a) => !a.deletedAt && a.dataNascimento)
-      .forEach((a) => {
-        const data = dataNascimentoCache.get(a.id);
-        if (data) anos.add(data.getFullYear());
-      });
-    return Array.from(anos)
-      .sort((a, b) => b - a)
-      .map((ano) => ({ label: ano.toString(), value: ano.toString() }));
-  }, [animaisRaw, dataNascimentoCache]);
-
   // Maps para lookup rápido
   const fazendaMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -517,38 +469,6 @@ export default function Animais() {
       });
     return matrizesSet;
   }, [animaisRaw, genealogiaMap]);
-
-  // Função para calcular idade em dias
-  const calcularIdade = (dataNascimento: string): number | null => {
-    if (!dataNascimento) return null;
-    try {
-      const partes = dataNascimento.split("/");
-      if (partes.length === 3) {
-        const data = new Date(
-          parseInt(partes[2]),
-          parseInt(partes[1]) - 1,
-          parseInt(partes[0]),
-        );
-        const hoje = new Date();
-        const diffTime = Math.abs(hoje.getTime() - data.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
-  // Função para formatar idade
-  const formatarIdade = (dias: number | null): string => {
-    if (dias === null) return "-";
-    if (dias < 30) return `${dias}d`;
-    if (dias < 365) return `${Math.floor(dias / 30)}m`;
-    const anos = Math.floor(dias / 365);
-    const meses = Math.floor((dias % 365) / 30);
-    return meses > 0 ? `${anos}a ${meses}m` : `${anos}a`;
-  };
 
   // 🚀 OTIMIZAÇÃO: Filtros e ordenação combinados em um único loop
   const animaisFiltrados = useMemo(() => {
@@ -1036,7 +956,6 @@ export default function Animais() {
       onConfirm: async () => {
         setConfirmDialog((prev) => ({ ...prev, open: false }));
         try {
-          const { uuid } = await import("../utils/uuid");
           const deletedId = uuid();
 
           // Registrar exclusão na tabela deletedRecords (entity = animal para sync aplicar só em animais_online)
@@ -1101,7 +1020,8 @@ export default function Animais() {
     setPaginaAtual(1);
   };
 
-  const handleExportarExcel = async () => {
+  /*
+  const _handleExportarExcel = async () => {
     if (!podeExportarDados) {
       showToast({
         type: "error",
@@ -1194,7 +1114,7 @@ export default function Animais() {
         };
       });
 
-      await exportarParaCSV({
+      await _exportarParaCSV({
         dados,
         nomeArquivo: `animais_${new Date().toISOString().split("T")[0]}`,
       });
@@ -1213,7 +1133,7 @@ export default function Animais() {
       });
     }
   };
-
+*/
   return (
     <div className="p-2 sm:p-3 md:p-4 text-gray-900 dark:text-slate-100 relative min-w-0 max-w-full overflow-x-hidden">
       {isLoading && (
@@ -1244,11 +1164,11 @@ export default function Animais() {
           {podeCadastrarAnimal && (
             <button
               onClick={handleNovoAnimal}
-              className={`${getPrimaryButtonClass(primaryColor)} text-white w-10 h-10 md:w-auto md:px-4 md:py-2 rounded-full md:rounded-lg flex items-center justify-center gap-2 flex-shrink-0 shadow-lg hover:shadow-xl transition-all`}
+              className={`${getPrimaryButtonClass(primaryColor)} text-white w-10 h-10 md:w-auto md:px-4 md:py-2 rounded-full md:rounded-lg flex items-center justify-center gap-2 shrink-0 shadow-lg hover:shadow-xl transition-all`}
               title="Novo Animal"
               aria-label="Novo Animal"
             >
-              <Icons.Plus className="w-5 h-5 flex-shrink-0" />
+              <Icons.Plus className="w-5 h-5 shrink-0" />
               <span className="hidden md:inline font-medium">Novo Animal</span>
             </button>
           )}
@@ -1308,7 +1228,9 @@ export default function Animais() {
                       { label: "Macho", value: "M" },
                       { label: "Fêmea", value: "F" },
                     ]}
-                    onChange={(v) => handleFiltroSexoChange(v as any)}
+                    onChange={(v) =>
+                      handleFiltroSexoChange(v as "" | "M" | "F")
+                    }
                   />
                 </div>
 
@@ -1373,8 +1295,9 @@ export default function Animais() {
                           : value &&
                               typeof value === "object" &&
                               "value" in value &&
-                              typeof (value as any).value === "string"
-                            ? (value as any).value
+                              typeof (value as { value?: string }).value ===
+                                "string"
+                            ? (value as { value: string }).value
                             : "";
                       setFiltroAno(valorFinal);
                     }}
@@ -1426,7 +1349,7 @@ export default function Animais() {
                       />
                     </button>
                     {menuMesesAberto && (
-                      <div className="absolute z-[100] w-full left-0 mt-1 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 max-h-64 overflow-y-auto">
+                      <div className="absolute z-100 w-full left-0 mt-1 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 max-h-64 overflow-y-auto">
                         {/* "Limpar (Todos)" — mesmo estilo azul do Combobox "Todos os anos" */}
                         <div className="py-1">
                           <button
@@ -1784,16 +1707,16 @@ export default function Animais() {
                   className="flex items-center justify-center gap-2 w-9 h-9 md:w-auto md:px-2.5 md:py-1.5 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
                   title="Selecionar colunas visíveis"
                 >
-                  <Icons.SlidersHorizontal className="w-4 h-4 flex-shrink-0" />
+                  <Icons.SlidersHorizontal className="w-4 h-4 shrink-0" />
                   <span className="hidden md:inline text-sm font-medium">
                     Colunas
                   </span>
                   <Icons.ChevronDown
-                    className={`hidden md:block w-4 h-4 transition-transform flex-shrink-0 ${colunasPopoverOpen ? "rotate-180" : ""}`}
+                    className={`hidden md:block w-4 h-4 transition-transform shrink-0 ${colunasPopoverOpen ? "rotate-180" : ""}`}
                   />
                 </button>
                 {colunasPopoverOpen && (
-                  <div className="absolute right-0 top-full mt-1 z-[100] w-56 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg">
+                  <div className="absolute right-0 top-full mt-1 z-100 w-56 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg">
                     <div className="px-3 py-2 border-b border-gray-200 dark:border-slate-600">
                       <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">
                         Colunas visíveis
@@ -1978,7 +1901,7 @@ export default function Animais() {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center flex-shrink-0 justify-between border border-gray-200 dark:border-slate-700 rounded mt-4 px-2 py-2">
+                    <div className="flex items-center shrink-0 justify-between border border-gray-200 dark:border-slate-700 rounded mt-4 px-2 py-2">
                       {podeEditarAnimal && (
                         <button
                           onClick={() => handleEditarAnimal(animal)}
@@ -2740,94 +2663,25 @@ export default function Animais() {
           {/* Paginação */}
           {(totalPaginas > 1 || animaisFiltrados.length > 0) && (
             <div className="bg-gray-50 dark:bg-slate-800 px-3 sm:px-4 py-3 border-t border-gray-200 dark:border-slate-700 min-w-0">
-              {/* Seletor de Itens por Página */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 min-w-0">
-                  <label className="text-sm text-gray-700 dark:text-slate-300 shrink-0">
-                    Itens por página:
-                  </label>
-                  <select
-                    value={itensPorPagina}
-                    onChange={(e) => {
-                      const novoValor = Number(e.target.value);
-                      if (OPCOES_ITENS_POR_PAGINA.includes(novoValor)) {
-                        setItensPorPagina(novoValor);
-                        setPaginaAtual(1); // Resetar para primeira página ao mudar itens por página
-                      }
-                    }}
-                    className="px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
-                  >
-                    {OPCOES_ITENS_POR_PAGINA.map((opcao) => (
-                      <option key={opcao} value={opcao}>
-                        {opcao}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="text-sm text-gray-700 dark:text-slate-300 min-w-0 truncate">
-                  Total:{" "}
-                  <span className="font-medium">{animaisFiltrados.length}</span>{" "}
-                  {animaisFiltrados.length === 1 ? "animal" : "animais"}
-                  {animaisRaw.length !== animaisFiltrados.length && (
-                    <span className="text-gray-500 dark:text-slate-400 ml-1">
-                      (de {animaisRaw.filter((a) => !a.deletedAt).length} total)
-                    </span>
-                  )}
-                </div>
+              <div className="text-sm text-gray-700 dark:text-slate-300 mb-2">
+                Total:{" "}
+                <span className="font-medium">{animaisFiltrados.length}</span>{" "}
+                {animaisFiltrados.length === 1 ? "animal" : "animais"}
+                {animaisRaw.length !== animaisFiltrados.length && (
+                  <span className="text-gray-500 dark:text-slate-400 ml-1">
+                    (de {animaisRaw.filter((a) => !a.deletedAt).length} total)
+                  </span>
+                )}
               </div>
-
-              {/* Navegação de Páginas */}
-              {totalPaginas > 1 && (
-                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2">
-                  <div className="text-sm text-gray-700 dark:text-slate-300 min-w-0">
-                    Página {paginaAtual} de {totalPaginas}
-                    {animaisPagina.length > 0 && (
-                      <span className="text-gray-500 dark:text-slate-400 ml-1">
-                        (mostrando {(paginaAtual - 1) * itensPorPagina + 1} -{" "}
-                        {Math.min(
-                          paginaAtual * itensPorPagina,
-                          animaisFiltrados.length,
-                        )}
-                        )
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
-                    <button
-                      onClick={() => setPaginaAtual(1)}
-                      disabled={paginaAtual === 1}
-                      className="px-3 py-1 border border-gray-300 dark:border-slate-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                      title="Primeira página"
-                    >
-                      <Icons.ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
-                      disabled={paginaAtual === 1}
-                      className="px-3 py-1 border border-gray-300 dark:border-slate-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      Anterior
-                    </button>
-                    <button
-                      onClick={() =>
-                        setPaginaAtual((p) => Math.min(totalPaginas, p + 1))
-                      }
-                      disabled={paginaAtual === totalPaginas}
-                      className="px-3 py-1 border border-gray-300 dark:border-slate-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      Próxima
-                    </button>
-                    <button
-                      onClick={() => setPaginaAtual(totalPaginas)}
-                      disabled={paginaAtual === totalPaginas}
-                      className="px-3 py-1 border border-gray-300 dark:border-slate-600 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                      title="Última página"
-                    >
-                      <Icons.ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
+              <PaginationBar
+                page={paginaAtual}
+                setPage={setPaginaAtual}
+                total={animaisFiltrados.length}
+                pageSize={itensPorPagina}
+                pageSizeOptions={OPCOES_ITENS_POR_PAGINA}
+                setPageSize={setItensPorPagina}
+                className="mt-0"
+              />
             </div>
           )}
         </div>

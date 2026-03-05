@@ -31,7 +31,7 @@ export function estadoAnimalConfinamento(
  */
 export function estadoConfinamentoDerivado(
   confinamento: Confinamento,
-  vínculos: ConfinamentoAnimal[],
+  _vínculos: ConfinamentoAnimal[],
 ): EstadoConfinamentoDerivado {
   if (confinamento.status === "cancelado") return "cancelado";
 
@@ -68,7 +68,6 @@ export function isConfinamentoFinalizado(
  */
 export function estadoConfinamentoPorTotais(
   confinamento: Confinamento,
-  totalAnimais: number,
   ativos: number,
 ): EstadoConfinamentoDerivado {
   if (confinamento.status === "cancelado") return "cancelado";

@@ -1,22 +1,22 @@
-import { useState, useRef, useCallback, InputHTMLAttributes } from 'react';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getThemeClasses } from '../utils/themeHelpers';
-import { normalizarDataInput } from '../utils/dateInput';
+import { useState, useRef, useCallback, InputHTMLAttributes } from "react";
+import { normalizarDataInput } from "../utils/dateInput";
 
-export interface InputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> {
+export interface InputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "className"
+> {
   label: string;
   error?: string;
   className?: string;
   containerClassName?: string;
+  ref?: React.Ref<HTMLInputElement>;
 }
 
 export default function Input({
   label,
   error,
-  className = '',
-  containerClassName = '',
+  className = "",
+  containerClassName = "",
   value,
   defaultValue,
   onFocus,
@@ -26,25 +26,23 @@ export default function Input({
   ref: refProp,
   ...props
 }: InputProps) {
-  const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
-
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isFocused, setIsFocused] = useState(false);
+  const [_isFocused, setIsFocused] = useState(false);
 
   // Mesclar ref: react-hook-form (register) e ref interno — sem isso o register não lê o valor (ex: Peso em PesagemModal)
   const mergedRef = useCallback(
     (el: HTMLInputElement | null) => {
-      (inputRef as React.MutableRefObject<HTMLInputElement | null>).current = el;
-      if (typeof refProp === 'function') refProp(el);
-      else if (refProp) (refProp as React.MutableRefObject<HTMLInputElement | null>).current = el;
+      (inputRef as { current: HTMLInputElement | null }).current = el;
+      if (typeof refProp === "function") refProp(el);
+      else if (refProp)
+        (refProp as { current: HTMLInputElement | null }).current = el;
     },
-    [refProp]
+    [refProp],
   );
 
   const inputType =
-    props.type === 'date' && placeholder?.includes('DD/MM/YYYY')
-      ? 'text'
+    props.type === "date" && placeholder?.includes("DD/MM/YYYY")
+      ? "text"
       : props.type;
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -58,7 +56,7 @@ export default function Input({
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (inputType === 'text' && placeholder?.includes('DD/MM/YYYY')) {
+    if (inputType === "text" && placeholder?.includes("DD/MM/YYYY")) {
       e.target.value = normalizarDataInput(e.target.value);
     }
     props.onChange?.(e);
@@ -79,9 +77,10 @@ export default function Input({
           duration-150
           bg-white
           dark:bg-slate-900
-          ${error
-            ? 'border-red-500 dark:border-red-400'
-            : 'border-gray-300 dark:border-slate-600'
+          ${
+            error
+              ? "border-red-500 dark:border-red-400"
+              : "border-gray-300 dark:border-slate-600"
           }
         `}
       >
@@ -98,9 +97,10 @@ export default function Input({
             transition-colors
             bg-white
             dark:bg-slate-900
-            ${error
-              ? 'text-red-500 dark:text-red-400'
-              : 'text-slate-500 dark:text-slate-400'
+            ${
+              error
+                ? "text-red-500 dark:text-red-400"
+                : "text-slate-500 dark:text-slate-400"
             }
           `}
         >
@@ -118,7 +118,7 @@ export default function Input({
           onFocus={handleFocus}
           onBlur={handleBlur}
           onChange={
-            inputType === 'text' && placeholder?.includes('DD/MM/YYYY')
+            inputType === "text" && placeholder?.includes("DD/MM/YYYY")
               ? handleDateChange
               : props.onChange
           }
@@ -146,9 +146,7 @@ export default function Input({
 
       {/* Erro */}
       {error && (
-        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-          {error}
-        </p>
+        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>
       )}
     </div>
   );

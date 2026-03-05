@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Icons } from '../utils/iconMapping';
-import { useAppSettings } from '../hooks/useAppSettings';
-import { ColorPaletteKey } from '../hooks/useThemeColors';
-import { getPrimaryButtonClass } from '../utils/themeHelpers';
+import React, { useState, useRef, useEffect } from "react";
+import { Icons } from "../utils/iconMapping";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { ColorPaletteKey } from "../hooks/useThemeColors";
+import { getPrimaryButtonClass } from "../utils/themeHelpers";
 
 export interface ComboboxOption {
   label: string;
@@ -30,52 +30,56 @@ export default function Combobox({
   value,
   onChange,
   options,
-  placeholder = 'Selecione',
+  placeholder = "Selecione",
   error,
   required = false,
   disabled = false,
   allowCustomValue = true,
   onAddNew,
-  addNewLabel = 'Adicionar',
-  className = '',
-  containerClassName = ''
+  addNewLabel = "Adicionar",
+  className = "",
+  containerClassName = "",
 }: ComboboxProps) {
   const { appSettings } = useAppSettings();
-  const primaryColor = (appSettings.primaryColor || 'gray') as ColorPaletteKey;
+  const primaryColor = (appSettings.primaryColor || "gray") as ColorPaletteKey;
 
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Encontrar a opção selecionada
-  const selectedOption = options.find(opt => opt.value === value);
-  const displayValue = selectedOption?.label || value || '';
+  const selectedOption = options.find((opt) => opt.value === value);
+  const displayValue = selectedOption?.label || value || "";
 
   // Filtrar opções baseado na busca
-  const filteredOptions = options.filter(opt =>
-    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   // Fechar dropdown ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
-        setSearchTerm('');
+        setSearchTerm("");
       }
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isOpen]);
 
   const handleSelect = (optionValue: string) => {
     onChange(optionValue);
     setIsOpen(false);
-    setSearchTerm('');
+    setSearchTerm("");
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,14 +96,14 @@ export default function Combobox({
   const handleInputFocus = () => {
     if (!disabled) {
       setIsOpen(true);
-      setSearchTerm('');
+      setSearchTerm("");
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       setIsOpen(false);
-      setSearchTerm('');
+      setSearchTerm("");
     }
   };
 
@@ -117,9 +121,11 @@ export default function Combobox({
           bg-white
           dark:bg-slate-900
           transition-colors
-          ${error
-            ? 'border-red-500 dark:border-red-400'
-            : 'border-gray-300 dark:border-slate-600'}
+          ${
+            error
+              ? "border-red-500 dark:border-red-400"
+              : "border-gray-300 dark:border-slate-600"
+          }
         `}
       >
         {/* Label */}
@@ -138,11 +144,13 @@ export default function Combobox({
               dark:text-slate-400
               pointer-events-none
               transition-colors
-              ${error ? 'text-red-500 dark:text-red-400' : ''}
+              ${error ? "text-red-500 dark:text-red-400" : ""}
             `}
           >
             {label}
-            {required && <span className="ml-1 text-red-500 dark:text-red-400">*</span>}
+            {required && (
+              <span className="ml-1 text-red-500 dark:text-red-400">*</span>
+            )}
           </label>
         )}
 
@@ -187,7 +195,7 @@ export default function Combobox({
               }}
               disabled={disabled}
               className={`
-                flex-shrink-0
+                flex shrink-0
                 ${getPrimaryButtonClass(primaryColor)}
                 text-white
                 px-2.5
@@ -218,10 +226,10 @@ export default function Combobox({
               }
             }}
             disabled={disabled}
-            className="flex-shrink-0 p-0 bg-transparent border-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none"
+            className="flex shrink-0 p-0 bg-transparent border-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none"
           >
             <Icons.ChevronDown
-              className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+              className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
             />
           </button>
         </div>
@@ -248,9 +256,10 @@ export default function Combobox({
                     py-2
                     text-sm
                     transition-colors
-                    ${option.value === value
-                      ? 'bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800'
+                    ${
+                      option.value === value
+                        ? "bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-medium"
+                        : "text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800"
                     }
                   `}
                 >
@@ -264,9 +273,7 @@ export default function Combobox({
 
       {/* Mensagem de erro */}
       {error && (
-        <p className="mt-1 text-xs text-red-500 dark:text-red-400">
-          {error}
-        </p>
+        <p className="mt-1 text-xs text-red-500 dark:text-red-400">{error}</p>
       )}
     </div>
   );

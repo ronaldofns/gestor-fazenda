@@ -1,14 +1,15 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-html, body, #root { 
-  height: 100%; 
+html,
+body,
+#root {
+  height: 100%;
   overflow-x: hidden;
   max-width: 100vw;
 }
-body { 
-  @apply bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100;
+body {
+  background-color: rgb(248 250 252); /* slate-50 */
+  color: rgb(30 41 59); /* slate-800 */
   /* Compatibilidade com diferentes navegadores */
   -webkit-text-size-adjust: 100%; /* Safari, Chrome antigo */
   -moz-text-size-adjust: 100%; /* Firefox */
@@ -16,6 +17,10 @@ body {
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
+}
+.dark body {
+  background-color: rgb(2 6 23); /* slate-950 */
+  color: rgb(241 245 249); /* slate-100 */
 }
 
 /* Animação para o prompt de instalação */
@@ -34,88 +39,88 @@ body {
   animation: slide-up 0.3s ease-out;
 }
 
-/* Forçar inputs a respeitarem o modo escuro - aplicado globalmente */
-.dark input[type="text"],
-.dark input[type="number"],
-.dark input[type="date"],
-.dark input[type="email"],
-.dark input[type="password"],
-.dark input[type="url"],
-.dark input[type="tel"],
-.dark input:not([type]),
-.dark textarea,
-.dark select {
-  background-color: rgb(51 65 85) !important; /* slate-700 */
-  color: rgb(241 245 249) !important; /* slate-100 */
-  border-color: rgb(71 85 105) !important; /* slate-600 */
+/* Forçar inputs a respeitarem o modo escuro - aplicado globalmente (especificidade maior que utilitários Tailwind) */
+html.dark input[type="text"],
+html.dark input[type="number"],
+html.dark input[type="date"],
+html.dark input[type="email"],
+html.dark input[type="password"],
+html.dark input[type="url"],
+html.dark input[type="tel"],
+html.dark input:not([type]),
+html.dark textarea,
+html.dark select {
+  background-color: rgb(51 65 85); /* slate-700 */
+  color: rgb(241 245 249); /* slate-100 */
+  border-color: rgb(71 85 105); /* slate-600 */
 }
 
-.dark input[type="text"]::placeholder,
-.dark input[type="number"]::placeholder,
-.dark input[type="date"]::placeholder,
-.dark input[type="email"]::placeholder,
-.dark input[type="password"]::placeholder,
-.dark input[type="url"]::placeholder,
-.dark input[type="tel"]::placeholder,
-.dark input:not([type])::placeholder,
-.dark textarea::placeholder {
-  color: rgb(148 163 184) !important; /* slate-400 */
+html.dark input[type="text"]::placeholder,
+html.dark input[type="number"]::placeholder,
+html.dark input[type="date"]::placeholder,
+html.dark input[type="email"]::placeholder,
+html.dark input[type="password"]::placeholder,
+html.dark input[type="url"]::placeholder,
+html.dark input[type="tel"]::placeholder,
+html.dark input:not([type])::placeholder,
+html.dark textarea::placeholder {
+  color: rgb(148 163 184); /* slate-400 */
 }
 
 /* Forçar elementos do input date no modo escuro */
-.dark input[type="date"]::-webkit-calendar-picker-indicator {
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
   opacity: 0.8;
   cursor: pointer;
 }
 
-.dark input[type="date"]::-webkit-datetime-edit-text,
-.dark input[type="date"]::-webkit-datetime-edit-month-field,
-.dark input[type="date"]::-webkit-datetime-edit-day-field,
-.dark input[type="date"]::-webkit-datetime-edit-year-field {
-  color: rgb(241 245 249) !important; /* slate-100 */
+html.dark input[type="date"]::-webkit-datetime-edit-text,
+html.dark input[type="date"]::-webkit-datetime-edit-month-field,
+html.dark input[type="date"]::-webkit-datetime-edit-day-field,
+html.dark input[type="date"]::-webkit-datetime-edit-year-field {
+  color: rgb(241 245 249); /* slate-100 */
 }
 
 /* Garantir que labels sejam legíveis no modo escuro */
-.dark label {
-  color: rgb(241 245 249) !important; /* slate-100 */
+html.dark label {
+  color: rgb(241 245 249); /* slate-100 */
 }
 
 /* Garantir que elementos dentro de modais respeitem o modo escuro */
-.dark .bg-white {
-  background-color: rgb(30 41 59) !important; /* slate-800 */
+html.dark .bg-white {
+  background-color: rgb(30 41 59); /* slate-800 */
 }
 
 /* Forçar labels dentro de modais a serem legíveis */
-.dark form label,
-.dark .block.text-sm label,
-.dark .block.text-xs label,
-.dark label.block {
-  color: rgb(241 245 249) !important; /* slate-100 */
+html.dark form label,
+html.dark .block.text-sm label,
+html.dark .block.text-xs label,
+html.dark label.block {
+  color: rgb(241 245 249); /* slate-100 */
 }
 
 /* Garantir que spans dentro de labels também sejam legíveis */
-.dark label span,
-.dark span.text-xs,
-.dark span.text-sm {
-  color: rgb(241 245 249) !important; /* slate-100 */
+html.dark label span,
+html.dark span.text-xs,
+html.dark span.text-sm {
+  color: rgb(241 245 249); /* slate-100 */
 }
 
 /* Forçar inputs dentro de formulários no modo escuro */
-.dark form input[type="text"],
-.dark form input[type="number"],
-.dark form input[type="date"],
-.dark form input:not([type]),
-.dark form textarea {
-  background-color: rgb(51 65 85) !important; /* slate-700 */
-  color: rgb(241 245 249) !important; /* slate-100 */
-  border-color: rgb(71 85 105) !important; /* slate-600 */
+html.dark form input[type="text"],
+html.dark form input[type="number"],
+html.dark form input[type="date"],
+html.dark form input:not([type]),
+html.dark form textarea {
+  background-color: rgb(51 65 85); /* slate-700 */
+  color: rgb(241 245 249); /* slate-100 */
+  border-color: rgb(71 85 105); /* slate-600 */
 }
 
 /* Garantir que o header do modal seja escuro */
-.dark .sticky.top-0.bg-white,
-.dark .bg-white.rounded-lg {
-  background-color: rgb(30 41 59) !important; /* slate-800 */
+html.dark .sticky.top-0.bg-white,
+html.dark .bg-white.rounded-lg {
+  background-color: rgb(30 41 59); /* slate-800 */
 }
 
 /* v0.4 — Modo Campo/Curral: fonte maior e alto contraste para uso no curral */

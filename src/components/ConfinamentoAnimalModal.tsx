@@ -287,12 +287,10 @@ export default function ConfinamentoAnimalModal({
 
       onSaved?.();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao salvar vínculo";
       console.error("Erro ao salvar vínculo animal-confinamento:", error);
-      showToast({
-        type: "error",
-        message: error.message || "Erro ao salvar vínculo",
-      });
+      showToast({ type: "error", message: msg });
     } finally {
       setIsSubmitting(false);
     }

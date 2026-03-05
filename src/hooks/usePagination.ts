@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 
-export function usePagination<T>(items: T[], pageSize: number, resetKey?: any) {
+export function usePagination<T>(items: T[], pageSize: number, resetKey?: string | number) {
   const [page, setPage] = useState(1);
 
   const total = items.length;

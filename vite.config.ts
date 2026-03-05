@@ -1,187 +1,191 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const packageJson = JSON.parse(
-  readFileSync(resolve(__dirname, 'package.json'), 'utf-8')
+  readFileSync(resolve(__dirname, "package.json"), "utf-8"),
 );
 
 export default defineConfig({
   define: {
-    'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
-    'import.meta.env.VITE_BUILD_DATE': JSON.stringify(new Date().toISOString().split('T')[0])
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(packageJson.version),
+    "import.meta.env.VITE_BUILD_DATE": JSON.stringify(
+      new Date().toISOString().split("T")[0],
+    ),
   },
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
-      strategies: 'injectManifest',
+      registerType: "prompt",
+      strategies: "injectManifest",
       // Para estratégias injectManifest o limite é configurado aqui (não em workbox)
       injectManifest: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
       },
-      srcDir: 'src',
-      filename: 'sw.ts',
-      includeAssets: ['logo192.png', 'logo512.png'],
+      srcDir: "src",
+      filename: "sw.ts",
+      includeAssets: ["logo192.png", "logo512.png"],
       manifest: {
-        name: 'Gerenciador de Fazendas',
-        short_name: 'GestorFaz',
-        description: 'Sistema de Gestão de Rebanho Bovino',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#ffffff',
-        orientation: 'portrait',
+        name: "Gerenciador de Fazendas",
+        short_name: "GestorFaz",
+        description: "Sistema de Gestão de Rebanho Bovino",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#ffffff",
+        orientation: "portrait",
         icons: [
-          { 
-            src: '/logo192.png', 
-            sizes: '192x192', 
-            type: 'image/png',
-            purpose: 'any maskable'
+          {
+            src: "/logo192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any maskable",
           },
-          { 
-            src: '/logo512.png', 
-            sizes: '512x512', 
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
+          {
+            src: "/logo512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
         ],
         screenshots: [
           {
-            src: '/logo512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            form_factor: 'narrow'
-          }
-        ]
+            src: "/logo512.png",
+            sizes: "512x512",
+            type: "image/png",
+            form_factor: "narrow",
+          },
+        ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB (aumentado para suportar chunks maiores)
         skipWaiting: false, // Não ativar automaticamente - aguardar confirmação do usuário
         clientsClaim: false, // Não assumir controle imediatamente
         // Escutar mensagens do cliente para ativar service worker
-        navigateFallback: '/index.html',
+        navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
         runtimeCaching: [
           // Cache de rotas frequentes (Dashboard, Home)
           {
             urlPattern: ({ url }) => {
               const pathname = url.pathname;
-              return pathname === '/' || 
-                     pathname === '/dashboard' || 
-                     pathname === '/planilha' ||
-                     pathname === '/matrizes' ||
-                     pathname === '/notificacoes';
+              return (
+                pathname === "/" ||
+                pathname === "/dashboard" ||
+                pathname === "/planilha" ||
+                pathname === "/matrizes" ||
+                pathname === "/notificacoes"
+              );
             },
-            handler: 'StaleWhileRevalidate',
+            handler: "StaleWhileRevalidate",
             options: {
-              cacheName: 'pages-cache',
+              cacheName: "pages-cache",
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 dias
-              }
-            }
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 dias
+              },
+            },
           },
           // Cache de chunks JavaScript
           {
             urlPattern: /\.js$/,
-            handler: 'StaleWhileRevalidate',
+            handler: "StaleWhileRevalidate",
             options: {
-              cacheName: 'js-cache',
+              cacheName: "js-cache",
               expiration: {
                 maxEntries: 60,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 dias
-              }
-            }
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 dias
+              },
+            },
           },
           // Cache de CSS
           {
             urlPattern: /\.css$/,
-            handler: 'StaleWhileRevalidate',
+            handler: "StaleWhileRevalidate",
             options: {
-              cacheName: 'css-cache',
+              cacheName: "css-cache",
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 dias
-              }
-            }
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 dias
+              },
+            },
           },
           // Cache de imagens
           {
             urlPattern: /\.(png|jpg|jpeg|svg|gif|webp)$/,
-            handler: 'CacheFirst',
+            handler: "CacheFirst",
             options: {
-              cacheName: 'images-cache',
+              cacheName: "images-cache",
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 ano
-              }
-            }
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 ano
+              },
+            },
           },
           // Cache do Supabase (APIs)
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
+            handler: "NetworkFirst",
             options: {
-              cacheName: 'supabase-cache',
+              cacheName: "supabase-cache",
               networkTimeoutSeconds: 10, // Timeout de 10s
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 horas
+                maxAgeSeconds: 60 * 60 * 24, // 24 horas
               },
               cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
+                statuses: [0, 200],
+              },
+            },
           },
           // Cache de fontes do Google
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
+            handler: "CacheFirst",
             options: {
-              cacheName: 'google-fonts-cache',
+              cacheName: "google-fonts-cache",
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 ano
-              }
-            }
-          }
-        ]
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 ano
+              },
+            },
+          },
+        ],
       },
       devOptions: {
         enabled: false,
-        type: 'module'
-      }
-    })
+        type: "module",
+      },
+    }),
   ],
   test: {
     globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    include: ['src/**/*.{test,spec}.{ts,tsx}']
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.ts",
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
   server: {
     hmr: {
-      protocol: 'ws',
-      host: 'localhost',
+      protocol: "ws",
+      host: "localhost",
       port: 5173,
       // Desabilita overlay de erros que causa crash (Cannot read properties of undefined 'nodeName')
-      overlay: false
-    }
+      overlay: false,
+    },
   },
   build: {
-    chunkSizeWarningLimit: 1000, // Aumenta o limite de aviso para 1 MB
+    chunkSizeWarningLimit: 2000, // Evita aviso para chunks grandes (vendor-other ~1.5 MB já fragmentado)
     rollupOptions: {
       output: {
         // Cache busting para assets - usando hash para garantir atualização
-        entryFileNames: 'assets/[name]-[hash].js',
-        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: (assetInfo) => {
-          const info = assetInfo.name?.split('.') || [];
+          const info = assetInfo.name?.split(".") || [];
           const ext = info[info.length - 1];
           if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext)) {
             return `assets/images/[name]-[hash][extname]`;
@@ -195,23 +199,36 @@ export default defineConfig({
         // React/react-dom NÃO são separados em vendor-react para evitar erro
         // "Cannot set properties of undefined (setting 'Activity')" com React 19 no build.
         manualChunks: (id) => {
-          if (id.includes('node_modules')) {
-            if (id.includes('react-icons')) {
-              return 'vendor-icons';
+          if (id.includes("node_modules")) {
+            // Ícones (costumam ser pesados)
+            if (id.includes("react-icons") || id.includes("lucide")) {
+              return "vendor-icons";
             }
-            if (id.includes('supabase')) {
-              return 'vendor-supabase';
+            // Banco de Dados e API
+            if (id.includes("supabase") || id.includes("@supabase")) {
+              return "vendor-supabase";
             }
-            if (id.includes('dexie')) {
-              return 'vendor-dexie';
+            if (id.includes("dexie")) {
+              return "vendor-dexie";
             }
-            if (id.includes('recharts')) {
-              return 'vendor-recharts';
+            // Gráficos
+            if (id.includes("recharts")) {
+              return "vendor-recharts";
             }
-            return 'vendor-other';
+            // Documentos e Exportação (os grandes vilões de 2MB)
+            if (
+              id.includes("jspdf") ||
+              id.includes("exceljs") ||
+              id.includes("jspdf-autotable")
+            ) {
+              return "vendor-docs";
+            }
+            // date-fns, react-hook-form, zod ficam em vendor-other para evitar
+            // ciclo vendor-utils -> vendor-other -> vendor-utils
+            return "vendor-other";
           }
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 });

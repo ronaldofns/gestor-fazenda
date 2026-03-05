@@ -15,12 +15,22 @@ export interface BackupHistoryItem {
   success: boolean;
   error?: string;
   metadata?: {
-    totalNascimentos: number;
+    totalAnimais: number;
+    totalTiposAnimal: number;
+    totalStatusAnimal: number;
+    totalOrigens: number;
+    totalGenealogias: number;
     totalDesmamas: number;
     totalPesagens: number;
     totalVacinacoes: number;
     totalMatrizes: number;
     totalFazendas: number;
+    totalUsuarios: number;
+    totalTags: number;
+    totalConfinamentos: number;
+    totalConfinamentosAnimais: number;
+    totalConfinamentosAlimentacao: number;
+    totalOcorrenciaAnimais?: number;
   };
 }
 
@@ -100,23 +110,38 @@ export function useAutoBackup() {
     const timestamp = new Date().toISOString();
 
     try {
-      // Executar backup
-      const result = await exportarBackupCompleto();
+      // Executar backup (sem download automático; o download só ocorre se autoDownload estiver ligado)
+      const result = await exportarBackupCompleto({
+        triggerDownload: settings.autoDownload
+      });
+
+      const size = new Blob([result.jsonContent]).size;
+      const m = result.metadados;
 
       // Criar entrada no histórico
       const historyItem: BackupHistoryItem = {
         id: crypto.randomUUID(),
         timestamp,
-        fileName: `backup-${timestamp.split('T')[0]}.json`,
-        size: new Blob([result]).size,
+        fileName: result.nomeArquivo,
+        size,
         success: true,
         metadata: {
-          totalNascimentos: 0, // Será preenchido pelo exportarBackupCompleto
-          totalDesmamas: 0,
-          totalPesagens: 0,
-          totalVacinacoes: 0,
-          totalMatrizes: 0,
-          totalFazendas: 0
+          totalAnimais: m.totalAnimais,
+          totalTiposAnimal: m.totalTiposAnimal,
+          totalStatusAnimal: m.totalStatusAnimal,
+          totalOrigens: m.totalOrigens,
+          totalGenealogias: m.totalGenealogias,
+          totalDesmamas: m.totalDesmamas,
+          totalPesagens: m.totalPesagens,
+          totalVacinacoes: m.totalVacinacoes,
+          totalMatrizes: m.totalMatrizes,
+          totalFazendas: m.totalFazendas,
+          totalUsuarios: m.totalUsuarios,
+          totalTags: m.totalTags,
+          totalConfinamentos: m.totalConfinamentos,
+          totalConfinamentosAnimais: m.totalConfinamentoAnimais,
+          totalConfinamentosAlimentacao: m.totalConfinamentoAlimentacao,
+          totalOcorrenciaAnimais: m.totalOcorrenciaAnimais,
         }
       };
 

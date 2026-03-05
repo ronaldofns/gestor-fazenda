@@ -8,6 +8,9 @@ import { db } from "../db/dexieDB";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { ColorPaletteKey } from "../hooks/useThemeColors";
 import { getThemeClasses, getPrimaryButtonClass } from "../utils/themeHelpers";
+import { pullUsuarios } from "../api/syncService";
+
+type LoginFormData = { email: string; password: string };
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,7 +28,7 @@ export default function Login() {
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm();
+  } = useForm<LoginFormData>();
   const isDev =
     import.meta.env?.DEV === true || import.meta.env?.MODE === "development";
 
@@ -37,7 +40,6 @@ export default function Login() {
         setSincronizando(true);
         try {
           // Fazer pull apenas de usuários do Supabase (mais rápido)
-          const { pullUsuarios } = await import("../api/syncService");
           await pullUsuarios();
         } catch (syncError) {
           console.error("Erro ao sincronizar usuários:", syncError);
@@ -73,7 +75,7 @@ export default function Login() {
     }
   }, [verificandoUsuarios, temUsuarios, navigate]);
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: LoginFormData) {
     setError(null);
     setLoading(true);
 
@@ -83,8 +85,8 @@ export default function Login() {
 
       // Login bem-sucedido — sempre redirecionar para o dashboard
       navigate("/dashboard", { replace: true });
-    } catch (err: any) {
-      setError(err.message || "Erro ao fazer login");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao fazer login");
     } finally {
       setLoading(false);
     }
@@ -102,7 +104,7 @@ export default function Login() {
   if (authLoading || verificandoUsuarios) {
     return (
       <div
-        className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${getThemeClasses(primaryColor, "gradient-from")} via-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-900`}
+        className={`min-h-screen flex items-center justify-center bg-linear-to-br ${getThemeClasses(primaryColor, "gradient-from")} via-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-900`}
       >
         <div className="text-center">
           <div
@@ -145,7 +147,7 @@ export default function Login() {
         {/* Logo/Header */}
         <div className="text-center mb-10">
           <div
-            className={`inline-flex items-center justify-center w-24 h-24 bg-gradient-to-tr ${getThemeClasses(primaryColor, "gradient-from")} to-white/20 rounded-3xl shadow-2xl mb-6 ring-4 ring-black/50 dark:ring-slate-800/50`}
+            className={`inline-flex items-center justify-center w-24 h-24 bg-linear-to-tr ${getThemeClasses(primaryColor, "gradient-from")} to-white/20 rounded-3xl shadow-2xl mb-6 ring-4 ring-black/50 dark:ring-slate-800/50`}
           >
             <Icons.LogIn
               className={`w-12 h-12 ${getThemeClasses(primaryColor, "text")} drop-shadow-md`}
@@ -165,7 +167,7 @@ export default function Login() {
         </div>
 
         {/* Card de Login com Efeito Glassmorphism */}
-        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[1rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 border border-white dark:border-slate-800 transition-all duration-300 hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)]">
+        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 border border-white dark:border-slate-800 transition-all duration-300 hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)]">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-8 text-center uppercase tracking-widest">
             {t("login.title")}
           </h2>

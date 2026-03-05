@@ -1,40 +1,41 @@
 /**
  * Motor genérico de sync - reduz código, bugs e custo mental
- * Pull incremental + batch no IndexedDB
- * Quando client (JWT) é passado, usa-o para que auth.uid() seja preenchido no servidor.
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabase } from "./supabaseClient";
+import { getLastPulledAt, setLastPulledAt } from "../utils/syncCheckpoints";
+import type { Table, IndexableType } from "dexie";
 
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { supabase } from './supabaseClient';
-import { getLastPulledAt, setLastPulledAt } from '../utils/syncCheckpoints';
-
-const MARGEM_TIMESTAMP = 1000; // 1 segundo para conflito
+const MARGEM_TIMESTAMP = 1000;
 const PAGE_SIZE = 1000;
 
-export interface PullEntityConfig<TLocal, TServer> {
+// Tipagem rigorosa para os campos de sincronização (sem index signature para permitir interfaces do app)
+export interface BaseSyncFields {
+  id: IndexableType;
+  uuid?: string | null;
+  remoteId?: string | number | null;
+  synced?: boolean;
+  updatedAt?: string | null;
+}
+
+export interface PullEntityConfig<
+  TLocal extends BaseSyncFields,
+  TServer extends Record<string, unknown>,
+> {
   remoteTable: string;
   orderBy?: string;
   updatedAtField?: string;
-  /** Campo local para comparar (updatedAt ou timestamp) */
   updatedAtFieldLocal?: string;
-  /** Dexie Table (bulkPut, bulkUpdate, toArray, delete) */
-  localTable: any;
+  localTable: Table<TLocal, IndexableType>;
   mapper: (s: TServer) => TLocal;
   uuidField?: string;
   requireUuid?: boolean;
   deleteRemotes?: boolean;
-  /** Usar paginação para tabelas grandes (animais, genealogias) */
   usePagination?: boolean;
-  /** Limite de registros (ex: auditoria = 1000) */
   limit?: number;
-  /** Para tabelas pequenas (categorias, raças, fazendas): sempre full pull, evita perder registros por checkpoint incremental */
   forceFullPull?: boolean;
 }
 
-/**
- * Busca registros do Supabase com suporte a incremental.
- * @param client - Se passado, usa este client (ex.: com JWT) para evitar PGRST301.
- */
 export async function fetchFromSupabase<T>(
   tableName: string,
   options: {
@@ -43,13 +44,12 @@ export async function fetchFromSupabase<T>(
     lastPulledAt?: string | null;
     limit?: number;
   } = {},
-  client?: SupabaseClient
+  client?: SupabaseClient,
 ): Promise<T[]> {
   const sb = client ?? supabase;
-  let query = sb.from(tableName).select('*');
-  const { orderBy = 'id', updatedAtField, lastPulledAt, limit } = options;
+  let query = sb.from(tableName).select("*");
+  const { orderBy = "id", updatedAtField, lastPulledAt, limit } = options;
 
-  // gt (>) em vez de gte (>=): evita re-buscar o mesmo registro a cada sync
   if (updatedAtField && lastPulledAt) {
     query = query.gt(updatedAtField, lastPulledAt);
   }
@@ -66,25 +66,30 @@ export async function fetchFromSupabase<T>(
   return (data || []) as T[];
 }
 
-/**
- * Busca todos com paginação (para tabelas grandes).
- * @param client - Se passado, usa este client (ex.: com JWT).
- */
 export async function fetchAllPaginated<T>(
   tableName: string,
-  options: { orderBy?: string; updatedAtField?: string; lastPulledAt?: string | null; limit?: number } = {},
-  client?: SupabaseClient
+  options: {
+    orderBy?: string;
+    updatedAtField?: string;
+    lastPulledAt?: string | null;
+    limit?: number;
+  } = {},
+  client?: SupabaseClient,
 ): Promise<T[]> {
   const sb = client ?? supabase;
   const allRecords: T[] = [];
   let from = 0;
-  const { orderBy = 'id', updatedAtField, lastPulledAt, limit } = options;
+  const { orderBy = "id", updatedAtField, lastPulledAt, limit } = options;
   const pageSize = limit ? Math.min(limit, PAGE_SIZE) : PAGE_SIZE;
 
   let hasMore = true;
   while (hasMore) {
-    let query = sb.from(tableName).select('*').range(from, from + pageSize - 1).order(orderBy, { ascending: true });
-    // gt (>) evita re-buscar os mesmos registros a cada sync
+    let query = sb
+      .from(tableName)
+      .select("*")
+      .range(from, from + pageSize - 1)
+      .order(orderBy, { ascending: true });
+
     if (updatedAtField && lastPulledAt) {
       query = query.gt(updatedAtField, lastPulledAt);
     }
@@ -96,7 +101,8 @@ export async function fetchAllPaginated<T>(
     }
     if (page && page.length > 0) {
       allRecords.push(...(page as T[]));
-      hasMore = page.length === pageSize && (!limit || allRecords.length < limit);
+      hasMore =
+        page.length === pageSize && (!limit || allRecords.length < limit);
       from += pageSize;
       if (limit && allRecords.length >= limit) hasMore = false;
     } else {
@@ -106,28 +112,26 @@ export async function fetchAllPaginated<T>(
   return limit ? allRecords.slice(0, limit) : allRecords;
 }
 
-/**
- * Pull genérico com batch - bulkPut/bulkUpdate, zero await em loop
- * Suporta incremental, paginação e limite.
- * @param client - Se passado, usa este client (JWT) para as requisições.
- */
-export async function pullEntity<TLocal, TServer extends Record<string, any>>(
+export async function pullEntity<
+  TLocal extends BaseSyncFields,
+  TServer extends Record<string, unknown>,
+>(
   config: PullEntityConfig<TLocal, TServer>,
-  client?: SupabaseClient
+  client?: SupabaseClient,
 ): Promise<number> {
   const {
     remoteTable,
-    orderBy = 'id',
-    updatedAtField = 'updated_at',
-    updatedAtFieldLocal = 'updatedAt',
+    orderBy = "id",
+    updatedAtField = "updated_at",
+    updatedAtFieldLocal = "updatedAt",
     localTable,
     mapper,
-    uuidField = 'uuid',
+    uuidField = "uuid",
     requireUuid = true,
     deleteRemotes = true,
     usePagination = false,
     limit,
-    forceFullPull = false
+    forceFullPull = false,
   } = config;
 
   const lastPulledAt = forceFullPull ? null : getLastPulledAt(remoteTable);
@@ -135,8 +139,9 @@ export async function pullEntity<TLocal, TServer extends Record<string, any>>(
     orderBy,
     updatedAtField: lastPulledAt ? updatedAtField : undefined,
     lastPulledAt: lastPulledAt || undefined,
-    limit
+    limit,
   };
+
   const servRecords = usePagination
     ? await fetchAllPaginated<TServer>(remoteTable, fetchOpts, client)
     : await fetchFromSupabase<TServer>(remoteTable, fetchOpts, client);
@@ -146,18 +151,18 @@ export async function pullEntity<TLocal, TServer extends Record<string, any>>(
     return 0;
   }
 
-  const servUuids = new Set(servRecords.map(r => r[uuidField]).filter(Boolean));
-  const localRecords = await localTable.toArray();
-  const localMap = new Map(localRecords.map((r: any) => [r.id, r]));
+  const servUuids = new Set(
+    servRecords.map((r) => String(r[uuidField] ?? "")).filter(Boolean),
+  );
 
-  // Só remover locais que não vêm mais do servidor quando for FULL pull.
-  // Em pull incremental o servidor retorna só os atualizados — não o conjunto completo — então
-  // deletar "quem não está no batch" apagaria indevidamente os outros registros.
+  const localRecords = await localTable.toArray();
+  const localMap = new Map(localRecords.map((r) => [String(r.id), r]));
+
   const isFullPull = lastPulledAt == null;
   if (deleteRemotes && isFullPull) {
     const idsParaDeletar = localRecords
-      .filter((r: any) => r.remoteId != null && !servUuids.has(r.id))
-      .map((r: any) => r.id);
+      .filter((r) => r.remoteId != null && !servUuids.has(String(r.id)))
+      .map((r) => r.id);
     if (idsParaDeletar.length > 0) await localTable.bulkDelete(idsParaDeletar);
   }
 
@@ -165,18 +170,31 @@ export async function pullEntity<TLocal, TServer extends Record<string, any>>(
   const toUpdate: Array<{ key: string; changes: Partial<TLocal> }> = [];
 
   for (const s of servRecords) {
-    if (requireUuid && !s[uuidField]) continue;
-    const uuid = s[uuidField];
-    const local = localMap.get(uuid) as any;
+    const sUuid = s[uuidField];
+    if (requireUuid && !sUuid) continue;
+
+    const uuid = String(sUuid);
+    const local = localMap.get(uuid);
     const mapped = mapper(s);
 
     if (!local) {
-      toPut.push(mapped as TLocal);
+      toPut.push(mapped);
     } else {
-      const servUpdated = s[updatedAtField] ? new Date(s[updatedAtField]).getTime() : 0;
-      const localUpdated = local[updatedAtFieldLocal] ? new Date(local[updatedAtFieldLocal]).getTime() : 0;
+      const servUpdated =
+        typeof s[updatedAtField] === "string"
+          ? new Date(s[updatedAtField] as string).getTime()
+          : 0;
+      const localUpdated =
+        typeof (local as Record<string, unknown>)[updatedAtFieldLocal] ===
+        "string"
+          ? new Date(
+              (local as Record<string, unknown>)[updatedAtFieldLocal] as string,
+            ).getTime()
+          : 0;
 
-      if (!local.synced && localUpdated >= servUpdated - MARGEM_TIMESTAMP) continue;
+      if (!local.synced && localUpdated >= servUpdated - MARGEM_TIMESTAMP)
+        continue;
+
       if (!local.remoteId || localUpdated < servUpdated) {
         toUpdate.push({ key: uuid, changes: mapped as Partial<TLocal> });
       }
@@ -184,54 +202,73 @@ export async function pullEntity<TLocal, TServer extends Record<string, any>>(
   }
 
   if (toPut.length > 0) await localTable.bulkPut(toPut);
-  if (toUpdate.length > 0) await localTable.bulkUpdate(toUpdate);
+  if (toUpdate.length > 0) {
+    // bulkUpdate do Dexie exige um array de objetos com as chaves específicas
+    for (const update of toUpdate) {
+      await localTable.update(update.key, update.changes as object);
+    }
+  }
 
-  const maxUpdated = servRecords.reduce((max, r) => {
+  const maxUpdated = servRecords.reduce<string | null>((max, r) => {
     const t = r[updatedAtField];
-    return t && (!max || t > max) ? t : max;
-  }, null as string | null);
-  setLastPulledAt(remoteTable, maxUpdated || new Date().toISOString());
+    if (typeof t === "string") {
+      return !max || t > max ? t : max;
+    }
+    return max;
+  }, null);
+
+  setLastPulledAt(remoteTable, maxUpdated ?? new Date().toISOString());
 
   return toPut.length + toUpdate.length;
 }
 
-/**
- * Pull simples - bulkPut com suporte a incremental.
- * @param client - Se passado, usa este client (JWT).
- */
-export async function pullEntitySimple<TLocal, TServer>(
+export async function pullEntitySimple<
+  TLocal extends BaseSyncFields,
+  TServer extends Record<string, unknown>,
+>(
   remoteTable: string,
-  localTable: any,
+  localTable: Table<TLocal, IndexableType>,
   mapper: (s: TServer) => TLocal,
-  opts: { uuidField?: string; updatedAtField?: string; usePagination?: boolean } = {},
-  client?: SupabaseClient
+  opts: {
+    uuidField?: string;
+    updatedAtField?: string;
+    usePagination?: boolean;
+  } = {},
+  client?: SupabaseClient,
 ): Promise<number> {
-  const { uuidField = 'uuid', updatedAtField = 'updated_at', usePagination = false } = opts;
+  const {
+    uuidField = "uuid",
+    updatedAtField = "updated_at",
+    usePagination = false,
+  } = opts;
   const lastPulledAt = getLastPulledAt(remoteTable);
   const fetchOpts = {
-    orderBy: updatedAtField === 'updated_at' ? 'updated_at' : 'id',
+    orderBy: updatedAtField === "updated_at" ? "updated_at" : "id",
     updatedAtField: lastPulledAt ? updatedAtField : undefined,
-    lastPulledAt: lastPulledAt || undefined
+    lastPulledAt: lastPulledAt || undefined,
   };
+
   const records = usePagination
     ? await fetchAllPaginated<TServer>(remoteTable, fetchOpts, client)
     : await fetchFromSupabase<TServer>(remoteTable, fetchOpts, client);
+
   if (!records || records.length === 0) {
     if (lastPulledAt) setLastPulledAt(remoteTable, new Date().toISOString());
     return 0;
   }
 
   const toPut = records
-    .filter((r: any) => r[uuidField])
-    .map(r => mapper(r) as TLocal);
+    .filter((r) => r[uuidField] != null)
+    .map((r) => mapper(r));
 
   if (toPut.length > 0) {
     await localTable.bulkPut(toPut);
   }
-  const maxUpdated = records.reduce((max, r: any) => {
+
+  const maxUpdated = records.reduce<string | null>((max, r) => {
     const t = r[updatedAtField];
-    return t && (!max || t > max) ? t : max;
-  }, null as string | null);
+    return typeof t === "string" && (!max || t > max) ? t : max;
+  }, null);
   setLastPulledAt(remoteTable, maxUpdated || new Date().toISOString());
   return toPut.length;
 }

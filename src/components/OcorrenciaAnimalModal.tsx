@@ -153,8 +153,9 @@ export default function OcorrenciaAnimalModal({
       }
       onSaved?.();
       onClose();
-    } catch (error: any) {
-      showToast({ type: 'error', message: error.message || 'Erro ao salvar' });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Erro ao salvar';
+      showToast({ type: 'error', message: msg });
     } finally {
       setIsSubmitting(false);
     }

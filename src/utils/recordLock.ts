@@ -1,10 +1,18 @@
-import { db } from '../db/dexieDB';
+import { db } from "../db/dexieDB";
 
 const LOCK_TTL_MINUTES = 10; // TTL de 10 minutos
 
 export interface RecordLock {
   entityId: string;
-  entityType: 'desmama' | 'matriz' | 'fazenda' | 'raca' | 'categoria' | 'usuario' | 'pesagem' | 'vacina';
+  entityType:
+    | "desmama"
+    | "matriz"
+    | "fazenda"
+    | "raca"
+    | "categoria"
+    | "usuario"
+    | "pesagem"
+    | "vacina";
   lockedBy: string; // userId
   lockedByNome?: string; // Nome do usuário que bloqueou
   lockedAt: string; // ISO timestamp
@@ -16,36 +24,36 @@ export interface RecordLock {
  * Retorna o lock se estiver bloqueado e válido, null caso contrário
  */
 export async function checkLock(
-  entityType: RecordLock['entityType'],
-  entityId: string
+  entityType: RecordLock["entityType"],
+  entityId: string,
 ): Promise<RecordLock | null> {
   try {
     // Buscar o registro na tabela apropriada
-    let record: any = null;
-    
+    let record: unknown | null = null;
+
     switch (entityType) {
-      case 'desmama':
+      case "desmama":
         record = await db.desmamas.get(entityId);
         break;
-      case 'pesagem':
+      case "pesagem":
         record = await db.pesagens.get(entityId);
         break;
-      case 'vacina':
+      case "vacina":
         record = await db.vacinacoes.get(entityId);
         break;
-      case 'matriz':
+      case "matriz":
         record = await db.matrizes.get(entityId);
         break;
-      case 'fazenda':
+      case "fazenda":
         record = await db.fazendas.get(entityId);
         break;
-      case 'raca':
+      case "raca":
         record = await db.racas.get(entityId);
         break;
-      case 'categoria':
+      case "categoria":
         record = await db.categorias.get(entityId);
         break;
-      case 'usuario':
+      case "usuario":
         record = await db.usuarios.get(entityId);
         break;
     }
@@ -54,14 +62,21 @@ export async function checkLock(
       return null; // Registro não existe
     }
 
-    // Verificar se tem lock
-    if (!record.lockedBy || !record.lockedAt) {
+    type LockFields = {
+      lockedBy?: string;
+      lockedByNome?: string;
+      lockedAt?: string;
+    };
+    const r = record as LockFields;
+    if (!r.lockedBy || !r.lockedAt) {
       return null; // Sem lock
     }
 
     // Verificar se o lock expirou
-    const lockedAt = new Date(record.lockedAt);
-    const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+    const lockedAt = new Date(r.lockedAt);
+    const expiresAt = new Date(
+      lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+    );
     const now = new Date();
 
     if (now > expiresAt) {
@@ -74,13 +89,13 @@ export async function checkLock(
     return {
       entityId,
       entityType,
-      lockedBy: record.lockedBy,
-      lockedByNome: record.lockedByNome,
-      lockedAt: record.lockedAt,
-      expiresAt: expiresAt.toISOString()
+      lockedBy: r.lockedBy,
+      lockedByNome: r.lockedByNome,
+      lockedAt: r.lockedAt,
+      expiresAt: expiresAt.toISOString(),
     };
   } catch (error) {
-    console.error('Erro ao verificar lock:', error);
+    console.error("Erro ao verificar lock:", error);
     return null;
   }
 }
@@ -90,45 +105,49 @@ export async function checkLock(
  * Retorna true se conseguiu bloquear, false se já está bloqueado por outro usuário
  */
 export async function lockRecord(
-  entityType: RecordLock['entityType'],
+  entityType: RecordLock["entityType"],
   entityId: string,
   userId: string,
-  userNome?: string
+  userNome?: string,
 ): Promise<{ success: boolean; lock?: RecordLock; error?: string }> {
   try {
     // Verificar se já está bloqueado
     const existingLock = await checkLock(entityType, entityId);
-    
+
     if (existingLock) {
       // Se o lock é do mesmo usuário, renovar
       if (existingLock.lockedBy === userId) {
         await updateLock(entityType, entityId, userId, userNome);
         return { success: true, lock: existingLock };
       }
-      
+
       // Lock de outro usuário
       return {
         success: false,
-        error: `Este registro está sendo editado por ${existingLock.lockedByNome || 'outro usuário'}. Tente novamente em alguns minutos.`
+        error: `Este registro está sendo editado por ${existingLock.lockedByNome || "outro usuário"}. Tente novamente em alguns minutos.`,
       };
     }
 
     // Criar novo lock
     await updateLock(entityType, entityId, userId, userNome);
-    
+
     const lock: RecordLock = {
       entityId,
       entityType,
       lockedBy: userId,
       lockedByNome: userNome,
       lockedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + LOCK_TTL_MINUTES * 60 * 1000).toISOString()
+      expiresAt: new Date(
+        Date.now() + LOCK_TTL_MINUTES * 60 * 1000,
+      ).toISOString(),
     };
 
     return { success: true, lock };
-  } catch (error: any) {
-    console.error('Erro ao bloquear registro:', error);
-    return { success: false, error: error.message || 'Erro ao bloquear registro' };
+  } catch (error: unknown) {
+    const msg =
+      error instanceof Error ? error.message : "Erro ao bloquear registro";
+    console.error("Erro ao bloquear registro:", error);
+    return { success: false, error: msg };
   }
 }
 
@@ -136,16 +155,16 @@ export async function lockRecord(
  * Atualiza o lock de um registro (renova TTL)
  */
 async function updateLock(
-  entityType: RecordLock['entityType'],
+  entityType: RecordLock["entityType"],
   entityId: string,
   userId: string,
-  userNome?: string
+  userNome?: string,
 ): Promise<void> {
   const now = new Date().toISOString();
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     lockedBy: userId,
     lockedAt: now,
-    updatedAt: now
+    updatedAt: now,
   };
 
   if (userNome) {
@@ -153,28 +172,28 @@ async function updateLock(
   }
 
   switch (entityType) {
-    case 'desmama':
+    case "desmama":
       await db.desmamas.update(entityId, updateData);
       break;
-    case 'pesagem':
+    case "pesagem":
       await db.pesagens.update(entityId, updateData);
       break;
-    case 'vacina':
+    case "vacina":
       await db.vacinacoes.update(entityId, updateData);
       break;
-    case 'matriz':
+    case "matriz":
       await db.matrizes.update(entityId, updateData);
       break;
-    case 'fazenda':
+    case "fazenda":
       await db.fazendas.update(entityId, updateData);
       break;
-    case 'raca':
+    case "raca":
       await db.racas.update(entityId, updateData);
       break;
-    case 'categoria':
+    case "categoria":
       await db.categorias.update(entityId, updateData);
       break;
-    case 'usuario':
+    case "usuario":
       await db.usuarios.update(entityId, updateData);
       break;
   }
@@ -184,45 +203,45 @@ async function updateLock(
  * Libera o lock de um registro
  */
 export async function unlockRecord(
-  entityType: RecordLock['entityType'],
-  entityId: string
+  entityType: RecordLock["entityType"],
+  entityId: string,
 ): Promise<void> {
   try {
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       lockedBy: null,
       lockedByNome: null,
       lockedAt: null,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     switch (entityType) {
-      case 'desmama':
+      case "desmama":
         await db.desmamas.update(entityId, updateData);
         break;
-      case 'pesagem':
+      case "pesagem":
         await db.pesagens.update(entityId, updateData);
         break;
-      case 'vacina':
+      case "vacina":
         await db.vacinacoes.update(entityId, updateData);
         break;
-      case 'matriz':
+      case "matriz":
         await db.matrizes.update(entityId, updateData);
         break;
-      case 'fazenda':
+      case "fazenda":
         await db.fazendas.update(entityId, updateData);
         break;
-      case 'raca':
+      case "raca":
         await db.racas.update(entityId, updateData);
         break;
-      case 'categoria':
+      case "categoria":
         await db.categorias.update(entityId, updateData);
         break;
-      case 'usuario':
+      case "usuario":
         await db.usuarios.update(entityId, updateData);
         break;
     }
   } catch (error) {
-    console.error('Erro ao liberar lock:', error);
+    console.error("Erro ao liberar lock:", error);
   }
 }
 
@@ -239,9 +258,11 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const desmama of desmamas) {
       if (desmama.lockedAt) {
         const lockedAt = new Date(desmama.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('desmama', desmama.id);
+          await unlockRecord("desmama", desmama.id);
           cleaned++;
         }
       }
@@ -252,9 +273,11 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const pesagem of pesagens) {
       if (pesagem.lockedAt) {
         const lockedAt = new Date(pesagem.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('pesagem', pesagem.id);
+          await unlockRecord("pesagem", pesagem.id);
           cleaned++;
         }
       }
@@ -265,9 +288,11 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const vacina of vacinacoes) {
       if (vacina.lockedAt) {
         const lockedAt = new Date(vacina.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('vacina', vacina.id);
+          await unlockRecord("vacina", vacina.id);
           cleaned++;
         }
       }
@@ -278,9 +303,11 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const matriz of matrizes) {
       if (matriz.lockedAt) {
         const lockedAt = new Date(matriz.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('matriz', matriz.id);
+          await unlockRecord("matriz", matriz.id);
           cleaned++;
         }
       }
@@ -291,9 +318,11 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const fazenda of fazendas) {
       if (fazenda.lockedAt) {
         const lockedAt = new Date(fazenda.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('fazenda', fazenda.id);
+          await unlockRecord("fazenda", fazenda.id);
           cleaned++;
         }
       }
@@ -304,9 +333,11 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const raca of racas) {
       if (raca.lockedAt) {
         const lockedAt = new Date(raca.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('raca', raca.id);
+          await unlockRecord("raca", raca.id);
           cleaned++;
         }
       }
@@ -317,9 +348,11 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const categoria of categorias) {
       if (categoria.lockedAt) {
         const lockedAt = new Date(categoria.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('categoria', categoria.id);
+          await unlockRecord("categoria", categoria.id);
           cleaned++;
         }
       }
@@ -330,15 +363,17 @@ export async function cleanupExpiredLocks(): Promise<number> {
     for (const usuario of usuarios) {
       if (usuario.lockedAt) {
         const lockedAt = new Date(usuario.lockedAt);
-        const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000);
+        const expiresAt = new Date(
+          lockedAt.getTime() + LOCK_TTL_MINUTES * 60 * 1000,
+        );
         if (now > expiresAt) {
-          await unlockRecord('usuario', usuario.id);
+          await unlockRecord("usuario", usuario.id);
           cleaned++;
         }
       }
     }
   } catch (error) {
-    console.error('Erro ao limpar locks expirados:', error);
+    console.error("Erro ao limpar locks expirados:", error);
   }
 
   return cleaned;

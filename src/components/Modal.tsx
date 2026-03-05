@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback, memo } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useCallback, memo } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalProps {
   children: React.ReactNode;
@@ -9,22 +9,30 @@ interface ModalProps {
   ariaLabel?: string;
 }
 
-const Modal = memo(function Modal({ children, open, onClose, ariaLabel = 'Diálogo' }: ModalProps) {
-  const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
+const Modal = memo(function Modal({
+  children,
+  open,
+  onClose,
+  ariaLabel = "Diálogo",
+}: ModalProps) {
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    },
+    [onClose],
+  );
 
   useEffect(() => {
     if (open) {
-      document.body.style.overflow = 'hidden';
-      document.addEventListener('keydown', handleEscape);
+      document.body.style.overflow = "hidden";
+      document.addEventListener("keydown", handleEscape);
     } else {
-      document.body.style.overflow = '';
-      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", handleEscape);
     }
     return () => {
-      document.body.style.overflow = '';
-      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [open, handleEscape]);
 
@@ -32,7 +40,7 @@ const Modal = memo(function Modal({ children, open, onClose, ariaLabel = 'Diálo
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-9999 flex items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}

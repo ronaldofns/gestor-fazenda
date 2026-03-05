@@ -53,7 +53,7 @@ async function verifyConnectivity() {
     // Se houve resposta do backend, consideramos que há conectividade (mesmo que retorne erro de negócio)
     const reachable = response.status > 0;
     notify(reachable && navigator.onLine);
-  } catch (err) {
+  } catch {
     notify(false);
   } finally {
     window.clearTimeout(timeoutId);

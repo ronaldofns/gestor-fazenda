@@ -1,5 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import ErrorPage from './ErrorPage';
+import { Component, ErrorInfo, ReactNode } from "react";
+import ErrorPage from "./ErrorPage";
 
 interface Props {
   children: ReactNode;
@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary capturou erro:', error, errorInfo);
+    console.error("ErrorBoundary capturou erro:", error, errorInfo);
   }
 
   render() {

@@ -20,14 +20,16 @@ import { createSyncEvent } from '../utils/syncEvents';
 
 const schemaDesmama = z.object({
   dataDesmama: z.string().min(1, msg.dataObrigatoria).regex(/^\d{2}\/\d{2}\/\d{4}$/, msg.formatoData),
-  pesoDesmama: z.preprocess(
-    (val) => {
-      if (val === '' || val === null || val === undefined) return undefined;
-      const parsed = parseFloat(String(val));
-      return isNaN(parsed) ? undefined : parsed;
-    },
-    z.number({ invalid_type_error: msg.informeValor }).positive(msg.valorMaiorQueZero).min(0.01, msg.valorMaiorQueZero)
-  )
+  pesoDesmama: z
+    .string()
+    .min(1, msg.informeValor)
+    .refine(
+      (s) => {
+        const n = parseFloat(String(s).trim().replace(",", "."));
+        return !isNaN(n) && n > 0;
+      },
+      { message: msg.valorMaiorQueZero }
+    ),
 });
 
 type FormDataDesmama = z.infer<typeof schemaDesmama>;
@@ -63,7 +65,7 @@ export default function DesmamaModal({
     resolver: zodResolver(schemaDesmama),
     defaultValues: {
       dataDesmama: '',
-      pesoDesmama: undefined
+      pesoDesmama: ''
     }
   });
 
@@ -72,19 +74,19 @@ export default function DesmamaModal({
     if (open && initialData) {
       reset({
         dataDesmama: initialData.dataDesmama ? converterDataParaFormatoInput(initialData.dataDesmama) : '',
-        pesoDesmama: initialData.pesoDesmama || undefined
+        pesoDesmama: initialData.pesoDesmama != null ? String(initialData.pesoDesmama) : ''
       });
     } else if (open && mode === 'create') {
       reset({
         dataDesmama: '',
-        pesoDesmama: undefined
+        pesoDesmama: ''
       });
     }
   }, [open, initialData, mode, reset]);
 
   const onSubmit = async (data: FormDataDesmama) => {
     if (!user) {
-      showToast('Usuário não autenticado', 'error');
+      showToast({ type: 'error', message: 'Usuário não autenticado' });
       return;
     }
 
@@ -93,13 +95,14 @@ export default function DesmamaModal({
     try {
       const now = new Date().toISOString();
       const dataDesmamaBanco = converterDataParaFormatoBanco(data.dataDesmama);
+      const pesoDesmamaNum = parseFloat(String(data.pesoDesmama).trim().replace(",", "."));
 
       if (mode === 'create') {
         const novaDesmama: Desmama = {
           id: uuid(),
           animalId: animalId,
           dataDesmama: dataDesmamaBanco,
-          pesoDesmama: data.pesoDesmama,
+          pesoDesmama: pesoDesmamaNum,
           createdAt: now,
           updatedAt: now,
           synced: false,
@@ -117,16 +120,16 @@ export default function DesmamaModal({
           description: `Desmama cadastrada para animal ${animalId}`
         });
 
-        showToast('Desmama cadastrada com sucesso!', 'success');
+        showToast({ type: 'success', message: 'Desmama cadastrada com sucesso!' });
       } else {
         if (!initialData?.id) {
-          showToast('ID da desmama não encontrado', 'error');
+          showToast({ type: 'error', message: 'ID da desmama não encontrado' });
           return;
         }
 
         await db.desmamas.update(initialData.id, {
           dataDesmama: dataDesmamaBanco,
-          pesoDesmama: data.pesoDesmama,
+          pesoDesmama: pesoDesmamaNum,
           updatedAt: now,
           synced: false
         });
@@ -143,14 +146,14 @@ export default function DesmamaModal({
           description: `Desmama atualizada para animal ${animalId}`
         });
 
-        showToast('Desmama atualizada com sucesso!', 'success');
+        showToast({ type: 'success', message: 'Desmama atualizada com sucesso!' });
       }
 
       onSaved?.();
       onClose();
     } catch (error) {
       console.error('Erro ao salvar desmama:', error);
-      showToast('Erro ao salvar desmama', 'error');
+      showToast({ type: 'error', message: 'Erro ao salvar desmama' });
     } finally {
       setIsSubmitting(false);
     }
@@ -160,7 +163,7 @@ export default function DesmamaModal({
     <Modal open={open} onClose={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
         {/* Header fixo */}
-        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+        <div className="shrink-0 px-6 py-4 border-b border-gray-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-lg ${primaryColor === 'blue' ? 'bg-blue-100 dark:bg-blue-900/30' : primaryColor === 'green' ? 'bg-green-100 dark:bg-green-900/30' : primaryColor === 'purple' ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
               <Icons.Baby className={`w-5 h-5 ${primaryColor === 'blue' ? 'text-blue-600 dark:text-blue-400' : primaryColor === 'green' ? 'text-green-600 dark:text-green-400' : primaryColor === 'purple' ? 'text-purple-600 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400'}`} />

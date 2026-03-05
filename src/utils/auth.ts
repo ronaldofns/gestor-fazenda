@@ -1,10 +1,12 @@
-import CryptoJS from 'crypto-js';
-import { db } from '../db/dexieDB';
-import { Usuario, UserRole } from '../db/models';
-import { uuid } from './uuid';
+import CryptoJS from "crypto-js";
+import { supabase } from "../api/supabaseClient";
+import { db } from "../db/dexieDB";
+import { Usuario, UserRole } from "../db/models";
+import { createSyncEvent, processSyncQueue } from "./syncEvents";
+import { uuid } from "./uuid";
 
 // Chave para hash (em produção, isso deveria ser mais seguro)
-const HASH_KEY = 'gestor-fazenda-auth-key-2024';
+const HASH_KEY = "gestor-fazenda-auth-key-2024";
 
 /**
  * Gera hash da senha usando SHA256
@@ -32,9 +34,12 @@ export async function createUser(data: {
   fazendaId?: string;
 }): Promise<Usuario> {
   // Verificar se email já existe
-  const existingUser = await db.usuarios.where('email').equals(data.email.toLowerCase()).first();
+  const existingUser = await db.usuarios
+    .where("email")
+    .equals(data.email.toLowerCase())
+    .first();
   if (existingUser) {
-    throw new Error('Email já cadastrado');
+    throw new Error("Email já cadastrado");
   }
 
   const now = new Date().toISOString();
@@ -49,35 +54,36 @@ export async function createUser(data: {
     createdAt: now,
     updatedAt: now,
     synced: false,
-    remoteId: null
+    remoteId: null,
   };
 
   await db.usuarios.add(usuario);
 
   // Criar usuário no Supabase Auth (auth.users) para login com signInWithPassword e RLS
   try {
-    const { supabase } = await import('../api/supabaseClient');
     const { error } = await supabase.auth.signUp({
       email: data.email.toLowerCase(),
       password: data.senha,
       options: { data: { nome: data.nome } },
     });
-    if (error && !error.message.includes('already been registered')) {
-      console.warn('[Auth] signUp Supabase Auth:', error.message);
+    if (error && !error.message.includes("already been registered")) {
+      console.warn("[Auth] signUp Supabase Auth:", error.message);
     }
   } catch (e) {
-    console.warn('[Auth] Erro ao criar usuário no Supabase Auth:', e);
+    console.warn("[Auth] Erro ao criar usuário no Supabase Auth:", e);
   }
 
   // Enviar para usuarios_online: criar evento na fila e processar (se online)
   try {
-    const { createSyncEvent, processSyncQueue } = await import('./syncEvents');
-    await createSyncEvent('UPDATE', 'usuario', usuario.id, usuario);
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
+    await createSyncEvent("UPDATE", "usuario", usuario.id, usuario);
+    if (typeof navigator !== "undefined" && navigator.onLine) {
       await processSyncQueue();
     }
   } catch (e) {
-    console.warn('[Auth] Erro ao enfileirar/enviar usuário para usuarios_online:', e);
+    console.warn(
+      "[Auth] Erro ao enfileirar/enviar usuário para usuarios_online:",
+      e,
+    );
   }
 
   return usuario;
@@ -86,9 +92,12 @@ export async function createUser(data: {
 /**
  * Autentica um usuário
  */
-export async function authenticateUser(email: string, password: string): Promise<Usuario | null> {
+export async function authenticateUser(
+  email: string,
+  password: string,
+): Promise<Usuario | null> {
   const usuario = await db.usuarios
-    .where('email')
+    .where("email")
     .equals(email.toLowerCase())
     .first();
 
@@ -97,7 +106,7 @@ export async function authenticateUser(email: string, password: string): Promise
   }
 
   if (!usuario.ativo) {
-    throw new Error('Usuário inativo. Entre em contato com o administrador.');
+    throw new Error("Usuário inativo. Entre em contato com o administrador.");
   }
 
   if (!verifyPassword(password, usuario.senhaHash)) {
@@ -119,21 +128,21 @@ export async function updateUser(
     role: UserRole;
     fazendaId: string;
     ativo: boolean;
-  }>
+  }>,
 ): Promise<void> {
   const updateData: Partial<Usuario> = {
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   };
 
   if (data.nome !== undefined) updateData.nome = data.nome;
   if (data.email !== undefined) {
     // Verificar se email já existe em outro usuário
     const existingUser = await db.usuarios
-      .where('email')
+      .where("email")
       .equals(data.email.toLowerCase())
       .first();
     if (existingUser && existingUser.id !== id) {
-      throw new Error('Email já cadastrado para outro usuário');
+      throw new Error("Email já cadastrado para outro usuário");
     }
     updateData.email = data.email.toLowerCase();
   }
@@ -153,24 +162,26 @@ export async function updateUser(
  */
 export async function deleteUser(id: string): Promise<void> {
   const usuario = await db.usuarios.get(id);
-  
+
   // Excluir no servidor se tiver remoteId
   if (usuario?.remoteId) {
     try {
-      const { supabase } = await import('../api/supabaseClient');
-      const { error } = await supabase.from('usuarios_online').delete().eq('id', usuario.remoteId);
+      const { error } = await supabase
+        .from("usuarios_online")
+        .delete()
+        .eq("id", usuario.remoteId);
       if (error) {
         // Se o erro for de foreign key constraint, ainda podemos tentar excluir localmente
         // pois com SET NULL, os audits vão manter o histórico sem referência ao usuário
-        if (error.code !== '23503' && !error.message?.includes('foreign key')) {
-          console.warn('Erro ao excluir usuário no servidor:', error);
+        if (error.code !== "23503" && !error.message?.includes("foreign key")) {
+          console.warn("Erro ao excluir usuário no servidor:", error);
         }
       }
     } catch (err) {
-      console.warn('Erro ao excluir usuário no servidor:', err);
+      console.warn("Erro ao excluir usuário no servidor:", err);
     }
   }
-  
+
   // Excluir localmente
   await db.usuarios.delete(id);
 }
@@ -192,7 +203,8 @@ export async function getUserById(id: string): Promise<Usuario | undefined> {
 /**
  * Busca usuário por email
  */
-export async function getUserByEmail(email: string): Promise<Usuario | undefined> {
-  return await db.usuarios.where('email').equals(email.toLowerCase()).first();
+export async function getUserByEmail(
+  email: string,
+): Promise<Usuario | undefined> {
+  return await db.usuarios.where("email").equals(email.toLowerCase()).first();
 }
-
